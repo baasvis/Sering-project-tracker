@@ -100,8 +100,8 @@ async function renderProjectDetail() {
     <div class="project-detail">
       <div class="project-detail-header">
         <div class="breadcrumb">
-          <a href="#" onclick="S.currentProjectId = null; renderProjects(); return false;">Projects</a>
-          &rsaquo; <a href="#" onclick="S.selectedGroupId = '${p.groupId}'; S.currentProjectId = null; renderProjects(); return false;">${esc(p.group?.name || '')}</a>
+          <a href="#projects" onclick="S.currentProjectId = null; window.location.hash = 'projects'; renderProjects(); return false;">Projects</a>
+          &rsaquo; <a href="#projects" onclick="S.selectedGroupId = '${p.groupId}'; S.currentProjectId = null; window.location.hash = 'projects'; renderProjects(); return false;">${esc(p.group?.name || '')}</a>
           &rsaquo; ${esc(p.name)}
         </div>
         <div class="flex-between">
@@ -453,6 +453,7 @@ async function deleteTask(id) {
 function navigateToProject(projectId) {
   S.screen = 'projects';
   S.currentProjectId = projectId;
+  window.location.hash = `project/${projectId}`;
   renderCurrentScreen();
   buildNav();
 }
