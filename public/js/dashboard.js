@@ -29,7 +29,7 @@ async function renderDashboard() {
         <h2>Announcements</h2>
         ${S.isAdmin ? '<button class="btn btn-primary" onclick="showAnnouncementModal()">+ New</button>' : ''}
       </div>
-      <div id="announcements-list">
+      <div class="announcements-grid" id="announcements-list">
         ${S.announcements.length === 0
           ? '<p class="text-muted">No announcements yet.</p>'
           : S.announcements.map(renderAnnouncementCard).join('')}
@@ -55,28 +55,100 @@ async function renderDashboard() {
 async function loadAnnouncementMedia(annId) {
   try {
     const media = await apiGet(`/api/media?parentType=announcement&parentId=${annId}`);
-    const container = document.getElementById(`ann-media-${annId}`);
-    if (!container) return;
-    if (media.length > 0 || S.isAdmin) {
-      container.innerHTML = renderMediaItems(media) +
-        (S.isAdmin ? renderMediaUploadButtons('announcement', annId) : '');
+    const carousel = document.getElementById(`ann-carousel-${annId}`);
+    const extras = document.getElementById(`ann-extras-${annId}`);
+
+    const photos = media.filter(m => m.type === 'photo');
+    const voiceNotes = media.filter(m => m.type === 'voice');
+
+    // Populate carousel with photos
+    if (carousel && photos.length > 0) {
+      carousel.classList.remove('empty');
+      carousel.innerHTML = `
+        <div class="carousel-track" id="ann-track-${annId}">
+          ${photos.map(p => `<img src="/api/media/${p.id}/file" alt="${esc(p.originalName)}" onclick="openLightbox('/api/media/${p.id}/file')">`).join('')}
+        </div>
+        ${photos.length > 1 ? `
+          <button class="carousel-btn prev" onclick="event.stopPropagation(); slideCarousel('${annId}', -1)">&#8249;</button>
+          <button class="carousel-btn next" onclick="event.stopPropagation(); slideCarousel('${annId}', 1)">&#8250;</button>
+          <div class="carousel-dots">
+            ${photos.map((_, i) => `<button class="carousel-dot${i === 0 ? ' active' : ''}" onclick="event.stopPropagation(); goToSlide('${annId}', ${i})"></button>`).join('')}
+          </div>` : ''}`;
+      // Store slide state
+      carousel.dataset.slide = '0';
+      carousel.dataset.total = photos.length;
+    }
+
+    // Voice notes + upload buttons below
+    if (extras) {
+      let html = '';
+      if (voiceNotes.length > 0) html += renderMediaItems(voiceNotes);
+      if (S.isAdmin) {
+        // Photo delete buttons for carousel photos
+        if (photos.length > 0) {
+          html += `<div class="media-grid">${photos.map(p =>
+            `<div class="media-item"><img src="/api/media/${p.id}/file" class="media-thumb" style="width:40px;height:40px" alt="${esc(p.originalName)}"><button class="media-delete-btn" onclick="event.stopPropagation(); deleteMedia('${p.id}')" title="Delete" style="display:flex">&#10005;</button></div>`
+          ).join('')}</div>`;
+        }
+        html += renderMediaUploadButtons('announcement', annId);
+      }
+      if (html) extras.innerHTML = html;
     }
   } catch (e) { /* ignore */ }
 }
 
+function slideCarousel(annId, direction) {
+  const carousel = document.getElementById(`ann-carousel-${annId}`);
+  if (!carousel) return;
+  const total = parseInt(carousel.dataset.total);
+  let current = parseInt(carousel.dataset.slide);
+  current = (current + direction + total) % total;
+  carousel.dataset.slide = current;
+
+  const track = document.getElementById(`ann-track-${annId}`);
+  if (track) track.style.transform = `translateX(-${current * 100}%)`;
+
+  // Update dots
+  carousel.querySelectorAll('.carousel-dot').forEach((dot, i) => {
+    dot.classList.toggle('active', i === current);
+  });
+}
+
+function goToSlide(annId, index) {
+  const carousel = document.getElementById(`ann-carousel-${annId}`);
+  if (!carousel) return;
+  carousel.dataset.slide = index;
+
+  const track = document.getElementById(`ann-track-${annId}`);
+  if (track) track.style.transform = `translateX(-${index * 100}%)`;
+
+  carousel.querySelectorAll('.carousel-dot').forEach((dot, i) => {
+    dot.classList.toggle('active', i === index);
+  });
+}
+
+function toggleAnnouncement(id) {
+  const card = document.querySelector(`.announcement-card[data-ann-id="${id}"]`);
+  if (card) card.classList.toggle('expanded');
+}
+
 function renderAnnouncementCard(a) {
   return `<div class="announcement-card${a.pinned ? ' pinned' : ''}" data-ann-id="${a.id}">
-    <div class="announcement-meta">
-      ${a.pinned ? '<span class="tag tag-group">Pinned</span>' : ''}
-      <span>${timeAgo(a.createdAt)}</span>
-      ${S.isAdmin ? `
-        <button class="comment-delete" onclick="editAnnouncement('${a.id}')">edit</button>
-        <button class="comment-delete" onclick="deleteAnnouncement('${a.id}')">delete</button>
-      ` : ''}
+    <div class="announcement-carousel empty" id="ann-carousel-${a.id}"></div>
+    <div class="announcement-content" onclick="toggleAnnouncement('${a.id}')">
+      <div class="announcement-meta">
+        ${a.pinned ? '<span class="tag tag-group">Pinned</span>' : ''}
+        <span>${timeAgo(a.createdAt)}</span>
+      </div>
+      <h3>${esc(a.title)}</h3>
+      <div class="announcement-body">${esc(a.body)}</div>
+      <div class="announcement-expand-hint">Click to read more</div>
     </div>
-    <h3>${esc(a.title)}</h3>
-    <div class="announcement-body">${esc(a.body)}</div>
-    <div class="announcement-media" id="ann-media-${a.id}"></div>
+    ${S.isAdmin ? `<div class="announcement-admin">
+      <button class="comment-delete" onclick="editAnnouncement('${a.id}')">edit</button>
+      <button class="comment-delete" onclick="deleteAnnouncement('${a.id}')">delete</button>
+    </div>` : ''}
+    <div class="announcement-extras" id="ann-extras-${a.id}"></div>
   </div>`;
 }
 

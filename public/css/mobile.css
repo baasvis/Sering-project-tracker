@@ -18,6 +18,7 @@
   #nav-links a { font-size: var(--font-size-xs); padding: var(--space-xs); }
 
   .project-cards { grid-template-columns: 1fr; }
+  .announcements-grid { grid-template-columns: 1fr; }
   .form-row { flex-direction: column; }
   .task-detail-fields { grid-template-columns: 1fr; }
 

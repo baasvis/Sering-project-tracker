@@ -33,37 +33,155 @@
   font-size: var(--font-size-xl);
 }
 
+.announcements-grid {
+  display: grid;
+  grid-template-columns: repeat(2, 1fr);
+  gap: var(--space-md);
+}
+
 .announcement-card {
   background: var(--bg-card);
   border-radius: var(--radius-md);
-  padding: var(--space-lg);
   box-shadow: var(--shadow-sm);
   border: 1px solid var(--border-light);
-  margin-bottom: var(--space-md);
+  overflow: hidden;
 }
 
 .announcement-card.pinned {
   border-left: 4px solid var(--accent);
 }
 
+/* Carousel */
+.announcement-carousel {
+  position: relative;
+  width: 100%;
+  aspect-ratio: 16 / 9;
+  background: var(--bg-primary);
+  overflow: hidden;
+}
+
+.announcement-carousel.empty {
+  display: none;
+}
+
+.carousel-track {
+  display: flex;
+  height: 100%;
+  transition: transform 0.3s ease;
+}
+
+.carousel-track img {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+  flex-shrink: 0;
+}
+
+.carousel-btn {
+  position: absolute;
+  top: 50%;
+  transform: translateY(-50%);
+  width: 32px;
+  height: 32px;
+  border-radius: 50%;
+  border: none;
+  background: rgba(0,0,0,0.5);
+  color: white;
+  font-size: 16px;
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  opacity: 0;
+  transition: opacity 0.2s;
+}
+
+.announcement-carousel:hover .carousel-btn {
+  opacity: 1;
+}
+
+.carousel-btn.prev { left: 8px; }
+.carousel-btn.next { right: 8px; }
+.carousel-btn:hover { background: rgba(0,0,0,0.7); }
+
+.carousel-dots {
+  position: absolute;
+  bottom: 8px;
+  left: 50%;
+  transform: translateX(-50%);
+  display: flex;
+  gap: 6px;
+}
+
+.carousel-dot {
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+  border: none;
+  background: rgba(255,255,255,0.5);
+  cursor: pointer;
+  padding: 0;
+}
+
+.carousel-dot.active {
+  background: white;
+}
+
+/* Card content */
+.announcement-content {
+  padding: var(--space-md) var(--space-lg);
+  cursor: pointer;
+}
+
 .announcement-meta {
   display: flex;
   align-items: center;
   gap: var(--space-sm);
-  margin-bottom: var(--space-sm);
+  margin-bottom: var(--space-xs);
   font-size: var(--font-size-xs);
   color: var(--text-muted);
 }
 
 .announcement-card h3 {
   font-size: var(--font-size-lg);
-  margin-bottom: var(--space-sm);
+  margin-bottom: 0;
 }
 
 .announcement-body {
   color: var(--text-secondary);
   line-height: 1.6;
   white-space: pre-wrap;
+  max-height: 0;
+  overflow: hidden;
+  transition: max-height 0.3s ease, margin 0.3s ease;
+  margin-top: 0;
+}
+
+.announcement-card.expanded .announcement-body {
+  max-height: 500px;
+  margin-top: var(--space-sm);
+}
+
+.announcement-expand-hint {
+  font-size: var(--font-size-xs);
+  color: var(--text-muted);
+  margin-top: var(--space-xs);
+}
+
+.announcement-card.expanded .announcement-expand-hint {
+  display: none;
+}
+
+/* Admin actions footer */
+.announcement-admin {
+  padding: 0 var(--space-lg) var(--space-sm);
+  display: flex;
+  gap: var(--space-sm);
+}
+
+/* Voice notes + upload below carousel */
+.announcement-extras {
+  padding: var(--space-xs) var(--space-lg) var(--space-sm);
 }
 
 /* ---- Project overview on dashboard ---- */
