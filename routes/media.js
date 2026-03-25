@@ -8,13 +8,14 @@ const { requireAdmin } = require('./auth');
 
 const router = Router();
 
-// Configure multer for file uploads
+// Configure multer for file uploads — save to a flat directory
+// (req.body fields aren't available yet in destination when file comes first in FormData)
+const uploadsDir = path.join(__dirname, '..', 'uploads');
+if (!fs.existsSync(uploadsDir)) fs.mkdirSync(uploadsDir, { recursive: true });
+
 const storage = multer.diskStorage({
   destination: (req, file, cb) => {
-    const { parentType, parentId } = req.body;
-    const dir = path.join(__dirname, '..', 'uploads', parentType || 'misc', parentId || 'unknown');
-    fs.mkdirSync(dir, { recursive: true });
-    cb(null, dir);
+    cb(null, uploadsDir);
   },
   filename: (req, file, cb) => {
     const ext = path.extname(file.originalname) || '';
@@ -109,13 +110,26 @@ router.get('/', async (req, res) => {
 
 // Serve a media file
 router.get('/:id/file', async (req, res) => {
-  const media = await prisma.media.findUnique({ where: { id: req.params.id } });
-  if (!media) return res.status(404).json({ error: 'Media not found' });
+  try {
+    const media = await prisma.media.findUnique({ where: { id: req.params.id } });
+    if (!media) return res.status(404).json({ error: 'Media not found' });
 
-  const filePath = path.join(__dirname, '..', 'uploads', media.parentType, media.parentId, media.filename);
-  if (!fs.existsSync(filePath)) return res.status(404).json({ error: 'File not found on disk' });
+    // Check flat directory first (new layout), then nested (legacy uploads)
+    let filePath = path.resolve(uploadsDir, media.filename);
+    if (!fs.existsSync(filePath)) {
+      filePath = path.resolve(uploadsDir, media.parentType, media.parentId, media.filename);
+    }
+    if (!fs.existsSync(filePath)) return res.status(404).json({ error: 'File not found on disk' });
 
-  res.sendFile(filePath);
+    res.set('Content-Type', media.mimeType);
+    const stream = fs.createReadStream(filePath);
+    stream.on('error', () => {
+      if (!res.headersSent) res.status(500).json({ error: 'Failed to serve file' });
+    });
+    stream.pipe(res);
+  } catch (err) {
+    if (!res.headersSent) res.status(500).json({ error: 'Server error' });
+  }
 });
 
 // Delete media (admin only)
@@ -123,7 +137,11 @@ router.delete('/:id', requireAdmin, async (req, res) => {
   const media = await prisma.media.findUnique({ where: { id: req.params.id } });
   if (!media) return res.status(404).json({ error: 'Media not found' });
 
-  const filePath = path.join(__dirname, '..', 'uploads', media.parentType, media.parentId, media.filename);
+  // Check flat directory first, then nested (legacy)
+  let filePath = path.join(uploadsDir, media.filename);
+  if (!fs.existsSync(filePath)) {
+    filePath = path.join(uploadsDir, media.parentType, media.parentId, media.filename);
+  }
   if (fs.existsSync(filePath)) fs.unlinkSync(filePath);
 
   await prisma.media.delete({ where: { id: req.params.id } });
