@@ -1,0 +1,11 @@
+{
+  "version": "0.0.1",
+  "configurations": [
+    {
+      "name": "project-tracker",
+      "runtimeExecutable": "node",
+      "runtimeArgs": ["C:/Users/Daan/Sering-project-tracker/server.js"],
+      "port": 3001
+    }
+  ]
+}

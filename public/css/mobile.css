@@ -1,0 +1,49 @@
+/* ========================================
+   Mobile / Responsive
+   ======================================== */
+
+@media (max-width: 640px) {
+  :root {
+    --font-size-3xl: 32px;
+    --font-size-2xl: 24px;
+    --font-size-xl: 20px;
+  }
+
+  #app {
+    padding: var(--space-md) var(--space-sm);
+    padding-top: calc(var(--nav-height) + var(--space-md));
+  }
+
+  .nav-inner { padding: 0 var(--space-sm); gap: var(--space-sm); }
+  #nav-links a { font-size: var(--font-size-xs); padding: var(--space-xs); }
+
+  .project-cards { grid-template-columns: 1fr; }
+  .form-row { flex-direction: column; }
+  .task-detail-fields { grid-template-columns: 1fr; }
+
+  .project-stats { gap: var(--space-md); }
+
+  .modal {
+    width: 95%;
+    padding: var(--space-lg);
+    max-height: 85vh;
+  }
+
+  .overlay-card {
+    padding: var(--space-lg);
+  }
+
+  #toast-container {
+    left: var(--space-md);
+    right: var(--space-md);
+    bottom: var(--space-md);
+  }
+
+  .comment-form {
+    flex-direction: column;
+  }
+
+  .comment-form-actions {
+    align-self: flex-end;
+  }
+}

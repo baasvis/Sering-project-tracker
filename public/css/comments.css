@@ -1,0 +1,115 @@
+/* ========================================
+   Comments
+   ======================================== */
+
+.comments-section {
+  margin-top: var(--space-xl);
+  border-top: 1px solid var(--border);
+  padding-top: var(--space-lg);
+}
+
+.comments-section h3 {
+  margin-bottom: var(--space-md);
+}
+
+.comment-list {
+  margin-bottom: var(--space-lg);
+}
+
+.comment {
+  display: flex;
+  gap: var(--space-md);
+  padding: var(--space-md) 0;
+  border-bottom: 1px solid var(--border-light);
+}
+
+.comment:last-child { border-bottom: none; }
+
+.comment-avatar {
+  width: 36px;
+  height: 36px;
+  border-radius: 50%;
+  background: var(--sering-olive);
+  color: white;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-weight: 600;
+  font-size: var(--font-size-sm);
+  flex-shrink: 0;
+}
+
+.comment-content { flex: 1; min-width: 0; }
+
+.comment-header {
+  display: flex;
+  align-items: baseline;
+  gap: var(--space-sm);
+  margin-bottom: var(--space-xs);
+}
+
+.comment-author {
+  font-weight: 600;
+  font-size: var(--font-size-sm);
+}
+
+.comment-time {
+  font-size: var(--font-size-xs);
+  color: var(--text-muted);
+}
+
+.comment-body {
+  color: var(--text-primary);
+  line-height: 1.5;
+  white-space: pre-wrap;
+  word-break: break-word;
+}
+
+.comment-media {
+  display: flex;
+  gap: var(--space-sm);
+  margin-top: var(--space-sm);
+  flex-wrap: wrap;
+}
+
+.comment-media img {
+  max-width: 200px;
+  max-height: 150px;
+  border-radius: var(--radius-sm);
+  object-fit: cover;
+  cursor: pointer;
+}
+
+.comment-delete {
+  background: none;
+  border: none;
+  color: var(--text-muted);
+  font-size: var(--font-size-xs);
+  cursor: pointer;
+  padding: 2px 4px;
+}
+.comment-delete:hover { color: #cc0000; }
+
+/* ---- Comment form ---- */
+.comment-form {
+  display: flex;
+  gap: var(--space-sm);
+  align-items: flex-start;
+}
+
+.comment-form textarea {
+  flex: 1;
+  min-height: 44px;
+  max-height: 200px;
+  resize: vertical;
+}
+
+.comment-form-actions {
+  display: flex;
+  gap: var(--space-xs);
+  flex-shrink: 0;
+}
+
+.comment-form-actions .btn {
+  padding: var(--space-sm);
+}

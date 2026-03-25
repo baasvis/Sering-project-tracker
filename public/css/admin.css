@@ -1,0 +1,41 @@
+/* ========================================
+   Admin Panel
+   ======================================== */
+
+.admin-panel {
+  max-width: 600px;
+}
+
+.admin-section {
+  margin-bottom: var(--space-xl);
+}
+
+.admin-section h2 {
+  margin-bottom: var(--space-md);
+  padding-bottom: var(--space-sm);
+  border-bottom: 2px solid var(--border);
+}
+
+.admin-list {
+  list-style: none;
+}
+
+.admin-list-item {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  padding: var(--space-sm) var(--space-md);
+  border-radius: var(--radius-sm);
+  margin-bottom: var(--space-xs);
+  background: var(--bg-card);
+  border: 1px solid var(--border-light);
+}
+
+.admin-list-item:hover {
+  background: var(--bg-card-hover);
+}
+
+.admin-actions {
+  display: flex;
+  gap: var(--space-xs);
+}

@@ -1,0 +1,50 @@
+const { Router } = require('express');
+const prisma = require('../lib/db');
+const { requireAdmin } = require('./auth');
+
+const router = Router();
+
+// List announcements (pinned first, then newest)
+router.get('/', async (req, res) => {
+  const announcements = await prisma.announcement.findMany({
+    orderBy: [{ pinned: 'desc' }, { createdAt: 'desc' }],
+    take: req.query.limit ? parseInt(req.query.limit) : 20
+  });
+  res.json(announcements);
+});
+
+// Create announcement (admin)
+router.post('/', requireAdmin, async (req, res) => {
+  const { title, body, pinned } = req.body;
+  if (!title || !body) return res.status(400).json({ error: 'Title and body are required' });
+
+  const announcement = await prisma.announcement.create({
+    data: {
+      title,
+      body,
+      authorEmail: req.session.email,
+      pinned: pinned || false
+    }
+  });
+  res.status(201).json(announcement);
+});
+
+// Update announcement (admin)
+router.patch('/:id', requireAdmin, async (req, res) => {
+  const { title, body, pinned } = req.body;
+  const data = {};
+  if (title !== undefined) data.title = title;
+  if (body !== undefined) data.body = body;
+  if (pinned !== undefined) data.pinned = pinned;
+
+  const announcement = await prisma.announcement.update({ where: { id: req.params.id }, data });
+  res.json(announcement);
+});
+
+// Delete announcement (admin)
+router.delete('/:id', requireAdmin, async (req, res) => {
+  await prisma.announcement.delete({ where: { id: req.params.id } });
+  res.json({ ok: true });
+});
+
+module.exports = router;

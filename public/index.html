@@ -1,0 +1,59 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>De Sering — Projects</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;700&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="/css/base.css">
+  <link rel="stylesheet" href="/css/dashboard.css">
+  <link rel="stylesheet" href="/css/projects.css">
+  <link rel="stylesheet" href="/css/comments.css">
+  <link rel="stylesheet" href="/css/media.css">
+  <link rel="stylesheet" href="/css/admin.css">
+  <link rel="stylesheet" href="/css/mobile.css">
+</head>
+<body>
+  <!-- Name entry overlay (for non-admin visitors) -->
+  <div id="name-overlay" class="overlay" style="display:none">
+    <div class="overlay-card">
+      <h1>Welcome to De Sering Projects</h1>
+      <p>Enter your name to join the conversation.</p>
+      <input type="text" id="name-input" placeholder="Your name" maxlength="50" autofocus>
+      <button id="name-submit" class="btn btn-primary">Let's go</button>
+    </div>
+  </div>
+
+  <!-- Top navigation bar -->
+  <header id="top-nav">
+    <div class="nav-inner">
+      <a href="#" class="nav-logo" data-screen="dashboard">De Sering</a>
+      <nav id="nav-links"></nav>
+      <div id="nav-right">
+        <span id="user-name"></span>
+        <button id="admin-login-btn" class="btn btn-small" style="display:none">Admin</button>
+        <button id="admin-logout-btn" class="btn btn-small" style="display:none">Logout</button>
+      </div>
+    </div>
+  </header>
+
+  <!-- Main content area -->
+  <main id="app"></main>
+
+  <!-- Toast notifications -->
+  <div id="toast-container"></div>
+
+  <!-- Scripts (order matters) -->
+  <script src="/js/state.js"></script>
+  <script src="/js/auth.js"></script>
+  <script src="/js/utils.js"></script>
+  <script src="/js/media.js"></script>
+  <script src="/js/comments.js"></script>
+  <script src="/js/dashboard.js"></script>
+  <script src="/js/projects.js"></script>
+  <script src="/js/admin.js"></script>
+  <script src="/js/init.js"></script>
+</body>
+</html>
