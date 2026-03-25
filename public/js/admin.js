@@ -66,7 +66,7 @@ function showGroupModal(existing) {
     </div>
     <div class="form-group">
       <label>Description (optional)</label>
-      <textarea id="group-description" rows="2">${esc(existing?.description || '')}</textarea>
+      <div id="group-description-editor"></div>
     </div>
     <div class="modal-actions">
       <button class="btn btn-secondary" onclick="this.closest('.modal-backdrop').remove()">Cancel</button>
@@ -77,11 +77,12 @@ function showGroupModal(existing) {
   </div>`;
   backdrop.addEventListener('click', e => { if (e.target === backdrop) backdrop.remove(); });
   document.body.appendChild(backdrop);
+  createRichEditor('group-description-editor', existing?.description || '');
 }
 
 async function saveGroup(id) {
   const name = document.getElementById('group-name').value.trim();
-  const description = document.getElementById('group-description').value.trim();
+  const description = getRichEditorHTML('group-description-editor');
   if (!name) return toast('Name is required', 'error');
 
   try {

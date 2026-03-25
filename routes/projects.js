@@ -1,6 +1,7 @@
 const { Router } = require('express');
 const prisma = require('../lib/db');
 const { requireAdmin } = require('./auth');
+const { sanitize } = require('../lib/sanitize');
 
 const router = Router();
 
@@ -41,7 +42,7 @@ router.post('/', requireAdmin, async (req, res) => {
   if (!groupId || !name) return res.status(400).json({ error: 'groupId and name are required' });
 
   const project = await prisma.project.create({
-    data: { groupId, name, description, contactPerson },
+    data: { groupId, name, description: sanitize(description), contactPerson },
     include: { group: { select: { id: true, name: true } } }
   });
   res.status(201).json(project);
@@ -52,7 +53,7 @@ router.patch('/:id', requireAdmin, async (req, res) => {
   const { name, description, contactPerson, status, groupId } = req.body;
   const data = {};
   if (name !== undefined) data.name = name;
-  if (description !== undefined) data.description = description;
+  if (description !== undefined) data.description = sanitize(description);
   if (contactPerson !== undefined) data.contactPerson = contactPerson;
   if (status !== undefined) data.status = status;
   if (groupId !== undefined) data.groupId = groupId;

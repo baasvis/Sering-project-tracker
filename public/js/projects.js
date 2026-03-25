@@ -113,7 +113,7 @@ async function renderProjectDetail() {
         </div>
       </div>
 
-      ${p.description ? `<div class="project-description">${esc(p.description)}</div>` : ''}
+      ${p.description ? `<div class="project-description">${renderDescription(p.description)}</div>` : ''}
 
       ${p.contactPerson ? `<div class="project-contact mb-lg">
         <span class="text-sm text-muted">Contact:</span> <strong>${esc(p.contactPerson)}</strong>
@@ -250,7 +250,7 @@ async function showTaskDetail(taskId) {
 
     ${task.description ? `<div class="mb-lg">
       <label>Description</label>
-      <p style="white-space:pre-wrap; margin-top:var(--space-xs)">${esc(task.description)}</p>
+      <div style="margin-top:var(--space-xs)">${renderDescription(task.description)}</div>
     </div>` : ''}
 
     ${renderMediaItems(media)}
@@ -296,7 +296,7 @@ function showProjectModal(existing) {
     </div>
     <div class="form-group">
       <label>Description</label>
-      <textarea id="proj-description" rows="4" placeholder="What is this project about?">${esc(existing?.description || '')}</textarea>
+      <div id="proj-description-editor"></div>
     </div>
     <div class="form-group">
       <label>Contact Person</label>
@@ -317,6 +317,7 @@ function showProjectModal(existing) {
   </div>`;
   backdrop.addEventListener('click', e => { if (e.target === backdrop) backdrop.remove(); });
   document.body.appendChild(backdrop);
+  createRichEditor('proj-description-editor', existing?.description || '');
 }
 
 async function showEditProjectModal(id) {
@@ -326,7 +327,7 @@ async function showEditProjectModal(id) {
 async function saveProject(id) {
   const groupId = document.getElementById('proj-group')?.value;
   const name = document.getElementById('proj-name').value.trim();
-  const description = document.getElementById('proj-description').value.trim();
+  const description = getRichEditorHTML('proj-description-editor');
   const contactPerson = document.getElementById('proj-contact').value.trim();
 
   if (!name) return toast('Name is required', 'error');
@@ -376,7 +377,7 @@ function showTaskModal(existing) {
     </div>
     <div class="form-group">
       <label>Description (optional)</label>
-      <textarea id="task-description" rows="3">${esc(existing?.description || '')}</textarea>
+      <div id="task-description-editor"></div>
     </div>
     <div class="form-row">
       <div class="form-group">
@@ -405,11 +406,12 @@ function showTaskModal(existing) {
   </div>`;
   backdrop.addEventListener('click', e => { if (e.target === backdrop) backdrop.remove(); });
   document.body.appendChild(backdrop);
+  createRichEditor('task-description-editor', existing?.description || '');
 }
 
 async function saveTask(id) {
   const name = document.getElementById('task-name').value.trim();
-  const description = document.getElementById('task-description').value.trim();
+  const description = getRichEditorHTML('task-description-editor');
   const assignee = document.getElementById('task-assignee').value.trim();
   const deadline = document.getElementById('task-deadline').value;
 

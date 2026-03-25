@@ -1,6 +1,7 @@
 const { Router } = require('express');
 const prisma = require('../lib/db');
 const { requireAdmin } = require('./auth');
+const { sanitize } = require('../lib/sanitize');
 
 const router = Router();
 
@@ -40,7 +41,7 @@ router.post('/', requireAdmin, async (req, res) => {
     data: {
       projectId,
       name,
-      description,
+      description: sanitize(description),
       assignee,
       deadline: deadline ? new Date(deadline) : null,
       order: (maxOrder._max.order || 0) + 1
@@ -54,7 +55,7 @@ router.patch('/:id', requireAdmin, async (req, res) => {
   const { name, description, status, assignee, deadline, order } = req.body;
   const data = {};
   if (name !== undefined) data.name = name;
-  if (description !== undefined) data.description = description;
+  if (description !== undefined) data.description = sanitize(description);
   if (status !== undefined) data.status = status;
   if (assignee !== undefined) data.assignee = assignee;
   if (deadline !== undefined) data.deadline = deadline ? new Date(deadline) : null;

@@ -100,3 +100,90 @@ function isOverdue(dateStr) {
   if (!dateStr) return false;
   return new Date(dateStr) < new Date(new Date().toDateString());
 }
+
+// ---- Rich text editor (Quill) ----
+
+// Active Quill instances (keyed by container ID)
+const _quillInstances = {};
+
+// Create a Quill editor inside a container element
+function createRichEditor(containerId, initialHTML) {
+  const container = document.getElementById(containerId);
+  if (!container) return null;
+
+  const quill = new Quill(container, {
+    theme: 'snow',
+    placeholder: 'Add a description...',
+    modules: {
+      toolbar: [
+        [{ header: [2, 3, false] }],
+        ['bold', 'italic'],
+        [{ list: 'ordered' }, { list: 'bullet' }],
+        ['blockquote', 'link'],
+        ['clean']
+      ]
+    }
+  });
+
+  if (initialHTML) {
+    const delta = quill.clipboard.convert({ html: initialHTML });
+    quill.setContents(delta);
+  }
+
+  _quillInstances[containerId] = quill;
+  return quill;
+}
+
+// Get HTML content from a Quill editor, normalized to standard HTML
+function getRichEditorHTML(containerId) {
+  const quill = _quillInstances[containerId];
+  if (!quill) return '';
+  const html = quill.root.innerHTML;
+  // Quill uses <p><br></p> for empty content
+  if (html === '<p><br></p>' || html === '<p></p>') return '';
+  // Normalize Quill's list format to standard HTML
+  // Quill 2.x uses <ol> with <li data-list="bullet"|"ordered"> for all lists
+  return normalizeQuillHTML(html);
+}
+
+// Convert Quill's internal list markup to standard <ul>/<ol> + <li>
+function normalizeQuillHTML(html) {
+  const div = document.createElement('div');
+  div.innerHTML = html;
+
+  // Remove all ql-ui spans (Quill's internal UI elements)
+  div.querySelectorAll('.ql-ui').forEach(el => el.remove());
+
+  // Convert Quill's <ol> with data-list attributes to proper <ul>/<ol>
+  div.querySelectorAll('ol').forEach(ol => {
+    const items = ol.querySelectorAll('li[data-list]');
+    if (items.length === 0) return;
+
+    // Group consecutive items by list type
+    let currentType = null;
+    let currentList = null;
+    const fragment = document.createDocumentFragment();
+
+    items.forEach(li => {
+      const type = li.getAttribute('data-list');
+      li.removeAttribute('data-list');
+
+      if (type !== currentType) {
+        currentList = document.createElement(type === 'ordered' ? 'ol' : 'ul');
+        fragment.appendChild(currentList);
+        currentType = type;
+      }
+      currentList.appendChild(li);
+    });
+
+    ol.replaceWith(fragment);
+  });
+
+  return div.innerHTML;
+}
+
+// Render HTML description safely (only tags allowed by server sanitization)
+function renderDescription(html) {
+  if (!html) return '';
+  return `<div class="rich-content">${html}</div>`;
+}

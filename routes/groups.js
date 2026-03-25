@@ -1,6 +1,7 @@
 const { Router } = require('express');
 const prisma = require('../lib/db');
 const { requireAdmin } = require('./auth');
+const { sanitize } = require('../lib/sanitize');
 
 const router = Router();
 
@@ -50,7 +51,7 @@ router.post('/', requireAdmin, async (req, res) => {
 
   const maxOrder = await prisma.group.aggregate({ _max: { order: true } });
   const group = await prisma.group.create({
-    data: { name, description, order: (maxOrder._max.order || 0) + 1 }
+    data: { name, description: sanitize(description), order: (maxOrder._max.order || 0) + 1 }
   });
   res.status(201).json(group);
 });
@@ -60,7 +61,7 @@ router.patch('/:id', requireAdmin, async (req, res) => {
   const { name, description, order } = req.body;
   const data = {};
   if (name !== undefined) data.name = name;
-  if (description !== undefined) data.description = description;
+  if (description !== undefined) data.description = sanitize(description);
   if (order !== undefined) data.order = order;
 
   const group = await prisma.group.update({ where: { id: req.params.id }, data });
