@@ -1,6 +1,7 @@
 const { Router } = require('express');
 const prisma = require('../lib/db');
 const { requireAdmin } = require('./auth');
+const { sanitize } = require('../lib/sanitize');
 
 const router = Router();
 
@@ -21,7 +22,7 @@ router.post('/', requireAdmin, async (req, res) => {
   const announcement = await prisma.announcement.create({
     data: {
       title,
-      body,
+      body: sanitize(body),
       authorEmail: req.session.email,
       pinned: pinned || false
     }
@@ -34,7 +35,7 @@ router.patch('/:id', requireAdmin, async (req, res) => {
   const { title, body, pinned } = req.body;
   const data = {};
   if (title !== undefined) data.title = title;
-  if (body !== undefined) data.body = body;
+  if (body !== undefined) data.body = sanitize(body);
   if (pinned !== undefined) data.pinned = pinned;
 
   const announcement = await prisma.announcement.update({ where: { id: req.params.id }, data });

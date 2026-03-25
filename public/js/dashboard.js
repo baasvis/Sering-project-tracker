@@ -141,7 +141,7 @@ function renderAnnouncementCard(a) {
         <span>${timeAgo(a.createdAt)}</span>
       </div>
       <h3>${esc(a.title)}</h3>
-      <div class="announcement-body">${esc(a.body)}</div>
+      <div class="announcement-body">${renderDescription(a.body)}</div>
       <div class="announcement-expand-hint">Click to read more</div>
     </div>
     ${S.isAdmin ? `<div class="announcement-admin">
@@ -195,7 +195,7 @@ function showAnnouncementModal(existing) {
     </div>
     <div class="form-group">
       <label>Body</label>
-      <textarea id="ann-body" rows="5">${esc(existing?.body || '')}</textarea>
+      <div id="ann-body-editor"></div>
     </div>
     <div class="form-group">
       <label><input type="checkbox" id="ann-pinned" ${existing?.pinned ? 'checked' : ''}> Pin to top</label>
@@ -209,11 +209,12 @@ function showAnnouncementModal(existing) {
   </div>`;
   backdrop.addEventListener('click', e => { if (e.target === backdrop) backdrop.remove(); });
   document.body.appendChild(backdrop);
+  createRichEditor('ann-body-editor', existing?.body || '');
 }
 
 async function saveAnnouncement(id) {
   const title = document.getElementById('ann-title').value.trim();
-  const body = document.getElementById('ann-body').value.trim();
+  const body = getRichEditorHTML('ann-body-editor');
   const pinned = document.getElementById('ann-pinned').checked;
 
   if (!title || !body) return toast('Title and body are required', 'error');
