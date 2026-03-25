@@ -1,5 +1,6 @@
 const express = require('express');
 const session = require('express-session');
+const rateLimit = require('express-rate-limit');
 const path = require('path');
 const fs = require('fs');
 const { PORT, SESSION_SECRET, GOOGLE_CLIENT_ID, DEV_MODE } = require('./lib/config');
@@ -9,6 +10,35 @@ const app = express();
 // Body parsing
 app.use(express.json({ limit: '1mb' }));
 app.use(express.urlencoded({ extended: true }));
+
+// Rate limiting — general API: 100 requests per minute per IP
+const apiLimiter = rateLimit({
+  windowMs: 60 * 1000,
+  max: 100,
+  standardHeaders: true,
+  legacyHeaders: false,
+  message: { error: 'Too many requests, please try again later' }
+});
+
+// Stricter limit for write operations: 20 per minute per IP
+const writeLimiter = rateLimit({
+  windowMs: 60 * 1000,
+  max: 20,
+  standardHeaders: true,
+  legacyHeaders: false,
+  message: { error: 'Too many requests, please slow down' }
+});
+
+// Strict limit for file uploads: 10 per minute per IP
+const uploadLimiter = rateLimit({
+  windowMs: 60 * 1000,
+  max: 10,
+  standardHeaders: true,
+  legacyHeaders: false,
+  message: { error: 'Too many uploads, please wait a minute' }
+});
+
+app.use('/api', apiLimiter);
 
 // Session (for admin login)
 app.use(session({
@@ -40,8 +70,17 @@ app.use('/api/groups', require('./routes/groups'));
 app.use('/api/projects', require('./routes/projects'));
 app.use('/api/tasks', require('./routes/tasks'));
 app.use('/api/announcements', require('./routes/announcements'));
-app.use('/api/comments', require('./routes/comments'));
-app.use('/api/media', require('./routes/media'));
+
+// Comments: stricter write limit (spam protection)
+const commentsRouter = require('./routes/comments');
+app.post('/api/comments', writeLimiter);
+app.use('/api/comments', commentsRouter);
+
+// Media: strict upload limit
+const mediaRouter = require('./routes/media');
+app.post('/api/media', uploadLimiter);
+app.use('/api/media', mediaRouter);
+
 app.use('/api', require('./routes/health'));
 
 // SPA fallback — serve index.html for all non-API routes

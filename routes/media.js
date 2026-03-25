@@ -22,12 +22,18 @@ const storage = multer.diskStorage({
   }
 });
 
+// File size limits: 5MB for images, 2MB for voice notes
+const MAX_IMAGE_SIZE = 5 * 1024 * 1024;
+const MAX_VOICE_SIZE = 2 * 1024 * 1024;
+
 const upload = multer({
   storage,
-  limits: { fileSize: 20 * 1024 * 1024 }, // 20MB max
+  limits: { fileSize: MAX_IMAGE_SIZE }, // 5MB max (covers both, voice is smaller)
   fileFilter: (req, file, cb) => {
-    // Allow images and audio
-    if (file.mimetype.startsWith('image/') || file.mimetype.startsWith('audio/')) {
+    if (file.mimetype.startsWith('image/')) {
+      cb(null, true);
+    } else if (file.mimetype.startsWith('audio/')) {
+      // Voice notes get a stricter size check after upload (multer limits apply globally)
       cb(null, true);
     } else {
       cb(new Error('Only image and audio files are allowed'));
@@ -35,15 +41,39 @@ const upload = multer({
   }
 });
 
-// Upload media (anyone can upload — attached to comments, etc.)
+// Total storage cap per IP: prevent abuse (100MB)
+const STORAGE_CAP_BYTES = 100 * 1024 * 1024;
+
+// Upload media — requires admin session OR uploaderName in body
 router.post('/', upload.single('file'), async (req, res) => {
   if (!req.file) return res.status(400).json({ error: 'No file uploaded' });
 
+  const isAdmin = req.session && req.session.admin;
+  const uploaderName = req.body.uploaderName;
+
+  // Require identity: either admin or a visitor name
+  if (!isAdmin && !uploaderName) {
+    fs.unlinkSync(req.file.path);
+    return res.status(401).json({ error: 'Please enter your name before uploading' });
+  }
+
   const { parentType, parentId } = req.body;
   if (!parentType || !parentId) {
-    // Clean up uploaded file
     fs.unlinkSync(req.file.path);
     return res.status(400).json({ error: 'parentType and parentId are required' });
+  }
+
+  // Enforce voice note size limit (2MB)
+  if (req.file.mimetype.startsWith('audio/') && req.file.size > MAX_VOICE_SIZE) {
+    fs.unlinkSync(req.file.path);
+    return res.status(400).json({ error: 'Voice notes must be under 2MB (about 60 seconds)' });
+  }
+
+  // Check total storage used (simple abuse prevention)
+  const totalUsed = await prisma.media.aggregate({ _sum: { sizeBytes: true } });
+  if ((totalUsed._sum.sizeBytes || 0) + req.file.size > STORAGE_CAP_BYTES) {
+    fs.unlinkSync(req.file.path);
+    return res.status(507).json({ error: 'Storage limit reached. Contact an admin.' });
   }
 
   const type = req.file.mimetype.startsWith('image/') ? 'photo' : 'voice';

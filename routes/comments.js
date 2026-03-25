@@ -44,12 +44,41 @@ router.post('/', async (req, res) => {
   if (!targetType || !targetId || !authorName) {
     return res.status(400).json({ error: 'targetType, targetId, and authorName are required' });
   }
-  if (!body) {
+  if (!body || body.trim().length === 0) {
     return res.status(400).json({ error: 'Comment body is required' });
   }
 
+  const trimmed = body.trim();
+
+  // Spam protection: min 2 chars, max 2000 chars
+  if (trimmed.length < 2) {
+    return res.status(400).json({ error: 'Comment too short' });
+  }
+  if (trimmed.length > 2000) {
+    return res.status(400).json({ error: 'Comment too long (max 2000 characters)' });
+  }
+
+  // Name validation: 1-50 chars
+  const name = authorName.trim();
+  if (name.length < 1 || name.length > 50) {
+    return res.status(400).json({ error: 'Invalid name' });
+  }
+
+  // Duplicate detection: same author + same body within last 5 minutes
+  const fiveMinAgo = new Date(Date.now() - 5 * 60 * 1000);
+  const duplicate = await prisma.comment.findFirst({
+    where: {
+      authorName: name,
+      body: trimmed,
+      createdAt: { gte: fiveMinAgo }
+    }
+  });
+  if (duplicate) {
+    return res.status(409).json({ error: 'Duplicate comment — you already posted this' });
+  }
+
   const comment = await prisma.comment.create({
-    data: { targetType, targetId, authorName, body }
+    data: { targetType, targetId, authorName: name, body: trimmed }
   });
   res.status(201).json(comment);
 });

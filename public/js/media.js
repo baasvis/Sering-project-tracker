@@ -36,15 +36,26 @@ function renderMediaUploadButtons(parentType, parentId) {
   </div>`;
 }
 
+// Get uploader identity
+function getUploaderName() {
+  return S.isAdmin ? (S.adminEmail || 'Admin') : S.visitorName;
+}
+
 // Upload a photo
 async function uploadPhoto(input, parentType, parentId) {
   const file = input.files[0];
   if (!file) return;
 
+  if (!getUploaderName()) {
+    toast('Please enter your name first', 'error');
+    return;
+  }
+
   const formData = new FormData();
   formData.append('file', file);
   formData.append('parentType', parentType);
   formData.append('parentId', parentId);
+  formData.append('uploaderName', getUploaderName());
 
   try {
     await apiUpload('/api/media', formData);
@@ -66,6 +77,11 @@ function toggleVoiceRecorder(btn, parentType, parentId) {
     return;
   }
 
+  if (!getUploaderName()) {
+    toast('Please enter your name first', 'error');
+    return;
+  }
+
   navigator.mediaDevices.getUserMedia({ audio: true }).then(stream => {
     const recorder = new MediaRecorder(stream);
     activeRecorder = recorder;
@@ -76,10 +92,16 @@ function toggleVoiceRecorder(btn, parentType, parentId) {
     recorder.onstop = async () => {
       stream.getTracks().forEach(t => t.stop());
       const blob = new Blob(recordingChunks, { type: 'audio/webm' });
+      if (blob.size > 2 * 1024 * 1024) {
+        toast('Voice note too long (max ~60 seconds)', 'error');
+        activeRecorder = null;
+        return;
+      }
       const formData = new FormData();
       formData.append('file', blob, 'voice-note.webm');
       formData.append('parentType', parentType);
       formData.append('parentId', parentId);
+      formData.append('uploaderName', getUploaderName());
 
       try {
         await apiUpload('/api/media', formData);
@@ -95,13 +117,13 @@ function toggleVoiceRecorder(btn, parentType, parentId) {
     btn.textContent = '⏹ Stop';
     btn.classList.add('recording');
 
-    // Auto-stop after 2 minutes
+    // Auto-stop after 60 seconds (keeps voice notes under 2MB limit)
     setTimeout(() => {
       if (recorder.state === 'recording') {
         recorder.stop();
         btn.textContent = '🎤 Voice';
       }
-    }, 120000);
+    }, 60000);
   }).catch(() => {
     toast('Microphone access denied', 'error');
   });
