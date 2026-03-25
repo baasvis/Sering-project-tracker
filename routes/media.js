@@ -114,10 +114,16 @@ router.get('/:id/file', async (req, res) => {
     const media = await prisma.media.findUnique({ where: { id: req.params.id } });
     if (!media) return res.status(404).json({ error: 'Media not found' });
 
-    // Check flat directory first (new layout), then nested (legacy uploads)
+    // Check multiple possible locations for the file:
+    // 1. Flat directory (current layout)
+    // 2. Nested by parent type/id (original design)
+    // 3. misc/unknown (files uploaded before multer fix when parentType/parentId weren't available)
     let filePath = path.resolve(uploadsDir, media.filename);
     if (!fs.existsSync(filePath)) {
       filePath = path.resolve(uploadsDir, media.parentType, media.parentId, media.filename);
+    }
+    if (!fs.existsSync(filePath)) {
+      filePath = path.resolve(uploadsDir, 'misc', 'unknown', media.filename);
     }
     if (!fs.existsSync(filePath)) return res.status(404).json({ error: 'File not found on disk' });
 
@@ -137,10 +143,13 @@ router.delete('/:id', requireAdmin, async (req, res) => {
   const media = await prisma.media.findUnique({ where: { id: req.params.id } });
   if (!media) return res.status(404).json({ error: 'Media not found' });
 
-  // Check flat directory first, then nested (legacy)
+  // Check all possible file locations
   let filePath = path.join(uploadsDir, media.filename);
   if (!fs.existsSync(filePath)) {
     filePath = path.join(uploadsDir, media.parentType, media.parentId, media.filename);
+  }
+  if (!fs.existsSync(filePath)) {
+    filePath = path.join(uploadsDir, 'misc', 'unknown', media.filename);
   }
   if (fs.existsSync(filePath)) fs.unlinkSync(filePath);
 
