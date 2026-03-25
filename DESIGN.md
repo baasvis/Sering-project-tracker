@@ -258,6 +258,7 @@ Only accessible to signed-in admins:
 | groupId | UUID | FK → Group |
 | name | String | e.g. "Build terrace" |
 | description | String? | Rich text or plain |
+| contactPerson | String? | Who to contact about this project |
 | status | Enum | active / completed / archived |
 | createdAt | DateTime | |
 | updatedAt | DateTime | |
@@ -460,14 +461,27 @@ Inherited from De Sering's culture:
 
 ---
 
-## 13. Open Questions
+## 13. Security & Abuse Prevention
+
+Implemented protections for a public-facing app:
+
+- **Rate limiting** (express-rate-limit): 100 req/min general API, 20/min for write operations, 10/min for file uploads — all per IP
+- **Comment spam protection**: min 2 / max 2000 chars, duplicate detection within 5-minute window, name validation (1-50 chars)
+- **Media upload restrictions**: requires identity (admin session or visitor name), photos max 5MB, voice notes max 2MB (~60 seconds), auto-stop recording at 60s, client-side size check before upload
+- **Global storage cap**: 100MB total uploads — prevents abuse as free storage. Returns 507 when full.
+- **Admin-only moderation**: only admins can delete comments and media
+
+---
+
+## 14. Open Questions
 
 Things to decide as we build:
 
 - [ ] **Font licensing**: Can we self-host Neue Haas Grotesk Display Pro for web? If not, use Inter.
-- [ ] **Voice note length limit**: 30 seconds? 60 seconds? 2 minutes?
-- [ ] **Photo size limit**: Resize on upload? Max file size?
-- [ ] **Comment moderation**: Just admin-delete, or also a "flag" button for the community?
+- [x] **Voice note length limit**: 60 seconds, 2MB max
+- [x] **Photo size limit**: 5MB max per file
+- [x] **Comment moderation**: Admin-delete only (no community flag button for now)
 - [ ] **Notifications**: Should admins get notified of new comments? Email? In-app?
 - [ ] **Domain**: What URL will this live at? projects.desering.org? sering-projects.up.railway.app?
 - [ ] **Railway volume persistence**: Confirm Railway volume survives redeploys for uploaded media
+- [ ] **Storage cap**: 100MB is conservative — increase once Railway volume size is confirmed
