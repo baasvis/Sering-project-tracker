@@ -21,6 +21,34 @@
 
 .media-thumb:hover { transform: scale(1.05); }
 
+.media-item {
+  position: relative;
+  display: inline-block;
+}
+
+.media-delete-btn {
+  position: absolute;
+  top: -6px;
+  right: -6px;
+  width: 20px;
+  height: 20px;
+  border-radius: 50%;
+  border: none;
+  background: #cc0000;
+  color: white;
+  font-size: 10px;
+  cursor: pointer;
+  display: none;
+  align-items: center;
+  justify-content: center;
+  line-height: 1;
+  box-shadow: var(--shadow-sm);
+}
+
+.media-item:hover .media-delete-btn {
+  display: flex;
+}
+
 /* Voice note player */
 .voice-note {
   display: inline-flex;

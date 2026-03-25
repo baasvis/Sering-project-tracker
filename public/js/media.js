@@ -7,15 +7,25 @@ function renderMediaItems(mediaList) {
   if (!mediaList || mediaList.length === 0) return '';
 
   return `<div class="media-grid">${mediaList.map(m => {
+    const deleteBtn = S.isAdmin
+      ? `<button class="media-delete-btn" onclick="event.stopPropagation(); deleteMedia('${m.id}')" title="Delete">&#10005;</button>`
+      : '';
+
     if (m.type === 'photo') {
-      return `<img src="/api/media/${m.id}/file" class="media-thumb"
-                onclick="openLightbox('/api/media/${m.id}/file')"
-                alt="${esc(m.originalName)}">`;
+      return `<div class="media-item">
+        <img src="/api/media/${m.id}/file" class="media-thumb"
+              onclick="openLightbox('/api/media/${m.id}/file')"
+              alt="${esc(m.originalName)}">
+        ${deleteBtn}
+      </div>`;
     }
     if (m.type === 'voice') {
-      return `<div class="voice-note">
-        <button class="voice-note-btn" onclick="playVoice(this, '/api/media/${m.id}/file')">&#9654;</button>
-        <span class="voice-note-duration">${esc(m.originalName)}</span>
+      return `<div class="media-item">
+        <div class="voice-note">
+          <button class="voice-note-btn" onclick="playVoice(this, '/api/media/${m.id}/file')">&#9654;</button>
+          <span class="voice-note-duration">${esc(m.originalName)}</span>
+        </div>
+        ${deleteBtn}
       </div>`;
     }
     return '';
@@ -135,6 +145,18 @@ function playVoice(btn, url) {
   btn.textContent = '⏸';
   audio.play();
   audio.onended = () => { btn.innerHTML = '&#9654;'; };
+}
+
+// Delete media (admin only)
+async function deleteMedia(id) {
+  if (!confirm('Delete this file?')) return;
+  try {
+    await apiDelete(`/api/media/${id}`);
+    toast('File deleted', 'success');
+    renderCurrentScreen();
+  } catch (err) {
+    toast(err.message, 'error');
+  }
 }
 
 // Lightbox for images
