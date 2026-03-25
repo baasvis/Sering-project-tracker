@@ -94,6 +94,16 @@ app.use((err, req, res, next) => {
   res.status(500).json({ error: 'Internal server error' });
 });
 
+// Sync database schema on startup, then start listening
+const { execSync } = require('child_process');
+try {
+  console.log('Syncing database schema...');
+  execSync('npx prisma db push --skip-generate --accept-data-loss', { stdio: 'inherit', cwd: __dirname });
+  console.log('Database schema synced.');
+} catch (err) {
+  console.error('Warning: Could not sync database schema:', err.message);
+}
+
 app.listen(PORT, () => {
   console.log(`Sering Project Tracker running on http://localhost:${PORT}`);
   if (DEV_MODE) console.log('DEV MODE: No Google auth required. Use /auth/dev-login to become admin.');
