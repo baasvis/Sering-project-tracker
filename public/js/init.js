@@ -78,6 +78,21 @@ async function initApp() {
     S.devMode = true;
   }
 
+  // Initialize Google Sign-In SDK if configured
+  if (S.googleClientId) {
+    const waitForGoogle = () => {
+      if (window.google && google.accounts) {
+        google.accounts.id.initialize({
+          client_id: S.googleClientId,
+          callback: handleGoogleCredential
+        });
+      } else {
+        setTimeout(waitForGoogle, 200);
+      }
+    };
+    waitForGoogle();
+  }
+
   // Check auth
   await checkAuth();
 

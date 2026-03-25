@@ -72,8 +72,16 @@ function updateAuthUI() {
     } else if (S.googleClientId) {
       loginBtn.textContent = 'Admin';
       loginBtn.onclick = () => {
-        // Trigger Google Sign-In
-        google.accounts.id.prompt();
+        // Initialize Google SDK if not yet done, then prompt
+        if (window.google && google.accounts) {
+          google.accounts.id.initialize({
+            client_id: S.googleClientId,
+            callback: handleGoogleCredential
+          });
+          google.accounts.id.prompt();
+        } else {
+          toast('Google Sign-In not loaded yet, try again in a moment', 'error');
+        }
       };
     } else {
       loginBtn.style.display = 'none';
