@@ -230,6 +230,16 @@
   margin-bottom: var(--space-sm);
 }
 
+.project-card-tags {
+  display: flex;
+  gap: var(--space-xs);
+  flex-shrink: 0;
+}
+
+.tag-tier {
+  font-weight: 600;
+}
+
 .project-card h3 {
   font-size: var(--font-size-base);
   font-weight: 600;

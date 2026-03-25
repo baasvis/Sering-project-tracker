@@ -22,6 +22,13 @@ const STATUS_CYCLE = { todo: 'in_progress', in_progress: 'done', done: 'todo' };
 // Project statuses
 const PROJECT_STATUSES = ['active', 'completed', 'archived'];
 
+// Project tiers
+const PROJECT_TIERS = {
+  mvp:        { label: 'MVP',        color: '#FF3F00', bg: '#FFF0EB' },
+  medium:     { label: 'Medium',     color: '#494C1A', bg: '#EEF3E5' },
+  next_level: { label: 'Next Level', color: '#8F0500', bg: '#FAE8E7' }
+};
+
 // Global app state
 const S = {
   screen: 'dashboard',

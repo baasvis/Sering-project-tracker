@@ -173,7 +173,10 @@ function renderProjectCard(project, group) {
   return `<div class="project-card card-clickable" onclick="navigateToProject('${project.id}')">
     <div class="project-card-header">
       <h3>${esc(project.name)}</h3>
-      <span class="tag tag-group">${esc(group.name)}</span>
+      <div class="project-card-tags">
+        ${project.tier && PROJECT_TIERS[project.tier] ? `<span class="tag tag-tier" style="background:${PROJECT_TIERS[project.tier].bg};color:${PROJECT_TIERS[project.tier].color}">${PROJECT_TIERS[project.tier].label}</span>` : ''}
+        <span class="tag tag-group">${esc(group.name)}</span>
+      </div>
     </div>
     <div class="task-count">${done}/${total} tasks done</div>
     <div class="progress-bar">

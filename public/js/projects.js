@@ -67,7 +67,10 @@ async function renderProjects() {
           return `<div class="project-card card-clickable" onclick="navigateToProject('${p.id}')">
             <div class="project-card-header">
               <h3>${esc(p.name)}</h3>
-              <span class="tag tag-group">${esc(p.groupName)}</span>
+              <div class="project-card-tags">
+                ${p.tier && PROJECT_TIERS[p.tier] ? `<span class="tag tag-tier" style="background:${PROJECT_TIERS[p.tier].bg};color:${PROJECT_TIERS[p.tier].color}">${PROJECT_TIERS[p.tier].label}</span>` : ''}
+                <span class="tag tag-group">${esc(p.groupName)}</span>
+              </div>
             </div>
             <div class="task-count">${done}/${total} tasks done</div>
             <div class="progress-bar">
@@ -105,7 +108,10 @@ async function renderProjectDetail() {
           &rsaquo; ${esc(p.name)}
         </div>
         <div class="flex-between">
-          <h1>${esc(p.name)}</h1>
+          <div class="flex gap-sm" style="align-items:center">
+            <h1>${esc(p.name)}</h1>
+            ${p.tier && PROJECT_TIERS[p.tier] ? `<span class="tag tag-tier" style="background:${PROJECT_TIERS[p.tier].bg};color:${PROJECT_TIERS[p.tier].color}">${PROJECT_TIERS[p.tier].label}</span>` : ''}
+          </div>
           ${S.isAdmin ? `<div class="flex gap-sm">
             <button class="btn btn-ghost" onclick="showEditProjectModal('${p.id}')">Edit</button>
             <button class="btn btn-danger" onclick="deleteProject('${p.id}')">Delete</button>
@@ -298,9 +304,20 @@ function showProjectModal(existing) {
       <label>Description</label>
       <div id="proj-description-editor"></div>
     </div>
-    <div class="form-group">
-      <label>Contact Person</label>
-      <input type="text" id="proj-contact" value="${esc(existing?.contactPerson || '')}" placeholder="Who to reach out to about this project">
+    <div class="form-row">
+      <div class="form-group">
+        <label>Contact Person</label>
+        <input type="text" id="proj-contact" value="${esc(existing?.contactPerson || '')}" placeholder="Who to reach out to">
+      </div>
+      <div class="form-group">
+        <label>Tier</label>
+        <select id="proj-tier">
+          <option value="">None</option>
+          ${Object.entries(PROJECT_TIERS).map(([k, v]) =>
+            `<option value="${k}" ${existing?.tier === k ? 'selected' : ''}>${v.label}</option>`
+          ).join('')}
+        </select>
+      </div>
     </div>
     ${isEdit ? `<div class="form-group">
       <label>Status</label>
@@ -329,11 +346,12 @@ async function saveProject(id) {
   const name = document.getElementById('proj-name').value.trim();
   const description = getRichEditorHTML('proj-description-editor');
   const contactPerson = document.getElementById('proj-contact').value.trim();
+  const tier = document.getElementById('proj-tier').value;
 
   if (!name) return toast('Name is required', 'error');
   if (!groupId) return toast('Select a group first', 'error');
 
-  const data = { groupId, name, description, contactPerson: contactPerson || null };
+  const data = { groupId, name, description, contactPerson: contactPerson || null, tier: tier || null };
   const statusEl = document.getElementById('proj-status');
   if (statusEl) data.status = statusEl.value;
 

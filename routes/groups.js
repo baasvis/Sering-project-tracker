@@ -17,6 +17,7 @@ router.get('/', async (req, res) => {
           id: true,
           name: true,
           status: true,
+          tier: true,
           _count: { select: { tasks: true } },
           tasks: { select: { status: true } }
         }
