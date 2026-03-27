@@ -323,6 +323,15 @@ label {
   margin-bottom: var(--space-lg);
 }
 
+.overlay-warning {
+  font-size: var(--font-size-sm);
+  color: var(--text-muted);
+  background: rgba(0,0,0,0.05);
+  border-radius: var(--radius-sm);
+  padding: var(--space-sm) var(--space-md);
+  margin-bottom: var(--space-lg);
+}
+
 .overlay-card input {
   margin-bottom: var(--space-md);
   text-align: center;
