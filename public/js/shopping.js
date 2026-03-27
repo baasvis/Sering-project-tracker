@@ -128,8 +128,8 @@ function renderShoppingSection(items, projectId, options = {}) {
     </div>`;
   }
 
-  // Pending suggestions (admin only)
-  if (S.isAdmin && pending.length > 0) {
+  // Pending suggestions — visible to all, but admin gets approve/reject actions
+  if (pending.length > 0) {
     html += `<div class="shopping-pending">
       <h3>Pending Suggestions (${pending.length})</h3>`;
     for (const item of pending) {
@@ -139,11 +139,13 @@ function renderShoppingSection(items, projectId, options = {}) {
       html += `<div class="shopping-pending-row">
         <div>
           <span class="shopping-pending-name">${desc}</span>
-          <span class="text-muted text-sm">suggested by ${esc(item.suggestedBy)}</span>
+          <span class="text-muted text-sm">suggested by ${esc(item.suggestedBy || 'someone')}</span>
         </div>
         <div class="shopping-pending-actions">
-          <button class="btn btn-small btn-primary" onclick="approveShoppingItem('${esc(item.id)}', '${esc(projectId)}')">Approve</button>
-          <button class="btn btn-small btn-danger" onclick="deleteShoppingItem('${esc(item.id)}', '${esc(projectId)}')">Reject</button>
+          ${S.isAdmin
+            ? `<button class="btn btn-small btn-primary" onclick="approveShoppingItem('${esc(item.id)}', '${esc(projectId)}')">Approve</button>
+               <button class="btn btn-small btn-danger" onclick="deleteShoppingItem('${esc(item.id)}', '${esc(projectId)}')">Reject</button>`
+            : `<span class="pending-badge">Pending approval</span>`}
         </div>
       </div>`;
     }

@@ -32,13 +32,14 @@ async function renderProjects() {
     }
   }
 
-  // Only fetch non-active projects (completed/archived) — avoids re-fetching active ones
+  // Fetch non-active (completed/archived) and pending projects separately
   try {
-    const [completed, archived] = await Promise.all([
+    const [completed, archived, activeAll] = await Promise.all([
       apiGet('/api/projects?status=completed'),
-      apiGet('/api/projects?status=archived')
+      apiGet('/api/projects?status=archived'),
+      apiGet('/api/projects?status=active')
     ]);
-    for (const p of [...completed, ...archived]) {
+    for (const p of [...completed, ...archived, ...activeAll]) {
       if (!seenIds.has(p.id)) {
         allProjects.push({ ...p, groupName: p.group?.name || '', groupId: p.groupId });
         seenIds.add(p.id);
@@ -56,7 +57,9 @@ async function renderProjects() {
   app.innerHTML = `
     <div class="flex-between mb-lg">
       <h1>Projects</h1>
-      ${S.isAdmin ? '<button class="btn btn-primary" onclick="showProjectModal()">+ New Project</button>' : ''}
+      ${S.isAdmin
+        ? '<button class="btn btn-primary" onclick="showProjectModal()">+ New Project</button>'
+        : '<button class="btn btn-secondary" onclick="showSuggestProjectModal()">Suggest Project</button>'}
     </div>
 
     <div class="group-tabs">
@@ -72,31 +75,39 @@ async function renderProjects() {
       ${filtered.length === 0
         ? '<div class="empty-state"><h3>No projects yet</h3><p>Create a project to get started.</p></div>'
         : filtered.map(p => {
+          const isPending = p.approved === false;
           const counts = p.taskCounts || { todo: 0, in_progress: 0, done: 0 };
           const total = counts.todo + counts.in_progress + counts.done;
           const done = counts.done;
           const pct = total > 0 ? Math.round((done / total) * 100) : 0;
           const jt = p.joinType && JOIN_TYPES[p.joinType];
-          return `<div class="project-card card-clickable" onclick="navigateToProject('${p.id}')">
+          return `<div class="project-card ${isPending ? 'pending' : 'card-clickable'}" ${!isPending ? `onclick="navigateToProject('${p.id}')"` : ''}>
             <div class="project-card-header">
               <h3>${esc(p.name)}</h3>
               <div class="project-card-tags">
-                ${p.tier && PROJECT_TIERS[p.tier] ? `<span class="tag tag-tier" style="background:${PROJECT_TIERS[p.tier].bg};color:${PROJECT_TIERS[p.tier].color}">${PROJECT_TIERS[p.tier].label}</span>` : ''}
-                ${jt ? `<span class="tag tag-join-${esc(p.joinType)}">${jt.label}</span>` : ''}
+                ${isPending ? '<span class="tag tag-pending">Pending approval</span>' : ''}
+                ${!isPending && p.tier && PROJECT_TIERS[p.tier] ? `<span class="tag tag-tier" style="background:${PROJECT_TIERS[p.tier].bg};color:${PROJECT_TIERS[p.tier].color}">${PROJECT_TIERS[p.tier].label}</span>` : ''}
+                ${!isPending && jt ? `<span class="tag tag-join-${esc(p.joinType)}">${jt.label}</span>` : ''}
                 <span class="tag tag-group">${esc(p.groupName)}</span>
               </div>
             </div>
-            <div class="task-count">${done}/${total} tasks done</div>
-            <div class="progress-bar">
-              <div class="progress-bar-fill" style="width: ${pct}%"></div>
-            </div>
-            <div class="project-card-media" id="proj-media-${p.id}"></div>
+            ${isPending
+              ? `<p class="text-muted text-sm">Suggested by ${esc(p.suggestedBy || 'someone')} — waiting for admin approval</p>
+                 ${S.isAdmin ? `<div class="pending-actions mt-sm">
+                   <button class="btn btn-small btn-primary" onclick="event.stopPropagation(); approveSuggestedProject('${p.id}')">Approve</button>
+                   <button class="btn btn-small btn-danger" onclick="event.stopPropagation(); declineSuggested('project', '${p.id}')">Decline</button>
+                 </div>` : ''}`
+              : `<div class="task-count">${done}/${total} tasks done</div>
+                 <div class="progress-bar">
+                   <div class="progress-bar-fill" style="width: ${pct}%"></div>
+                 </div>
+                 <div class="project-card-media" id="proj-media-${p.id}"></div>`}
           </div>`;
         }).join('')}
     </div>`;
 
-  // Load media for project cards (parallel)
-  Promise.all(filtered.map(p => loadProjectCardMedia(p.id)));
+  // Load media for approved project cards (parallel)
+  Promise.all(filtered.filter(p => p.approved !== false).map(p => loadProjectCardMedia(p.id)));
 }
 
 // ---- Project detail ----
@@ -113,9 +124,10 @@ async function renderProjectDetail() {
 
   const p = S.currentProject;
   const tasks = p.tasks || [];
-  const total = tasks.length;
-  const done = tasks.filter(t => t.status === 'done').length;
-  const inProgress = tasks.filter(t => t.status === 'in_progress').length;
+  const approvedTasks = tasks.filter(t => t.approved !== false);
+  const total = approvedTasks.length;
+  const done = approvedTasks.filter(t => t.status === 'done').length;
+  const inProgress = approvedTasks.filter(t => t.status === 'in_progress').length;
   const pct = total > 0 ? Math.round((done / total) * 100) : 0;
 
   app.innerHTML = `
@@ -188,7 +200,9 @@ async function renderProjectDetail() {
       <div id="task-list-section" class="task-list">
         <div class="task-list-header">
           <h2>Tasks</h2>
-          ${S.isAdmin ? '<button class="btn btn-primary" onclick="showTaskModal()">+ Add Task</button>' : ''}
+          ${S.isAdmin
+            ? '<button class="btn btn-primary" onclick="showTaskModal()">+ Add Task</button>'
+            : '<button class="btn btn-secondary" onclick="showSuggestTaskModal()">Suggest Task</button>'}
         </div>
         ${tasks.length === 0
           ? '<div class="empty-state"><h3>No tasks yet</h3><p>Add tasks to track progress.</p></div>'
@@ -228,16 +242,19 @@ function rerenderTaskList() {
   section.innerHTML = `
     <div class="task-list-header">
       <h2>Tasks</h2>
-      ${S.isAdmin ? '<button class="btn btn-primary" onclick="showTaskModal()">+ Add Task</button>' : ''}
+      ${S.isAdmin
+        ? '<button class="btn btn-primary" onclick="showTaskModal()">+ Add Task</button>'
+        : '<button class="btn btn-secondary" onclick="showSuggestTaskModal()">Suggest Task</button>'}
     </div>
     ${tasks.length === 0
       ? '<div class="empty-state"><h3>No tasks yet</h3><p>Add tasks to track progress.</p></div>'
       : tasks.map(renderTaskItem).join('')}`;
 
-  // Also update the stats
-  const total = tasks.length;
-  const done = tasks.filter(t => t.status === 'done').length;
-  const inProgress = tasks.filter(t => t.status === 'in_progress').length;
+  // Update stats — only count approved tasks
+  const approvedTasks = tasks.filter(t => t.approved !== false);
+  const total = approvedTasks.length;
+  const done = approvedTasks.filter(t => t.status === 'done').length;
+  const inProgress = approvedTasks.filter(t => t.status === 'in_progress').length;
   const pct = total > 0 ? Math.round((done / total) * 100) : 0;
 
   const stats = document.querySelector('.project-stats');
@@ -257,6 +274,25 @@ function rerenderTaskList() {
 function renderTaskItem(task) {
   // Cache task for modal access
   window._taskCache[task.id] = task;
+
+  const isPending = task.approved === false;
+
+  if (isPending) {
+    return `<div class="task-item pending">
+      <div class="task-status-btn" style="cursor:default;border-style:dashed"></div>
+      <div class="task-content">
+        <div class="task-name">${esc(task.name)}</div>
+        <div class="task-meta">
+          <span class="pending-badge">Pending approval</span>
+          ${task.suggestedBy ? `<span class="text-muted">suggested by ${esc(task.suggestedBy)}</span>` : ''}
+        </div>
+      </div>
+      ${S.isAdmin ? `<div class="task-pending-actions">
+        <button class="btn btn-small btn-primary" onclick="event.stopPropagation(); approveSuggestedTask('${task.id}')">Approve</button>
+        <button class="btn btn-small btn-danger" onclick="event.stopPropagation(); declineSuggested('task', '${task.id}')">Decline</button>
+      </div>` : ''}
+    </div>`;
+  }
 
   const statusClass = task.status;
   const statusIcon = task.status === 'done' ? '&#10003;' : (task.status === 'in_progress' ? '&#9679;' : '');
@@ -580,6 +616,146 @@ async function deleteTask(id) {
     document.querySelector('.modal-backdrop')?.remove();
     rerenderTaskList();
     toast('Task deleted');
+  } catch (err) {
+    toast(err.message, 'error');
+  }
+}
+
+// ---- Suggest Task modal (non-admin) ----
+function showSuggestTaskModal() {
+  const backdrop = document.createElement('div');
+  backdrop.className = 'modal-backdrop';
+  backdrop.innerHTML = `<div class="modal">
+    <h2>Suggest a Task</h2>
+    <p class="text-muted text-sm mb-md">Your suggestion will be reviewed by an admin before it appears as an active task.</p>
+    <div class="form-group">
+      <label>Task Name</label>
+      <input type="text" id="suggest-task-name" placeholder="What needs to be done?">
+    </div>
+    <div class="modal-actions">
+      <button class="btn btn-secondary" onclick="this.closest('.modal-backdrop').remove()">Cancel</button>
+      <button class="btn btn-primary" onclick="saveSuggestedTask()">Suggest</button>
+    </div>
+  </div>`;
+  backdrop.addEventListener('click', e => { if (e.target === backdrop) backdrop.remove(); });
+  document.body.appendChild(backdrop);
+}
+
+async function saveSuggestedTask() {
+  return withDedup('saveSuggestedTask', async () => {
+    const name = document.getElementById('suggest-task-name').value.trim();
+    if (!name) return toast('Task name is required', 'error');
+
+    try {
+      const created = await apiPost('/api/tasks', {
+        projectId: S.currentProjectId,
+        name,
+        authorName: S.visitorName || 'Anonymous'
+      });
+      if (S.currentProject) {
+        S.currentProject.tasks = S.currentProject.tasks || [];
+        S.currentProject.tasks.push(created);
+      }
+      document.querySelector('.modal-backdrop')?.remove();
+      rerenderTaskList();
+      toast('Task suggestion submitted — waiting for admin approval', 'success');
+    } catch (err) {
+      toast(err.message, 'error');
+    }
+  });
+}
+
+// ---- Suggest Project modal (non-admin) ----
+function showSuggestProjectModal() {
+  if (!S.groups || S.groups.length === 0) {
+    toast('No groups available to suggest a project in', 'error');
+    return;
+  }
+  const backdrop = document.createElement('div');
+  backdrop.className = 'modal-backdrop';
+  backdrop.innerHTML = `<div class="modal">
+    <h2>Suggest a Project</h2>
+    <p class="text-muted text-sm mb-md">Your suggestion will be reviewed by an admin before it appears as an active project.</p>
+    <div class="form-group">
+      <label>Group / Theme</label>
+      <select id="suggest-proj-group">
+        ${S.groups.map(g => `<option value="${g.id}">${esc(g.name)}</option>`).join('')}
+      </select>
+    </div>
+    <div class="form-group">
+      <label>Project Name</label>
+      <input type="text" id="suggest-proj-name" placeholder="What project do you have in mind?">
+    </div>
+    <div class="modal-actions">
+      <button class="btn btn-secondary" onclick="this.closest('.modal-backdrop').remove()">Cancel</button>
+      <button class="btn btn-primary" onclick="saveSuggestedProject()">Suggest</button>
+    </div>
+  </div>`;
+  backdrop.addEventListener('click', e => { if (e.target === backdrop) backdrop.remove(); });
+  document.body.appendChild(backdrop);
+}
+
+async function saveSuggestedProject() {
+  return withDedup('saveSuggestedProject', async () => {
+    const groupId = document.getElementById('suggest-proj-group')?.value;
+    const name = document.getElementById('suggest-proj-name').value.trim();
+    if (!name) return toast('Project name is required', 'error');
+    if (!groupId) return toast('Select a group', 'error');
+
+    try {
+      await apiPost('/api/projects', {
+        groupId,
+        name,
+        authorName: S.visitorName || 'Anonymous'
+      });
+      document.querySelector('.modal-backdrop')?.remove();
+      renderCurrentScreen();
+      toast('Project suggestion submitted — waiting for admin approval', 'success');
+    } catch (err) {
+      toast(err.message, 'error');
+    }
+  });
+}
+
+// ---- Approve / Decline suggested tasks and projects (admin) ----
+async function approveSuggestedTask(taskId) {
+  try {
+    const updated = await apiPatch(`/api/tasks/${taskId}/approve`, {});
+    if (S.currentProject && S.currentProject.tasks) {
+      const idx = S.currentProject.tasks.findIndex(t => t.id === taskId);
+      if (idx !== -1) S.currentProject.tasks[idx] = { ...S.currentProject.tasks[idx], ...updated };
+    }
+    rerenderTaskList();
+    toast('Task approved', 'success');
+  } catch (err) {
+    toast(err.message, 'error');
+  }
+}
+
+async function approveSuggestedProject(projectId) {
+  try {
+    await apiPatch(`/api/projects/${projectId}/approve`, {});
+    renderCurrentScreen();
+    toast('Project approved', 'success');
+  } catch (err) {
+    toast(err.message, 'error');
+  }
+}
+
+async function declineSuggested(type, id) {
+  if (!confirm(`Decline and delete this suggested ${type}?`)) return;
+  try {
+    if (type === 'task') {
+      await apiDelete(`/api/tasks/${id}`);
+      if (S.currentProject && S.currentProject.tasks) {
+        S.currentProject.tasks = S.currentProject.tasks.filter(t => t.id !== id);
+      }
+      rerenderTaskList();
+    } else {
+      await apiDelete(`/api/projects/${id}`);
+      renderCurrentScreen();
+    }
+    toast(`Suggestion declined`);
   } catch (err) {
     toast(err.message, 'error');
   }

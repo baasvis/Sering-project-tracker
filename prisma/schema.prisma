@@ -28,6 +28,8 @@ model Project {
   tier          String?  // mvp, medium, next_level
   joinType      String?  // open, contact, closed
   status        String   @default("active") // active, completed, archived
+  approved      Boolean  @default(true)
+  suggestedBy   String?
   createdAt   DateTime @default(now())
   updatedAt   DateTime @updatedAt
   tasks         Task[]
@@ -46,6 +48,8 @@ model Task {
   assignee    String?
   deadline    DateTime?
   order       Int       @default(0)
+  approved    Boolean   @default(true)
+  suggestedBy String?
   createdAt   DateTime  @default(now())
   updatedAt   DateTime  @updatedAt
 

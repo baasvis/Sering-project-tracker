@@ -24,14 +24,15 @@ router.get('/', asyncHandler(async (req, res) => {
     include: {
       _count: { select: { projects: true } },
       projects: {
-        where: { status: 'active' },
+        where: { status: 'active', approved: true },
         select: {
           id: true,
           name: true,
           status: true,
           tier: true,
+          joinType: true,
           _count: { select: { tasks: true } },
-          tasks: { select: { status: true } }
+          tasks: { where: { approved: true }, select: { status: true } }
         }
       }
     }
@@ -62,7 +63,7 @@ router.get('/:id', validateId, asyncHandler(async (req, res) => {
         orderBy: { createdAt: 'desc' },
         include: {
           _count: { select: { tasks: true } },
-          tasks: { select: { status: true } }
+          tasks: { where: { approved: true }, select: { status: true } }
         }
       }
     }
