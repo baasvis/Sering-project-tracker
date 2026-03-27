@@ -50,6 +50,12 @@ async function renderAdmin() {
           <button class="btn btn-primary" onclick="S.screen='dashboard'; renderCurrentScreen(); showAnnouncementModal()">+ Announcement</button>
         </div>
       </div>
+
+      <div class="admin-section">
+        <h2>Data Export</h2>
+        <p class="text-muted text-sm mt-sm">Download all data as CSVs — open in Google Sheets via File → Import.</p>
+        <a href="/api/export" class="btn btn-ghost mt-md" download>↓ Export all data</a>
+      </div>
     </div>`;
 }
 

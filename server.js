@@ -95,6 +95,7 @@ const mediaRouter = require('./routes/media');
 app.post('/api/media', uploadLimiter);
 app.use('/api/media', mediaRouter);
 
+app.use('/api/export', require('./routes/export'));
 app.use('/api', require('./routes/health'));
 
 // SPA fallback — serve index.html for all non-API routes
