@@ -4,7 +4,9 @@
 - Node.js/Express server, vanilla JS frontend (no build step, no bundler)
 - All frontend JS files loaded as `<script>` tags — functions are global
 - PostgreSQL database via Prisma ORM
-- Google Sign-In for admin auth; visitors enter a name (no login)
+- Google Sign-In for admin auth (JWT verified via google-auth-library); visitors enter a name (no login)
+- Quill.js rich text editor for descriptions (loaded from CDN)
+- HTML sanitization via sanitize-html on the server
 - Hosted on Railway (auto-deploy, Postgres plugin)
 
 ## Project Structure
@@ -13,64 +15,77 @@ server.js              — Express app entry point, mounts routers
 lib/
   config.js            — Configuration, env vars, admin email list
   db.js                — Prisma client instance
-  prisma-client.js     — Re-export from generated prisma
+  sanitize.js          — HTML sanitization for rich text (allowlist-based)
+  async-handler.js     — Wraps async route handlers for error propagation
+  media-utils.js       — Shared file deletion utility
 routes/
   auth.js              — Google Sign-In (admin), dev login, requireAdmin middleware
-  groups.js            — Group CRUD
-  projects.js          — Project CRUD with group relations
+  groups.js            — Group CRUD with task status counts
+  projects.js          — Project CRUD with group relations, tier, joinType
   tasks.js             — Task CRUD within projects
-  announcements.js     — Announcement CRUD (admin only)
+  announcements.js     — Announcement CRUD (admin only), includes media inline
   comments.js          — Comment CRUD (anyone can post, admin can delete)
   media.js             — File upload/serve/delete (photos + voice notes)
+  shopping.js          — Shopping list per project (items + costs)
+  export.js            — Admin CSV export (all tables as ZIP)
   health.js            — Health check endpoint
 public/
   index.html           — Shell HTML + name overlay
   css/
-    base.css           — Variables, resets, layout, brand styles
-    dashboard.css      — Dashboard + announcements
+    base.css           — Variables, resets, layout, brand styles, Quill overrides
+    dashboard.css      — Dashboard + announcements + carousel
     projects.css       — Project list + detail + tasks
     comments.css       — Comment threads
     media.css          — Media display, voice recorder, lightbox
+    shopping.css       — Shopping list table + budget
     admin.css          — Admin panel
     mobile.css         — Responsive overrides
   js/
-    state.js           — Constants, NAV_SCREENS, global state object S
+    state.js           — Constants (NAV_SCREENS, TASK_STATUSES, PROJECT_TIERS, JOIN_TYPES), global state S
     auth.js            — Google Sign-In, dev login, name overlay
-    utils.js           — API helpers (apiGet/apiPost/apiPatch/apiDelete), toast, esc, timeAgo
-    media.js           — Photo upload, voice recording, lightbox
-    comments.js        — Comment rendering + posting
-    dashboard.js       — Dashboard screen (announcements + project overview)
-    projects.js        — Project list, project detail, task list, modals
-    admin.js           — Admin panel (group management)
+    utils.js           — API helpers, toast, esc, timeAgo, Quill editor helpers, showLoading, withDedup
+    media.js           — Photo upload, voice recording, lightbox, media delete
+    comments.js        — Comment rendering + posting (with dedup)
+    dashboard.js       — Dashboard screen (announcements with carousel + project overview)
+    projects.js        — Project list, project detail, task list, modals, targeted re-renders
+    shopping.js        — Shopping list UI per project
+    budget.js          — Budget overview screen
+    admin.js           — Admin panel (group management, data export)
     init.js            — Navigation, routing, app bootstrap (MUST load last)
 prisma/
-  schema.prisma        — Database schema (Group, Project, Task, Announcement, Comment, Media)
+  schema.prisma        — Database schema
 uploads/               — User-uploaded media files (gitignored)
 ```
 
 ## Script Load Order
 Scripts must load in the order listed in index.html:
-`state.js` → `auth.js` → `utils.js` → `media.js` → `comments.js` → `dashboard.js` → `projects.js` → `admin.js` → `init.js` (last)
+`state.js` → `auth.js` → `utils.js` → `media.js` → `comments.js` → `dashboard.js` → `projects.js` → `shopping.js` → `budget.js` → `admin.js` → `init.js` (last)
 
 ## Conventions
 - All frontend functions are global (no modules, no import/export)
 - State lives in the global `S` object (defined in state.js)
 - Each screen has a render function: `renderDashboard()`, `renderProjects()`, `renderAdmin()`
 - `renderCurrentScreen()` dispatches to the active screen
-- Hash-based routing: `#dashboard`, `#projects`, `#admin`, `#project/{id}`
+- Hash-based routing: `#dashboard`, `#projects`, `#budget`, `#admin`, `#project/{id}`
 - Two auth tiers: admin (Google Sign-In) and visitor (name in localStorage)
 - Admin-only actions use `requireAdmin` middleware server-side
+- All async route handlers wrapped in `asyncHandler()` for error propagation
+- Rich text descriptions sanitized server-side (sanitize-html allowlist)
 - CSS variables defined in base.css match De Sering brand guidelines
+- Request deduplication via `withDedup()` on mutation actions (save, delete)
+- Task status cycling updates local state + DOM without full page re-render
 
 ## Key Data Flow
-- `GET /api/groups` returns groups with nested active projects and task status counts
-- `GET /api/projects/:id` returns project with tasks
-- `GET /api/announcements` returns announcements (pinned first, newest)
+- `GET /api/groups` returns groups with nested active projects and `taskCounts` (todo/in_progress/done)
+- `GET /api/projects/:id` returns project with full tasks array
+- `GET /api/announcements` returns announcements with inline media (batch-fetched)
 - `GET /api/comments?targetType=X&targetId=Y` returns comments with attached media
 - `POST /api/media` accepts multipart form upload (photo or voice)
-- `GET /api/media/:id/file` serves the uploaded file
+- `GET /api/media/:id/file` serves the uploaded file (checks flat + nested + misc paths)
+- `GET /api/export` returns ZIP of CSV files (admin only)
 - Comments: anyone can create (requires authorName); only admin can delete
-- Tasks: flexible status (todo/in_progress/done), optional assignee + deadline
+- Tasks: validated status (todo/in_progress/done), optional assignee + deadline
+- Projects: validated status (active/completed/archived), optional tier + joinType
 
 ## Running
 ```bash
@@ -85,3 +100,5 @@ Without `GOOGLE_CLIENT_ID`, runs in dev mode (use /auth/dev-login).
 - Don't use import/export in frontend files
 - Don't change the Prisma schema without creating a migration
 - Don't break the script load order in index.html
+- Don't remove asyncHandler wrapping from route handlers
+- Don't bypass sanitize() for user-provided HTML content
