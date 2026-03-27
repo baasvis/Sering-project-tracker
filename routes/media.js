@@ -7,6 +7,7 @@ const prisma = require('../lib/db');
 const { requireAdmin } = require('./auth');
 const asyncHandler = require('../lib/async-handler');
 const { deleteMediaFile } = require('../lib/media-utils');
+const { validateId, isValidUuid } = require('../lib/validate');
 
 const router = Router();
 
@@ -81,10 +82,13 @@ router.post('/', upload.single('file'), asyncHandler(async (req, res) => {
     fs.unlinkSync(req.file.path);
     return res.status(400).json({ error: 'parentType and parentId are required' });
   }
-
   if (!VALID_PARENT_TYPES.includes(parentType)) {
     fs.unlinkSync(req.file.path);
     return res.status(400).json({ error: `Invalid parentType. Must be one of: ${VALID_PARENT_TYPES.join(', ')}` });
+  }
+  if (!isValidUuid(parentId)) {
+    fs.unlinkSync(req.file.path);
+    return res.status(400).json({ error: 'Invalid parentId format' });
   }
 
   // Enforce voice note size limit (2MB)
@@ -126,6 +130,12 @@ router.get('/', asyncHandler(async (req, res) => {
   if (!parentType || !parentId) {
     return res.status(400).json({ error: 'parentType and parentId required' });
   }
+  if (!VALID_PARENT_TYPES.includes(parentType)) {
+    return res.status(400).json({ error: 'Invalid parentType' });
+  }
+  if (!isValidUuid(parentId)) {
+    return res.status(400).json({ error: 'Invalid parentId format' });
+  }
 
   const media = await prisma.media.findMany({
     where: { parentType, parentId },
@@ -135,12 +145,20 @@ router.get('/', asyncHandler(async (req, res) => {
 }));
 
 // Serve a media file
-router.get('/:id/file', asyncHandler(async (req, res) => {
+router.get('/:id/file', validateId, asyncHandler(async (req, res) => {
   const media = await prisma.media.findUnique({ where: { id: req.params.id } });
   if (!media) return res.status(404).json({ error: 'Media not found' });
 
+  // Validate filename to prevent path traversal
+  const safeFilename = path.basename(media.filename);
+  let filePath = path.resolve(uploadsDir, safeFilename);
+
+  // Ensure resolved path is still within uploads directory
+  if (!filePath.startsWith(path.resolve(uploadsDir))) {
+    return res.status(403).json({ error: 'Access denied' });
+  }
+
   // Check multiple possible locations for the file
-  let filePath = path.resolve(uploadsDir, media.filename);
   if (!fs.existsSync(filePath)) {
     filePath = path.resolve(uploadsDir, media.parentType, media.parentId, media.filename);
   }
@@ -159,7 +177,7 @@ router.get('/:id/file', asyncHandler(async (req, res) => {
 }));
 
 // Delete media (admin only)
-router.delete('/:id', requireAdmin, asyncHandler(async (req, res) => {
+router.delete('/:id', validateId, requireAdmin, asyncHandler(async (req, res) => {
   const media = await prisma.media.findUnique({ where: { id: req.params.id } });
   if (!media) return res.status(404).json({ error: 'Media not found' });
 

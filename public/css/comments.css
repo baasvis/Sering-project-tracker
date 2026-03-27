@@ -73,7 +73,7 @@
   cursor: pointer;
   padding: 2px 4px;
 }
-.comment-delete:hover { color: #cc0000; }
+.comment-delete:hover { color: var(--color-danger); }
 
 /* ---- Comment form ---- */
 .comment-form {

@@ -21,13 +21,14 @@ app.use(helmet({
       scriptSrc: ["'self'", "https://accounts.google.com", "https://apis.google.com", "https://cdn.jsdelivr.net"],
       styleSrc: ["'self'", "'unsafe-inline'", "https://accounts.google.com", "https://cdn.jsdelivr.net"],
       imgSrc: ["'self'", "data:", "blob:"],
-      connectSrc: ["'self'"],
+      connectSrc: ["'self'", "https://accounts.google.com"],
       frameSrc: ["https://accounts.google.com"],
       fontSrc: ["'self'"],
       mediaSrc: ["'self'", "blob:"],
       scriptSrcAttr: ["'unsafe-inline'"], // app uses onclick handlers extensively
     }
   },
+  crossOriginOpenerPolicy: { policy: 'same-origin-allow-popups' },
   crossOriginEmbedderPolicy: false, // needed for Google Sign-In
 }));
 
@@ -63,6 +64,11 @@ const uploadLimiter = rateLimit({
 });
 
 app.use('/api', apiLimiter);
+
+// Write limiter also covers DELETE (prevent mass deletion)
+app.delete('/api/comments/:id', writeLimiter);
+app.delete('/api/media/:id', writeLimiter);
+app.delete('/api/shopping/:id', writeLimiter);
 
 // Session (for admin login)
 app.use(session({

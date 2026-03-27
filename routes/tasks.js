@@ -3,6 +3,7 @@ const prisma = require('../lib/db');
 const { requireAdmin } = require('./auth');
 const { sanitize } = require('../lib/sanitize');
 const asyncHandler = require('../lib/async-handler');
+const { validateId, isValidUuid } = require('../lib/validate');
 
 const router = Router();
 
@@ -21,7 +22,7 @@ router.get('/', asyncHandler(async (req, res) => {
 }));
 
 // Get single task
-router.get('/:id', asyncHandler(async (req, res) => {
+router.get('/:id', validateId, asyncHandler(async (req, res) => {
   const task = await prisma.task.findUnique({
     where: { id: req.params.id },
     include: { project: { select: { id: true, name: true, groupId: true } } }
@@ -34,6 +35,7 @@ router.get('/:id', asyncHandler(async (req, res) => {
 router.post('/', requireAdmin, asyncHandler(async (req, res) => {
   const { projectId, name, description, assignee, deadline } = req.body;
   if (!projectId || !name) return res.status(400).json({ error: 'projectId and name are required' });
+  if (!isValidUuid(projectId)) return res.status(400).json({ error: 'Invalid projectId format' });
 
   const maxOrder = await prisma.task.aggregate({
     where: { projectId },
@@ -54,7 +56,7 @@ router.post('/', requireAdmin, asyncHandler(async (req, res) => {
 }));
 
 // Update task (admin)
-router.patch('/:id', requireAdmin, asyncHandler(async (req, res) => {
+router.patch('/:id', validateId, requireAdmin, asyncHandler(async (req, res) => {
   const { name, description, status, assignee, deadline, order } = req.body;
 
   if (status !== undefined && !VALID_TASK_STATUSES.includes(status)) {
@@ -74,7 +76,7 @@ router.patch('/:id', requireAdmin, asyncHandler(async (req, res) => {
 }));
 
 // Delete task (admin)
-router.delete('/:id', requireAdmin, asyncHandler(async (req, res) => {
+router.delete('/:id', validateId, requireAdmin, asyncHandler(async (req, res) => {
   await prisma.task.delete({ where: { id: req.params.id } });
   res.json({ ok: true });
 }));

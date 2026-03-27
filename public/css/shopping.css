@@ -5,7 +5,7 @@
 /* ---- Shopping List Section ---- */
 
 .shopping-list {
-  border: 1px solid #e0ddd8;
+  border: 1px solid var(--border);
   border-radius: var(--radius-md);
   background: var(--bg-card);
   padding: var(--space-lg);
@@ -57,7 +57,7 @@
   text-transform: uppercase;
   letter-spacing: 0.05em;
   color: var(--text-secondary);
-  border-bottom: 1px solid #e0ddd8;
+  border-bottom: 1px solid var(--border);
 }
 
 /* Admin header/rows with actions column */
@@ -72,7 +72,7 @@
   gap: var(--space-sm);
   padding: var(--space-sm) var(--space-md);
   align-items: center;
-  border-bottom: 1px solid #f0ede8;
+  border-bottom: 1px solid var(--border-light);
   transition: background 0.15s;
 }
 
@@ -122,7 +122,7 @@
 .shopping-check {
   width: 32px;
   height: 32px;
-  border: 2px solid #ccc;
+  border: 2px solid var(--border);
   border-radius: 4px;
   background: white;
   cursor: pointer;
@@ -160,7 +160,7 @@
   justify-content: space-between;
   align-items: center;
   padding: var(--space-sm) var(--space-md);
-  border-bottom: 1px solid #f0ede8;
+  border-bottom: 1px solid var(--border-light);
   gap: var(--space-sm);
 }
 
@@ -201,7 +201,7 @@
 .shopping-pending {
   margin-top: var(--space-lg);
   padding-top: var(--space-md);
-  border-top: 1px dashed #ccc;
+  border-top: 1px dashed var(--border);
 }
 
 .shopping-pending h3 {
@@ -218,7 +218,7 @@
   justify-content: space-between;
   align-items: center;
   padding: var(--space-sm) var(--space-md);
-  background: #fff9e6;
+  background: #FFF8E0;
   border-radius: var(--radius-sm);
   margin-bottom: var(--space-xs);
   gap: var(--space-md);
@@ -251,11 +251,11 @@
 }
 
 .btn-icon:hover {
-  background: #f0ede8;
+  background: var(--border-light);
 }
 
 .btn-icon-danger:hover {
-  background: #fde8e8;
+  background: #FDE8E8;
   color: var(--sering-red);
 }
 
@@ -288,7 +288,7 @@
 }
 
 .budget-project {
-  border: 1px solid #e0ddd8;
+  border: 1px solid var(--border);
   border-radius: var(--radius-md);
   background: var(--bg-card);
   overflow: hidden;

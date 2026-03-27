@@ -34,7 +34,7 @@
   height: 20px;
   border-radius: 50%;
   border: none;
-  background: #cc0000;
+  background: var(--color-danger);
   color: white;
   font-size: 10px;
   cursor: pointer;
@@ -108,8 +108,20 @@
 
 /* Recording state — applied to media-upload-btn when recording */
 .media-upload-btn.recording {
-  border-color: #cc0000;
-  color: #cc0000;
+  border-color: var(--color-danger);
+  color: var(--color-danger);
+  animation: pulse 1s infinite;
+}
+
+/* Voice recorder */
+.voice-recorder {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--space-sm);
+}
+
+.voice-recorder.recording .record-btn {
+  background: var(--color-danger);
   animation: pulse 1s infinite;
 }
 

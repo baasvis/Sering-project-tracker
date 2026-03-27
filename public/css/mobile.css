@@ -14,8 +14,11 @@
     padding-top: calc(var(--nav-height) + var(--space-md));
   }
 
-  .nav-inner { padding: 0 var(--space-sm); gap: var(--space-sm); }
-  #nav-links a { font-size: var(--font-size-xs); padding: var(--space-xs); }
+  .nav-inner { padding: 0 var(--space-sm); gap: 4px; }
+  #nav-links { gap: 4px; overflow-x: auto; -webkit-overflow-scrolling: touch; scrollbar-width: none; }
+  #nav-links::-webkit-scrollbar { display: none; }
+  #nav-links a { font-size: var(--font-size-sm); padding: 3px 10px 5px; white-space: nowrap; flex-shrink: 0; }
+  .nav-logo { font-size: var(--font-size-lg); margin-right: 4px; }
 
   .project-cards { grid-template-columns: 1fr; }
   .announcements-grid { grid-template-columns: 1fr; }

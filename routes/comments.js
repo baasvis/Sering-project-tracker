@@ -3,6 +3,7 @@ const prisma = require('../lib/db');
 const { requireAdmin } = require('./auth');
 const asyncHandler = require('../lib/async-handler');
 const { deleteMediaFile } = require('../lib/media-utils');
+const { validateId, isValidUuid } = require('../lib/validate');
 
 const router = Router();
 
@@ -13,6 +14,12 @@ router.get('/', asyncHandler(async (req, res) => {
   const { targetType, targetId } = req.query;
   if (!targetType || !targetId) {
     return res.status(400).json({ error: 'targetType and targetId required' });
+  }
+  if (!VALID_TARGET_TYPES.includes(targetType)) {
+    return res.status(400).json({ error: 'Invalid targetType' });
+  }
+  if (!isValidUuid(targetId)) {
+    return res.status(400).json({ error: 'Invalid targetId format' });
   }
 
   const comments = await prisma.comment.findMany({
@@ -48,11 +55,12 @@ router.post('/', asyncHandler(async (req, res) => {
   if (!targetType || !targetId || !authorName) {
     return res.status(400).json({ error: 'targetType, targetId, and authorName are required' });
   }
-
   if (!VALID_TARGET_TYPES.includes(targetType)) {
     return res.status(400).json({ error: `Invalid targetType. Must be one of: ${VALID_TARGET_TYPES.join(', ')}` });
   }
-
+  if (!isValidUuid(targetId)) {
+    return res.status(400).json({ error: 'Invalid targetId format' });
+  }
   if (!body || body.trim().length === 0) {
     return res.status(400).json({ error: 'Comment body is required' });
   }
@@ -93,7 +101,7 @@ router.post('/', asyncHandler(async (req, res) => {
 }));
 
 // Delete comment (admin only)
-router.delete('/:id', requireAdmin, asyncHandler(async (req, res) => {
+router.delete('/:id', validateId, requireAdmin, asyncHandler(async (req, res) => {
   // Also delete associated media files
   const media = await prisma.media.findMany({
     where: { parentType: 'comment', parentId: req.params.id }

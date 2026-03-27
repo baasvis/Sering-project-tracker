@@ -8,8 +8,9 @@
 
 .dashboard-header h1 {
   font-size: var(--font-size-3xl);
-  font-weight: 700;
+  font-weight: 600;
   letter-spacing: -0.5px;
+  color: var(--accent);
 }
 
 .dashboard-header p {
@@ -42,9 +43,13 @@
 .announcement-card {
   background: var(--bg-card);
   border-radius: var(--radius-md);
-  box-shadow: var(--shadow-sm);
   border: 1px solid var(--border-light);
   overflow: hidden;
+  transition: border-color 0.15s;
+}
+
+.announcement-card:hover {
+  border-color: var(--border);
 }
 
 .announcement-card.pinned {
@@ -212,15 +217,15 @@
   background: var(--bg-card);
   border-radius: var(--radius-md);
   padding: var(--space-md) var(--space-lg);
-  box-shadow: var(--shadow-sm);
   border: 1px solid var(--border-light);
   cursor: pointer;
-  transition: box-shadow 0.15s, transform 0.1s;
+  transition: border-color 0.15s, transform 0.15s;
 }
 
 .project-card:hover {
-  box-shadow: var(--shadow-md);
-  transform: translateY(-1px);
+  border-color: var(--border);
+  transform: translateY(-2px);
+  box-shadow: var(--shadow-sm);
 }
 
 .project-card-header {

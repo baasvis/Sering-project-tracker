@@ -24,7 +24,7 @@
 }
 
 .group-tab:hover { border-color: var(--text-muted); color: var(--text-primary); }
-.group-tab.active { background: var(--sering-black); color: white; border-color: var(--sering-black); }
+.group-tab.active { background: var(--sering-olive); color: white; border-color: var(--sering-olive); }
 
 /* ---- Project detail ---- */
 .project-detail {
@@ -151,7 +151,7 @@
 }
 
 .task-meta .deadline { color: var(--accent); font-weight: 500; }
-.task-meta .deadline.overdue { color: #cc0000; }
+.task-meta .deadline.overdue { color: var(--color-danger); }
 
 /* ---- Task detail modal ---- */
 .task-detail-header {

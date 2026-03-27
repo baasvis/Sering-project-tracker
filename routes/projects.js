@@ -3,6 +3,7 @@ const prisma = require('../lib/db');
 const { requireAdmin } = require('./auth');
 const { sanitize } = require('../lib/sanitize');
 const asyncHandler = require('../lib/async-handler');
+const { validateId, isValidUuid } = require('../lib/validate');
 
 const router = Router();
 
@@ -40,7 +41,7 @@ router.get('/', asyncHandler(async (req, res) => {
 }));
 
 // Get single project with tasks
-router.get('/:id', asyncHandler(async (req, res) => {
+router.get('/:id', validateId, asyncHandler(async (req, res) => {
   const project = await prisma.project.findUnique({
     where: { id: req.params.id },
     include: {
@@ -67,7 +68,7 @@ router.post('/', requireAdmin, asyncHandler(async (req, res) => {
 }));
 
 // Update project (admin)
-router.patch('/:id', requireAdmin, asyncHandler(async (req, res) => {
+router.patch('/:id', validateId, requireAdmin, asyncHandler(async (req, res) => {
   const { name, description, contactPerson, status, groupId, tier, joinType } = req.body;
 
   if (status !== undefined && !VALID_PROJECT_STATUSES.includes(status)) {
@@ -75,6 +76,7 @@ router.patch('/:id', requireAdmin, asyncHandler(async (req, res) => {
   }
   if (joinType && !VALID_JOIN_TYPES.includes(joinType)) return res.status(400).json({ error: 'Invalid joinType' });
   if (tier && !VALID_TIERS.includes(tier)) return res.status(400).json({ error: 'Invalid tier' });
+  if (groupId && !isValidUuid(groupId)) return res.status(400).json({ error: 'Invalid groupId format' });
 
   const data = {};
   if (name !== undefined) data.name = name;
@@ -94,7 +96,7 @@ router.patch('/:id', requireAdmin, asyncHandler(async (req, res) => {
 }));
 
 // Delete project (admin)
-router.delete('/:id', requireAdmin, asyncHandler(async (req, res) => {
+router.delete('/:id', validateId, requireAdmin, asyncHandler(async (req, res) => {
   await prisma.project.delete({ where: { id: req.params.id } });
   res.json({ ok: true });
 }));

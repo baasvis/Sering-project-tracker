@@ -11,13 +11,17 @@ function formatEuro(amount) {
   return '€' + Number(amount).toFixed(2);
 }
 
-// Calculate totals from a list of shopping items
+// Calculate totals from a list of shopping items (single pass)
 function calcShoppingTotals(items) {
-  const approved = items.filter(i => i.approved);
-  const products = approved.filter(i => i.type === 'product');
-  const costs = approved.filter(i => i.type === 'cost');
-  const productTotal = products.reduce((sum, i) => sum + (i.pricePerItem || 0) * (i.quantity || 1), 0);
-  const costTotal = costs.reduce((sum, i) => sum + (i.amount || 0), 0);
+  let productTotal = 0, costTotal = 0;
+  for (const i of items) {
+    if (!i.approved) continue;
+    if (i.type === 'product') {
+      productTotal += (i.pricePerItem || 0) * (i.quantity || 1);
+    } else if (i.type === 'cost') {
+      costTotal += (i.amount || 0);
+    }
+  }
   return { productTotal, costTotal, total: productTotal + costTotal };
 }
 

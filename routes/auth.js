@@ -30,6 +30,7 @@ router.post('/google', async (req, res) => {
     });
     const payload = ticket.getPayload();
     const email = (payload.email || '').toLowerCase();
+    const name = payload.name || email;
 
     if (!ADMIN_EMAILS.includes(email)) {
       return res.status(403).json({ error: 'Not an admin email' });
@@ -37,7 +38,7 @@ router.post('/google', async (req, res) => {
 
     req.session.admin = true;
     req.session.email = email;
-    req.session.name = payload.name || email;
+    req.session.name = name;
     res.json({ admin: true, email });
   } catch (err) {
     console.error('Google auth error:', err);
