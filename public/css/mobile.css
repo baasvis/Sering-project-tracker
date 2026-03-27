@@ -84,6 +84,22 @@
     grid-template-columns: 1fr;
   }
 
+  /* Pending task actions — stack below content on mobile */
+  .task-item.pending {
+    flex-wrap: wrap;
+  }
+
+  .task-pending-actions {
+    width: 100%;
+    padding-left: calc(24px + var(--space-md));
+    margin-top: var(--space-xs);
+  }
+
+  /* Pending project actions */
+  .pending-actions {
+    flex-wrap: wrap;
+  }
+
   /* Budget responsive */
   .budget-project-info {
     flex-wrap: wrap;

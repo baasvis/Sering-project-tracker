@@ -630,7 +630,7 @@ function showSuggestTaskModal() {
     <p class="text-muted text-sm mb-md">Your suggestion will be reviewed by an admin before it appears as an active task.</p>
     <div class="form-group">
       <label>Task Name</label>
-      <input type="text" id="suggest-task-name" placeholder="What needs to be done?">
+      <input type="text" id="suggest-task-name" maxlength="200" placeholder="What needs to be done?">
     </div>
     <div class="modal-actions">
       <button class="btn btn-secondary" onclick="this.closest('.modal-backdrop').remove()">Cancel</button>
@@ -684,7 +684,7 @@ function showSuggestProjectModal() {
     </div>
     <div class="form-group">
       <label>Project Name</label>
-      <input type="text" id="suggest-proj-name" placeholder="What project do you have in mind?">
+      <input type="text" id="suggest-proj-name" maxlength="200" placeholder="What project do you have in mind?">
     </div>
     <div class="modal-actions">
       <button class="btn btn-secondary" onclick="this.closest('.modal-backdrop').remove()">Cancel</button>

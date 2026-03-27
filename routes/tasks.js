@@ -66,10 +66,16 @@ router.post('/', asyncHandler(async (req, res) => {
     _max: { order: true }
   });
 
+  // Sanitize and validate task name
+  const trimmedName = stripTags(String(name).trim());
+  if (trimmedName.length < 1 || trimmedName.length > 200) {
+    return res.status(400).json({ error: 'Task name must be 1-200 characters' });
+  }
+
   const task = await prisma.task.create({
     data: {
       projectId,
-      name,
+      name: trimmedName,
       description: isAdmin ? sanitize(description) : null,
       assignee: isAdmin ? (assignee || null) : null,
       deadline: (isAdmin && deadline) ? new Date(deadline) : null,

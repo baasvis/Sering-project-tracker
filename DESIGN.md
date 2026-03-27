@@ -96,7 +96,8 @@ Two tiers:
 - **No login required** — just enter a name when first visiting
 - Name stored in localStorage, shown on their comments
 - Can: view everything, comment on everything (with media)
-- Cannot: create/edit/delete groups, projects, tasks, or announcements
+- Can: suggest tasks, projects, and shopping items (pending admin approval — visible to all as greyed-out pending)
+- Cannot: create/edit/delete groups, announcements, or directly approved items
 
 ---
 
@@ -219,11 +220,11 @@ Browse and explore:
 
 Single project view:
 - **Header**: Project name, group tag, description, media, progress bar
-- **Task list**: All tasks with status, optional assignee, optional deadline
-- **Shopping list**: Products (name, link, price, quantity) and extra costs (description, amount) with totals
+- **Task list**: All tasks with status, optional assignee, optional deadline. Pending tasks shown greyed out with dashed border for all users; admins see Approve / Decline buttons
+- **Shopping list**: Products (name, link, price, quantity) and extra costs (description, amount) with totals. Pending suggestions visible to all, greyed out; admins see Approve / Reject
 - **Comments section**: Thread of comments (text + media) from anyone
-- Admin controls: edit project, add/edit/delete tasks, manage shopping items
-- Visitors can suggest shopping items (pending admin approval)
+- Admin controls: edit project, add/edit/delete tasks, approve/decline suggestions, manage shopping items
+- Visitors can suggest tasks and shopping items (pending admin approval — shown immediately as greyed-out pending)
 
 ### Screen: Task Detail
 
@@ -274,6 +275,8 @@ Only accessible to signed-in admins:
 | description | String? | Rich text or plain |
 | contactPerson | String? | Who to contact about this project |
 | status | Enum | active / completed / archived |
+| approved | Boolean | true for admin-created; false = pending approval |
+| suggestedBy | String? | Visitor name if suggestion |
 | createdAt | DateTime | |
 | updatedAt | DateTime | |
 
@@ -288,6 +291,8 @@ Only accessible to signed-in admins:
 | assignee | String? | Free text name |
 | deadline | Date? | Optional |
 | order | Int | Display order within project |
+| approved | Boolean | true for admin-created; false = pending approval |
+| suggestedBy | String? | Visitor name if suggestion |
 | createdAt | DateTime | |
 | updatedAt | DateTime | |
 
@@ -378,17 +383,19 @@ This app has ~6 screens with relatively simple interactions. The most complex pa
 - `DELETE /api/groups/:id` — Delete group (admin, only if no projects)
 
 ### Projects
-- `GET /api/projects` — List projects (optional `?groupId=` filter)
-- `GET /api/projects/:id` — Single project with tasks
-- `POST /api/projects` — Create project (admin)
+- `GET /api/projects` — List projects (optional `?groupId=`, `?status=` filter) — includes pending
+- `GET /api/projects/:id` — Single project with all tasks (including pending)
+- `POST /api/projects` — Create project (admin, auto-approved) or suggest project (visitor, pending approval)
 - `PATCH /api/projects/:id` — Update project (admin)
-- `DELETE /api/projects/:id` — Delete project (admin)
+- `PATCH /api/projects/:id/approve` — Approve a suggested project (admin)
+- `DELETE /api/projects/:id` — Delete / decline project (admin)
 
 ### Tasks
 - `GET /api/projects/:projectId/tasks` — List tasks for project
-- `POST /api/projects/:projectId/tasks` — Create task (admin)
+- `POST /api/tasks` — Create task (admin, auto-approved) or suggest task (visitor, pending approval)
 - `PATCH /api/tasks/:id` — Update task (admin)
-- `DELETE /api/tasks/:id` — Delete task (admin)
+- `PATCH /api/tasks/:id/approve` — Approve a suggested task (admin)
+- `DELETE /api/tasks/:id` — Delete / decline task (admin)
 
 ### Announcements
 - `GET /api/announcements` — List announcements (newest first)

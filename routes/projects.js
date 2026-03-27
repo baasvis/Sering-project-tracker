@@ -85,10 +85,16 @@ router.post('/', asyncHandler(async (req, res) => {
   const group = await prisma.group.findUnique({ where: { id: groupId }, select: { id: true } });
   if (!group) return res.status(404).json({ error: 'Group not found' });
 
+  // Sanitize and validate project name
+  const trimmedName = stripTags(String(name).trim());
+  if (trimmedName.length < 1 || trimmedName.length > 200) {
+    return res.status(400).json({ error: 'Project name must be 1-200 characters' });
+  }
+
   const project = await prisma.project.create({
     data: {
       groupId,
-      name,
+      name: trimmedName,
       description: isAdmin ? sanitize(description) : null,
       contactPerson: isAdmin ? (contactPerson || null) : null,
       tier: isAdmin ? (tier || null) : null,
