@@ -92,10 +92,15 @@ router.delete('/:id', requireAdmin, async (req, res) => {
 
   const fs = require('fs');
   const path = require('path');
-  for (const m of media) {
-    const filePath = path.join(__dirname, '..', 'uploads', m.parentType, m.parentId, m.filename);
-    if (fs.existsSync(filePath)) fs.unlinkSync(filePath);
-  }
+  const uploadsDir = path.join(__dirname, '..', 'uploads');
+  await Promise.all(media.map(m => {
+    const filePath = path.join(uploadsDir, m.filename);
+    return fs.promises.unlink(filePath).catch(() => {
+      // Try nested path as fallback
+      const nested = path.join(uploadsDir, m.parentType, m.parentId, m.filename);
+      return fs.promises.unlink(nested).catch(() => {});
+    });
+  }));
 
   await prisma.media.deleteMany({ where: { parentType: 'comment', parentId: req.params.id } });
   await prisma.comment.delete({ where: { id: req.params.id } });

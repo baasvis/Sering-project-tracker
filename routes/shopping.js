@@ -48,6 +48,11 @@ router.get('/summary', async (req, res) => {
       group: { select: { name: true } },
       shoppingItems: {
         where: { approved: true },
+        select: {
+          id: true, type: true, name: true, link: true,
+          pricePerItem: true, quantity: true, amount: true,
+          purchased: true, suggestedBy: true, order: true
+        },
         orderBy: { order: 'asc' }
       }
     },

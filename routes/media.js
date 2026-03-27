@@ -42,8 +42,24 @@ const upload = multer({
   }
 });
 
-// Total storage cap per IP: prevent abuse (100MB)
+// Total storage cap: prevent abuse (100MB)
 const STORAGE_CAP_BYTES = 100 * 1024 * 1024;
+
+// Cache total storage used to avoid full table scan on every upload
+let cachedStorageUsed = null;
+let storageCacheTime = 0;
+const STORAGE_CACHE_TTL = 60 * 1000; // 1 minute
+
+async function getTotalStorageUsed() {
+  const now = Date.now();
+  if (cachedStorageUsed !== null && now - storageCacheTime < STORAGE_CACHE_TTL) {
+    return cachedStorageUsed;
+  }
+  const result = await prisma.media.aggregate({ _sum: { sizeBytes: true } });
+  cachedStorageUsed = result._sum.sizeBytes || 0;
+  storageCacheTime = now;
+  return cachedStorageUsed;
+}
 
 // Upload media — requires admin session OR uploaderName in body
 router.post('/', upload.single('file'), async (req, res) => {
@@ -70,9 +86,9 @@ router.post('/', upload.single('file'), async (req, res) => {
     return res.status(400).json({ error: 'Voice notes must be under 2MB (about 60 seconds)' });
   }
 
-  // Check total storage used (simple abuse prevention)
-  const totalUsed = await prisma.media.aggregate({ _sum: { sizeBytes: true } });
-  if ((totalUsed._sum.sizeBytes || 0) + req.file.size > STORAGE_CAP_BYTES) {
+  // Check total storage used (cached, simple abuse prevention)
+  const totalUsed = await getTotalStorageUsed();
+  if (totalUsed + req.file.size > STORAGE_CAP_BYTES) {
     fs.unlinkSync(req.file.path);
     return res.status(507).json({ error: 'Storage limit reached. Contact an admin.' });
   }
@@ -90,6 +106,9 @@ router.post('/', upload.single('file'), async (req, res) => {
       sizeBytes: req.file.size
     }
   });
+
+  // Update cached storage total
+  if (cachedStorageUsed !== null) cachedStorageUsed += req.file.size;
 
   res.status(201).json(media);
 });
@@ -153,6 +172,9 @@ router.delete('/:id', requireAdmin, async (req, res) => {
     filePath = path.join(uploadsDir, 'misc', 'unknown', media.filename);
   }
   if (fs.existsSync(filePath)) fs.unlinkSync(filePath);
+
+  // Invalidate storage cache on delete
+  cachedStorageUsed = null;
 
   await prisma.media.delete({ where: { id: req.params.id } });
   res.json({ ok: true });

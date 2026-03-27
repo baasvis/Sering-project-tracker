@@ -73,6 +73,7 @@ model Comment {
   createdAt  DateTime @default(now())
 
   @@index([targetType, targetId])
+  @@index([authorName, createdAt])
 }
 
 model ShoppingItem {

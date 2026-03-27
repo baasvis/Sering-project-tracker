@@ -89,10 +89,8 @@ async function renderProjects() {
         }).join('')}
     </div>`;
 
-  // Load media for project cards
-  for (const p of filtered) {
-    loadProjectCardMedia(p.id);
-  }
+  // Load media for project cards (parallel)
+  Promise.all(filtered.map(p => loadProjectCardMedia(p.id)));
 }
 
 // ---- Project detail ----
