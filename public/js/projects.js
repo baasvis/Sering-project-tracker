@@ -76,9 +76,15 @@ async function renderProjects() {
             <div class="progress-bar">
               <div class="progress-bar-fill" style="width: ${pct}%"></div>
             </div>
+            <div class="project-card-media" id="proj-media-${p.id}"></div>
           </div>`;
         }).join('')}
     </div>`;
+
+  // Load media for project cards
+  for (const p of filtered) {
+    loadProjectCardMedia(p.id);
+  }
 }
 
 // ---- Project detail ----

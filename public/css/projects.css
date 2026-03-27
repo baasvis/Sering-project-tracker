@@ -169,3 +169,17 @@
   gap: var(--space-md);
   margin-bottom: var(--space-lg);
 }
+
+/* ---- Project card media ---- */
+.project-card-media:empty {
+  display: none;
+}
+
+.project-card-photos {
+  margin-top: var(--space-sm);
+}
+
+.project-card-photos .media-thumb {
+  width: 48px;
+  height: 48px;
+}

@@ -50,6 +50,13 @@ async function renderDashboard() {
   for (const a of S.announcements) {
     loadAnnouncementMedia(a.id);
   }
+
+  // Load media for each project card
+  for (const g of S.groups) {
+    for (const p of (g.projects || [])) {
+      loadProjectCardMedia(p.id);
+    }
+  }
 }
 
 async function loadAnnouncementMedia(annId) {
@@ -182,7 +189,24 @@ function renderProjectCard(project, group) {
     <div class="progress-bar">
       <div class="progress-bar-fill" style="width: ${pct}%"></div>
     </div>
+    <div class="project-card-media" id="proj-media-${project.id}"></div>
   </div>`;
+}
+
+async function loadProjectCardMedia(projectId) {
+  try {
+    const media = await apiGet(`/api/media?parentType=project&parentId=${projectId}`);
+    const container = document.getElementById(`proj-media-${projectId}`);
+    if (!container) return;
+    const photos = media.filter(m => m.type === 'photo');
+    if (photos.length > 0) {
+      container.innerHTML = `<div class="media-grid project-card-photos">${photos.map(m =>
+        `<img src="/api/media/${m.id}/file" class="media-thumb"
+              onclick="event.stopPropagation(); openLightbox('/api/media/${m.id}/file')"
+              alt="${esc(m.originalName)}">`
+      ).join('')}</div>`;
+    }
+  } catch (e) { /* ignore */ }
 }
 
 // Announcement modal
