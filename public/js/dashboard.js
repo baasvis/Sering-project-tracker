@@ -152,6 +152,7 @@ function renderAnnouncementCard(a) {
         <span>${timeAgo(a.createdAt)}</span>
       </div>
       <h3>${esc(a.title)}</h3>
+      <p class="announcement-preview">${esc(extractPreviewText(a.body))}</p>
       <div class="announcement-body">${renderDescription(a.body)}</div>
       <div class="announcement-expand-hint">Click to read more</div>
     </div>
@@ -164,7 +165,7 @@ function renderAnnouncementCard(a) {
 }
 
 function renderGroupSection(group) {
-  const activeProjects = filterProjectsByTier(group.projects || []);
+  const activeProjects = sortProjectsByTier(filterProjectsByTier(group.projects || []));
   if (activeProjects.length === 0) return '';
 
   return `<div class="group-section">
@@ -176,13 +177,15 @@ function renderGroupSection(group) {
 }
 
 function renderProjectCard(project, group) {
-  // Use taskCounts from the backend (transformed response)
   const counts = project.taskCounts || { todo: 0, in_progress: 0, done: 0 };
   const total = counts.todo + counts.in_progress + counts.done;
   const done = counts.done;
   const pct = total > 0 ? Math.round((done / total) * 100) : 0;
+  const isExpanded = S._expandedCardId === project.id;
 
-  return `<div class="project-card card-clickable" onclick="navigateToProject('${project.id}')">
+  return `<div class="project-card card-clickable ${isExpanded ? 'expanded' : ''}"
+               id="project-card-${project.id}"
+               onclick="toggleProjectCard('${project.id}')">
     <div class="project-card-header">
       <h3>${esc(project.name)}</h3>
       <div class="project-card-tags">
@@ -196,7 +199,64 @@ function renderProjectCard(project, group) {
       <div class="progress-bar-fill" style="width: ${pct}%"></div>
     </div>
     <div class="project-card-media" id="proj-media-${project.id}"></div>
+    <div class="project-card-expanded" id="proj-expanded-${project.id}">
+      <div class="project-card-expanded-content"></div>
+    </div>
   </div>`;
+}
+
+async function toggleProjectCard(projectId) {
+  // Collapse if already expanded
+  if (S._expandedCardId === projectId) {
+    S._expandedCardId = null;
+    const card = document.getElementById('project-card-' + projectId);
+    if (card) card.classList.remove('expanded');
+    return;
+  }
+
+  // Collapse previous
+  if (S._expandedCardId) {
+    const prev = document.getElementById('project-card-' + S._expandedCardId);
+    if (prev) prev.classList.remove('expanded');
+  }
+
+  S._expandedCardId = projectId;
+  const card = document.getElementById('project-card-' + projectId);
+  if (!card) return;
+  card.classList.add('expanded');
+
+  const contentEl = card.querySelector('.project-card-expanded-content');
+  if (!contentEl) return;
+
+  // Check cache
+  let project = S._expandedProjects[projectId];
+  if (!project) {
+    contentEl.innerHTML = '<div class="loading-spinner" style="margin:var(--space-md) 0"></div>';
+    try {
+      project = await apiGet('/api/projects/' + projectId);
+      S._expandedProjects[projectId] = project;
+    } catch (err) {
+      contentEl.innerHTML = '<p class="text-muted">Could not load details.</p>';
+      return;
+    }
+  }
+
+  const tasks = (project.tasks || []).filter(t => t.approved !== false);
+  const statusIcon = { done: '&#10003;', in_progress: '&#9679;', todo: '' };
+
+  contentEl.innerHTML =
+    (project.description ? '<div class="project-card-description">' + renderDescription(project.description) + '</div>' : '') +
+    (tasks.length > 0
+      ? '<div class="project-card-tasks"><h4>Tasks</h4>' +
+        tasks.map(t =>
+          '<div class="inline-task-item">' +
+            '<div class="task-status-dot ' + t.status + '">' + (statusIcon[t.status] || '') + '</div>' +
+            '<span class="' + (t.status === 'done' ? 'task-done' : '') + '">' + esc(t.name) + '</span>' +
+          '</div>'
+        ).join('') +
+        '</div>'
+      : '') +
+    '<button class="btn btn-secondary btn-small mt-sm" onclick="event.stopPropagation(); navigateToProject(\'' + projectId + '\')">View full details &rarr;</button>';
 }
 
 // Batch-fetch media for all project cards in one API call (avoids N+1)

@@ -63,4 +63,8 @@ const S = {
 
   // Cache for safe data passing (avoids XSS via JSON in onclick)
   _taskCache: {},
+
+  // Fold-open card state
+  _expandedCardId: null,
+  _expandedProjects: {},
 };

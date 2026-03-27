@@ -53,7 +53,7 @@ async function renderProjects() {
   let filtered = S.selectedGroupId
     ? allProjects.filter(p => p.groupId === S.selectedGroupId)
     : allProjects;
-  filtered = filterProjectsByTier(filtered);
+  filtered = sortProjectsByTier(filterProjectsByTier(filtered));
 
   app.innerHTML = `
     <div class="flex-between mb-lg">
@@ -78,39 +78,29 @@ async function renderProjects() {
       ${filtered.length === 0
         ? '<div class="empty-state"><h3>No projects yet</h3><p>Create a project to get started.</p></div>'
         : filtered.map(p => {
-          const isPending = p.approved === false;
-          const counts = p.taskCounts || { todo: 0, in_progress: 0, done: 0 };
-          const total = counts.todo + counts.in_progress + counts.done;
-          const done = counts.done;
-          const pct = total > 0 ? Math.round((done / total) * 100) : 0;
-          const jt = p.joinType && JOIN_TYPES[p.joinType];
-          return `<div class="project-card ${isPending ? 'pending' : 'card-clickable'}" ${!isPending ? `onclick="navigateToProject('${p.id}')"` : ''}>
-            <div class="project-card-header">
-              <h3>${esc(p.name)}</h3>
-              <div class="project-card-tags">
-                ${isPending ? '<span class="tag tag-pending">Pending approval</span>' : ''}
-                ${!isPending && p.tier && PROJECT_TIERS[p.tier] ? `<span class="tag tag-tier" style="background:${PROJECT_TIERS[p.tier].bg};color:${PROJECT_TIERS[p.tier].color}">${PROJECT_TIERS[p.tier].label}</span>` : ''}
-                ${!isPending && jt ? `<span class="tag tag-join-${esc(p.joinType)}">${jt.label}</span>` : ''}
-                <span class="tag tag-group">${esc(p.groupName)}</span>
+          if (p.approved === false) {
+            return `<div class="project-card pending">
+              <div class="project-card-header">
+                <h3>${esc(p.name)}</h3>
+                <div class="project-card-tags">
+                  <span class="tag tag-pending">Pending approval</span>
+                  <span class="tag tag-group">${esc(p.groupName)}</span>
+                </div>
               </div>
-            </div>
-            ${isPending
-              ? `<p class="text-muted text-sm">Suggested by ${esc(p.suggestedBy || 'someone')} — waiting for admin approval</p>
-                 ${S.isAdmin ? `<div class="pending-actions mt-sm">
-                   <button class="btn btn-small btn-primary" onclick="event.stopPropagation(); approveSuggestedProject('${p.id}')">Approve</button>
-                   <button class="btn btn-small btn-danger" onclick="event.stopPropagation(); declineSuggested('project', '${p.id}')">Decline</button>
-                 </div>` : ''}`
-              : `<div class="task-count">${done}/${total} tasks done</div>
-                 <div class="progress-bar">
-                   <div class="progress-bar-fill" style="width: ${pct}%"></div>
-                 </div>
-                 <div class="project-card-media" id="proj-media-${p.id}"></div>`}
-          </div>`;
+              <p class="text-muted text-sm">Suggested by ${esc(p.suggestedBy || 'someone')} — waiting for admin approval</p>
+              ${S.isAdmin ? `<div class="pending-actions mt-sm">
+                <button class="btn btn-small btn-primary" onclick="event.stopPropagation(); approveSuggestedProject('${p.id}')">Approve</button>
+                <button class="btn btn-small btn-danger" onclick="event.stopPropagation(); declineSuggested('project', '${p.id}')">Decline</button>
+              </div>` : ''}
+            </div>`;
+          }
+          return renderProjectCard(p, { name: p.groupName });
         }).join('')}
     </div>`;
 
-  // Load media for approved project cards (parallel)
-  Promise.all(filtered.filter(p => p.approved !== false).map(p => loadProjectCardMedia(p.id)));
+  // Load media for approved project cards (batch)
+  const approvedIds = filtered.filter(p => p.approved !== false).map(p => p.id);
+  loadAllProjectCardMedia(approvedIds);
 }
 
 // ---- Project detail ----

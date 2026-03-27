@@ -177,6 +177,21 @@
   display: none;
 }
 
+.announcement-preview {
+  font-size: var(--font-size-sm);
+  color: var(--text-secondary);
+  margin-top: var(--space-xs);
+  line-height: 1.5;
+  display: -webkit-box;
+  -webkit-line-clamp: 2;
+  -webkit-box-orient: vertical;
+  overflow: hidden;
+}
+
+.announcement-card.expanded .announcement-preview {
+  display: none;
+}
+
 /* Admin actions footer */
 .announcement-admin {
   padding: 0 var(--space-lg) var(--space-sm);

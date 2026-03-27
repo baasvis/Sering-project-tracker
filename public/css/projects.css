@@ -265,3 +265,81 @@
   width: 96px;
   height: 96px;
 }
+
+/* ---- Fold-open expanded project card ---- */
+.project-card.expanded {
+  grid-column: 1 / -1;
+  border-color: var(--accent);
+}
+
+.project-card.expanded:hover {
+  transform: none;
+}
+
+.project-card-expanded {
+  display: none;
+}
+
+.project-card.expanded .project-card-expanded {
+  display: block;
+  margin-top: var(--space-md);
+  border-top: 1px solid var(--border-light);
+  padding-top: var(--space-md);
+}
+
+.project-card-description {
+  color: var(--text-secondary);
+  line-height: 1.6;
+  margin-bottom: var(--space-md);
+}
+
+.project-card-tasks h4 {
+  font-size: var(--font-size-sm);
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
+  color: var(--text-muted);
+  margin-bottom: var(--space-sm);
+}
+
+.inline-task-item {
+  display: flex;
+  align-items: center;
+  gap: var(--space-sm);
+  padding: var(--space-xs) 0;
+  font-size: var(--font-size-sm);
+}
+
+.task-status-dot {
+  flex-shrink: 0;
+  width: 18px;
+  height: 18px;
+  border-radius: 50%;
+  border: 2px solid var(--border);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 10px;
+  color: transparent;
+}
+
+.task-status-dot.in_progress {
+  border-color: var(--status-progress);
+  background: #FFF0EB;
+  color: var(--status-progress);
+}
+
+.task-status-dot.done {
+  border-color: var(--status-done);
+  background: var(--status-done);
+  color: white;
+}
+
+.task-done {
+  text-decoration: line-through;
+  color: var(--text-muted);
+}
+
+.project-card-tasks {
+  margin-bottom: var(--space-md);
+}

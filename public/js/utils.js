@@ -204,6 +204,28 @@ function filterProjectsByTier(projects) {
   return projects.filter(p => p.tier === S.selectedTier);
 }
 
+// Sort projects by tier: MVP → Medium → Next Level → no tier
+const TIER_ORDER = { mvp: 0, medium: 1, next_level: 2 };
+function sortProjectsByTier(projects) {
+  return projects.slice().sort((a, b) => {
+    const oa = TIER_ORDER[a.tier] ?? 3;
+    const ob = TIER_ORDER[b.tier] ?? 3;
+    return oa - ob;
+  });
+}
+
+// Extract preview text from HTML content (first paragraph, truncated)
+function extractPreviewText(html, maxLength) {
+  if (!html) return '';
+  maxLength = maxLength || 150;
+  const div = document.createElement('div');
+  div.innerHTML = html;
+  const firstP = div.querySelector('p');
+  const text = (firstP ? firstP.textContent : div.textContent).trim();
+  if (text.length <= maxLength) return text;
+  return text.slice(0, maxLength).replace(/\s+\S*$/, '') + '\u2026';
+}
+
 // Loading spinner — show while fetching screen data
 function showLoading() {
   document.getElementById('app').innerHTML = '<div class="loading-spinner"></div>';
