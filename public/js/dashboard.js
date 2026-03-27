@@ -41,14 +41,16 @@ async function renderDashboard() {
 
     ${renderTierButtons()}
 
-    <div class="projects-overview">
+    <div class="projects-overview" id="dashboard-projects-overview">
       <div class="section-header">
         <h2>Active Projects</h2>
         ${S.isAdmin ? '<button class="btn btn-primary" onclick="showProjectModal()">+ New Project</button>' : ''}
       </div>
-      ${S.groups.length === 0
-        ? '<p class="text-muted">No projects yet.</p>'
-        : S.groups.map(renderGroupSection).join('')}
+      <div id="dashboard-group-sections">
+        ${S.groups.length === 0
+          ? '<p class="text-muted">No projects yet.</p>'
+          : S.groups.map(renderGroupSection).join('')}
+      </div>
     </div>`;
 
   // Load announcement media (inline from backend) + batch-fetch all project media in one call
@@ -164,6 +166,25 @@ function renderAnnouncementCard(a) {
     </div>` : ''}
     <div class="announcement-extras" id="ann-extras-${a.id}"></div>
   </div>`;
+}
+
+// Re-render only the dashboard project sections (tier filter changed, no full reload)
+function rerenderDashboardProjects() {
+  updateTierButtonStates();
+
+  const container = document.getElementById('dashboard-group-sections');
+  if (!container || !S.groups) return;
+
+  const html = S.groups.length === 0
+    ? '<p class="text-muted">No projects yet.</p>'
+    : S.groups.map(renderGroupSection).join('');
+  container.innerHTML = html;
+
+  // Reload project card media
+  const projectIds = S.groups.flatMap(g =>
+    filterProjectsByTier(g.projects || []).map(p => p.id)
+  );
+  loadAllProjectCardMedia(projectIds);
 }
 
 function renderGroupSection(group) {

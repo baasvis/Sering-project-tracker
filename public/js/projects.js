@@ -5,6 +5,9 @@
 // Cache for passing objects to modals without JSON.stringify in onclick
 window._taskCache = {};
 
+// Cached projects for filter-only re-renders (avoids re-fetching)
+let _allProjectsCached = [];
+
 // ---- Project list screen ----
 async function renderProjects() {
   const app = document.getElementById('app');
@@ -51,6 +54,9 @@ async function renderProjects() {
     console.warn('Could not load all projects:', e.message);
   }
 
+  // Cache for filter-only re-renders
+  _allProjectsCached = allProjects;
+
   // Filter by group and tier
   let filtered = S.selectedGroupId
     ? allProjects.filter(p => p.groupId === S.selectedGroupId)
@@ -67,42 +73,83 @@ async function renderProjects() {
 
     ${renderTierButtons()}
 
-    <div class="group-tabs">
-      <button class="group-tab ${!S.selectedGroupId ? 'active' : ''}"
-              onclick="S.selectedGroupId = null; renderProjects()">All</button>
-      ${S.groups.map(g => `
-        <button class="group-tab ${S.selectedGroupId === g.id ? 'active' : ''}"
-                onclick="S.selectedGroupId = '${g.id}'; renderProjects()">${esc(g.name)}</button>
-      `).join('')}
+    <div class="group-tabs" id="projects-group-tabs">
+      ${renderGroupTabs()}
     </div>
 
-    <div class="project-cards">
-      ${filtered.length === 0
-        ? '<div class="empty-state"><h3>No projects yet</h3><p>Create a project to get started.</p></div>'
-        : filtered.map(p => {
-          if (p.approved === false) {
-            return `<div class="project-card pending">
-              <div class="project-card-header">
-                <h3>${esc(p.name)}</h3>
-                <div class="project-card-tags">
-                  <span class="tag tag-pending">Pending approval</span>
-                  <span class="tag tag-group">${esc(p.groupName)}</span>
-                </div>
-              </div>
-              <p class="text-muted text-sm">Suggested by ${esc(p.suggestedBy || 'someone')} — waiting for admin approval</p>
-              ${S.isAdmin ? `<div class="pending-actions mt-sm">
-                <button class="btn btn-small btn-primary" onclick="event.stopPropagation(); approveSuggestedProject('${p.id}')">Approve</button>
-                <button class="btn btn-small btn-danger" onclick="event.stopPropagation(); declineSuggested('project', '${p.id}')">Decline</button>
-              </div>` : ''}
-            </div>`;
-          }
-          return renderProjectCard(p, { name: p.groupName });
-        }).join('')}
+    <div class="project-cards" id="projects-cards">
+      ${renderProjectCards(filtered)}
     </div>`;
 
   // Load media for approved project cards (batch)
   const approvedIds = filtered.filter(p => p.approved !== false).map(p => p.id);
   loadAllProjectCardMedia(approvedIds);
+}
+
+// Render group tab buttons (extracted for reuse)
+function renderGroupTabs() {
+  return `<button class="group-tab ${!S.selectedGroupId ? 'active' : ''}"
+              onclick="selectGroup(null)">All</button>
+      ${S.groups.map(g => `
+        <button class="group-tab ${S.selectedGroupId === g.id ? 'active' : ''}"
+                onclick="selectGroup('${g.id}')">${esc(g.name)}</button>
+      `).join('')}`;
+}
+
+// Render project card list HTML (extracted for reuse)
+function renderProjectCards(filtered) {
+  return filtered.length === 0
+    ? '<div class="empty-state"><h3>No projects yet</h3><p>Create a project to get started.</p></div>'
+    : filtered.map(p => {
+        if (p.approved === false) {
+          return `<div class="project-card pending">
+            <div class="project-card-header">
+              <h3>${esc(p.name)}</h3>
+              <div class="project-card-tags">
+                <span class="tag tag-pending">Pending approval</span>
+                <span class="tag tag-group">${esc(p.groupName)}</span>
+              </div>
+            </div>
+            <p class="text-muted text-sm">Suggested by ${esc(p.suggestedBy || 'someone')} — waiting for admin approval</p>
+            ${S.isAdmin ? `<div class="pending-actions mt-sm">
+              <button class="btn btn-small btn-primary" onclick="event.stopPropagation(); approveSuggestedProject('${p.id}')">Approve</button>
+              <button class="btn btn-small btn-danger" onclick="event.stopPropagation(); declineSuggested('project', '${p.id}')">Decline</button>
+            </div>` : ''}
+          </div>`;
+        }
+        return renderProjectCard(p, { name: p.groupName });
+      }).join('');
+}
+
+// Select a group filter — targeted update without full re-render
+function selectGroup(groupId) {
+  S.selectedGroupId = groupId;
+  rerenderProjectFilters();
+}
+
+// Re-render only the filter UI + project cards (no API calls, no loading spinner)
+function rerenderProjectFilters() {
+  // Update tier button active states
+  updateTierButtonStates();
+
+  // Update group tab active states
+  const tabsContainer = document.getElementById('projects-group-tabs');
+  if (tabsContainer) {
+    tabsContainer.innerHTML = renderGroupTabs();
+  }
+
+  // Re-filter and update project cards
+  let filtered = S.selectedGroupId
+    ? _allProjectsCached.filter(p => p.groupId === S.selectedGroupId)
+    : _allProjectsCached;
+  filtered = filterProjectsByTier(filtered);
+
+  const cardsContainer = document.getElementById('projects-cards');
+  if (cardsContainer) {
+    cardsContainer.innerHTML = renderProjectCards(filtered);
+    // Load media for newly rendered cards
+    loadAllProjectCardMedia(filtered.filter(p => p.approved !== false).map(p => p.id));
+  }
 }
 
 // ---- Project detail ----
