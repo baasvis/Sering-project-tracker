@@ -182,6 +182,7 @@ function renderProjectCard(project, group) {
       <h3>${esc(project.name)}</h3>
       <div class="project-card-tags">
         ${project.tier && PROJECT_TIERS[project.tier] ? `<span class="tag tag-tier" style="background:${PROJECT_TIERS[project.tier].bg};color:${PROJECT_TIERS[project.tier].color}">${PROJECT_TIERS[project.tier].label}</span>` : ''}
+        ${project.joinType && JOIN_TYPES[project.joinType] ? `<span class="tag tag-join-${esc(project.joinType)}">${JOIN_TYPES[project.joinType].label}</span>` : ''}
         <span class="tag tag-group">${esc(group.name)}</span>
       </div>
     </div>
