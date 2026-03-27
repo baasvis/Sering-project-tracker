@@ -22,6 +22,7 @@
 
   .project-cards { grid-template-columns: 1fr; }
   .announcements-grid { grid-template-columns: 1fr; }
+  .tier-buttons { grid-template-columns: 1fr; }
   .form-row { flex-direction: column; }
   .task-detail-fields { grid-template-columns: 1fr; }
 

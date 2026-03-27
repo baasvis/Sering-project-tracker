@@ -189,6 +189,57 @@
   padding: var(--space-xs) var(--space-lg) var(--space-sm);
 }
 
+/* ---- Tier filter buttons ---- */
+.tier-buttons {
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  gap: var(--space-md);
+  margin-bottom: var(--space-xl);
+}
+
+.tier-btn {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  padding: var(--space-lg) var(--space-md);
+  border-radius: var(--radius-md);
+  border: 2px solid var(--tier-color);
+  background: var(--bg-card);
+  cursor: pointer;
+  transition: all 0.15s;
+  font-family: var(--font-family);
+  text-align: center;
+}
+
+.tier-btn:hover {
+  background: var(--tier-bg);
+  transform: translateY(-2px);
+  box-shadow: var(--shadow-sm);
+}
+
+.tier-btn.active {
+  background: var(--tier-color);
+  color: white;
+}
+
+.tier-btn-label {
+  font-size: var(--font-size-xl);
+  font-weight: 700;
+  letter-spacing: -0.3px;
+}
+
+.tier-btn-desc {
+  font-size: var(--font-size-xs);
+  margin-top: var(--space-xs);
+  opacity: 0.75;
+  line-height: 1.4;
+}
+
+.tier-btn.active .tier-btn-desc {
+  opacity: 0.9;
+}
+
 /* ---- Project overview on dashboard ---- */
 .projects-overview {
   margin-bottom: var(--space-xl);

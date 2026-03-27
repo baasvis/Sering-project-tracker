@@ -43,7 +43,7 @@ public/
   js/
     state.js           — Constants (NAV_SCREENS, TASK_STATUSES, PROJECT_TIERS, JOIN_TYPES), global state S
     auth.js            — Google Sign-In, dev login, name overlay
-    utils.js           — API helpers, toast, esc, timeAgo, Quill editor helpers, showLoading, withDedup
+    utils.js           — API helpers, toast, esc, timeAgo, Quill editor helpers, showLoading, withDedup, tier filter buttons
     media.js           — Photo upload, voice recording, lightbox, media delete
     comments.js        — Comment rendering + posting (with dedup)
     dashboard.js       — Dashboard screen (announcements with carousel + project overview)

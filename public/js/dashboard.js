@@ -37,6 +37,8 @@ async function renderDashboard() {
       </div>
     </div>
 
+    ${renderTierButtons()}
+
     <div class="projects-overview">
       <div class="section-header">
         <h2>Active Projects</h2>
@@ -163,7 +165,7 @@ function renderAnnouncementCard(a) {
 }
 
 function renderGroupSection(group) {
-  const activeProjects = group.projects || [];
+  const activeProjects = filterProjectsByTier(group.projects || []);
   if (activeProjects.length === 0) return '';
 
   return `<div class="group-section">

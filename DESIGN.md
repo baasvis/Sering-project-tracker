@@ -1,6 +1,6 @@
 # Sering Project Tracker — Design Document
 
-*Last updated: 2026-03-25*
+*Last updated: 2026-03-27*
 *Master reference for any AI assistant working on this codebase.*
 
 ---
@@ -203,6 +203,11 @@ The landing page. Two sections:
 - Each announcement: title, text, optional media (photos/voice), timestamp, author
 - "Post announcement" button (admin only)
 
+**Tier filter buttons** (between announcements and projects)
+- Three big buttons: MVP, Medium, Next Level — each with a label and description
+- Clicking a button filters the projects below to that tier only; clicking again deselects
+- Filter state persists when navigating between Dashboard and Projects screens
+
 **Active Projects** (below)
 - Cards showing active projects grouped by theme/group
 - Each card: project name, group tag, progress indicator (X of Y tasks done), latest activity
@@ -211,8 +216,9 @@ The landing page. Two sections:
 ### Screen: Projects
 
 Browse and explore:
-- **Group filter** — tabs or sidebar to filter by group/theme
-- **Project list** — cards for each project in the selected group
+- **Tier filter buttons** — MVP / Medium / Next Level (same as dashboard, above group tabs)
+- **Group filter** — tabs to filter by group/theme (combines with tier filter)
+- **Project list** — cards for each project matching the active filters
 - **Search** — find projects or tasks by keyword
 
 ### Screen: Project Detail

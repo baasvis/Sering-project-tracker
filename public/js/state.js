@@ -25,9 +25,9 @@ const PROJECT_STATUSES = ['active', 'completed', 'archived'];
 
 // Project tiers
 const PROJECT_TIERS = {
-  mvp:        { label: 'MVP',        color: '#FF3F00', bg: '#FFF0EB' },
-  medium:     { label: 'Medium',     color: '#494C1A', bg: '#EEF3E5' },
-  next_level: { label: 'Next Level', color: '#8F0500', bg: '#FAE8E7' }
+  mvp:        { label: 'MVP',        color: '#FF3F00', bg: '#FFF0EB', description: 'All the essential items we need to do before opening' },
+  medium:     { label: 'Medium',     color: '#494C1A', bg: '#EEF3E5', description: 'All the items required for being open while TestTafel is also serving' },
+  next_level: { label: 'Next Level', color: '#8F0500', bg: '#FAE8E7', description: 'All the items required for 6/7 days a week, large volume operations' }
 };
 
 // Static contact links (same for all groups)
@@ -56,6 +56,7 @@ const S = {
   announcements: [],
 
   // Current view state
+  selectedTier: null,         // tier filter (mvp/medium/next_level)
   selectedGroupId: null,     // filter on projects screen
   currentProjectId: null,    // viewing a project detail
   currentProject: null,      // full project object with tasks

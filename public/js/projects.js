@@ -48,16 +48,19 @@ async function renderProjects() {
     console.warn('Could not load all projects:', e.message);
   }
 
-  // Filter by group
-  const filtered = S.selectedGroupId
+  // Filter by group and tier
+  let filtered = S.selectedGroupId
     ? allProjects.filter(p => p.groupId === S.selectedGroupId)
     : allProjects;
+  filtered = filterProjectsByTier(filtered);
 
   app.innerHTML = `
     <div class="flex-between mb-lg">
       <h1>Projects</h1>
       ${S.isAdmin ? '<button class="btn btn-primary" onclick="showProjectModal()">+ New Project</button>' : ''}
     </div>
+
+    ${renderTierButtons()}
 
     <div class="group-tabs">
       <button class="group-tab ${!S.selectedGroupId ? 'active' : ''}"

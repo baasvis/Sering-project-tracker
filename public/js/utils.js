@@ -178,6 +178,32 @@ function renderDescription(html) {
   return `<div class="rich-content">${html}</div>`;
 }
 
+// ---- Tier filter buttons (shared between dashboard + projects) ----
+
+function renderTierButtons() {
+  return `<div class="tier-buttons">
+    ${Object.entries(PROJECT_TIERS).map(([key, tier]) => `
+      <button class="tier-btn ${S.selectedTier === key ? 'active' : ''}"
+              style="--tier-color: ${tier.color}; --tier-bg: ${tier.bg}"
+              onclick="selectTier('${key}')">
+        <span class="tier-btn-label">${esc(tier.label)}</span>
+        <span class="tier-btn-desc">${esc(tier.description)}</span>
+      </button>
+    `).join('')}
+  </div>`;
+}
+
+function selectTier(tier) {
+  S.selectedTier = S.selectedTier === tier ? null : tier;
+  renderCurrentScreen();
+}
+
+// Filter projects array by selected tier
+function filterProjectsByTier(projects) {
+  if (!S.selectedTier) return projects;
+  return projects.filter(p => p.tier === S.selectedTier);
+}
+
 // Loading spinner — show while fetching screen data
 function showLoading() {
   document.getElementById('app').innerHTML = '<div class="loading-spinner"></div>';
