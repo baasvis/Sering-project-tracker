@@ -8,6 +8,7 @@ const crypto = require('crypto');
 const path = require('path');
 const fs = require('fs');
 const { PORT, SESSION_SECRET, GOOGLE_CLIENT_ID, DEV_MODE } = require('./lib/config');
+const { addClient, getClientCount } = require('./lib/sse');
 
 const app = express();
 
@@ -124,6 +125,18 @@ app.use(express.static(path.join(__dirname, 'public'), {
 const uploadsDir = path.join(__dirname, 'uploads');
 if (!fs.existsSync(uploadsDir)) fs.mkdirSync(uploadsDir, { recursive: true });
 app.use('/uploads', express.static(uploadsDir, { maxAge: '7d' }));
+
+// SSE endpoint — rate-limited handshake (5 new connections/min per IP), then long-lived
+const sseLimiter = rateLimit({
+  windowMs: 60 * 1000,
+  max: 5,
+  standardHeaders: true,
+  legacyHeaders: false,
+  message: { error: 'Too many SSE connections, please wait' }
+});
+app.get('/api/events', sseLimiter, (req, res) => {
+  addClient(req, res);
+});
 
 // Inject config into a client-accessible endpoint (long cache — never changes at runtime)
 app.get('/api/config', (req, res) => {

@@ -4,6 +4,7 @@ const { requireAdmin } = require('./auth');
 const { sanitize } = require('../lib/sanitize');
 const asyncHandler = require('../lib/async-handler');
 const { validateId, isValidUuid } = require('../lib/validate');
+const { broadcast, getMutationId } = require('../lib/sse');
 
 const router = Router();
 
@@ -85,6 +86,7 @@ router.post('/', asyncHandler(async (req, res) => {
     }
   });
   res.status(201).json(task);
+  broadcast('task:created', { task, projectId: task.projectId }, getMutationId(req));
 }));
 
 // Update task (admin)
@@ -105,6 +107,7 @@ router.patch('/:id', validateId, requireAdmin, asyncHandler(async (req, res) => 
 
   const task = await prisma.task.update({ where: { id: req.params.id }, data });
   res.json(task);
+  broadcast('task:updated', { task, projectId: task.projectId }, getMutationId(req));
 }));
 
 // Approve a suggested task (admin)
@@ -115,6 +118,7 @@ router.patch('/:id/approve', validateId, requireAdmin, asyncHandler(async (req, 
       data: { approved: true }
     });
     res.json(task);
+    broadcast('task:approved', { task, projectId: task.projectId }, getMutationId(req));
   } catch (err) {
     if (err.code === 'P2025') return res.status(404).json({ error: 'Task not found' });
     throw err;
@@ -123,8 +127,10 @@ router.patch('/:id/approve', validateId, requireAdmin, asyncHandler(async (req, 
 
 // Delete task (admin) — also used to decline suggestions
 router.delete('/:id', validateId, requireAdmin, asyncHandler(async (req, res) => {
+  const existing = await prisma.task.findUnique({ where: { id: req.params.id }, select: { projectId: true } });
   await prisma.task.delete({ where: { id: req.params.id } });
   res.json({ ok: true });
+  if (existing) broadcast('task:deleted', { taskId: req.params.id, projectId: existing.projectId }, getMutationId(req));
 }));
 
 module.exports = router;

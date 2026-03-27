@@ -7,6 +7,7 @@
 - Google Sign-In for admin auth (JWT verified via google-auth-library); visitors enter a name (no login)
 - Quill.js rich text editor for descriptions (loaded from CDN)
 - HTML sanitization via sanitize-html on the server
+- Server-Sent Events (SSE) for real-time updates across clients (no external dependencies)
 - Hosted on Railway (auto-deploy, Postgres plugin)
 
 ## Project Structure
@@ -18,6 +19,7 @@ lib/
   sanitize.js          — HTML sanitization for rich text (allowlist-based)
   async-handler.js     — Wraps async route handlers for error propagation
   media-utils.js       — Shared file deletion utility
+  sse.js               — SSE broadcast hub (client tracking, heartbeat, broadcast)
 routes/
   auth.js              — Google Sign-In (admin), dev login, requireAdmin middleware
   groups.js            — Group CRUD with task status counts
@@ -44,7 +46,7 @@ public/
   js/
     state.js           — Constants (NAV_SCREENS, TASK_STATUSES, PROJECT_TIERS, JOIN_TYPES), global state S
     auth.js            — Google Sign-In, dev login, name overlay
-    utils.js           — API helpers, toast, esc, timeAgo, Quill editor helpers, showLoading, withDedup, tier filter buttons
+    utils.js           — API helpers, toast, esc, timeAgo, Quill editor helpers, showLoading, withDedup, tier filter buttons, mutation ID generation
     media.js           — Photo upload, voice recording, lightbox, media delete
     comments.js        — Comment rendering + posting (with dedup)
     dashboard.js       — Dashboard screen (announcements with carousel + project overview)
@@ -53,6 +55,7 @@ public/
     budget.js          — Budget overview screen
     reports.js         — Floating report button, screenshot capture modal
     admin.js           — Admin panel (group management, reports, data export)
+    sse.js             — Real-time SSE event handlers (must load after all render functions)
     init.js            — Navigation, routing, app bootstrap (MUST load last)
 prisma/
   schema.prisma        — Database schema
@@ -61,7 +64,9 @@ uploads/               — User-uploaded media files (gitignored)
 
 ## Script Load Order
 Scripts must load in the order listed in index.html:
-`state.js` → `auth.js` → `utils.js` → `media.js` → `comments.js` → `dashboard.js` → `projects.js` → `shopping.js` → `budget.js` → `reports.js` → `admin.js` → `init.js` (last)
+`state.js` → `auth.js` → `utils.js` → `media.js` → `comments.js` → `dashboard.js` → `projects.js` → `shopping.js` → `budget.js` → `reports.js` → `admin.js` → `sse.js` → `init.js` (last)
+
+Note: `sse.js` must load after all screen render functions but before `init.js`, since SSE event handlers reference render functions like `rerenderTaskList()`, `renderCurrentScreen()`, etc.
 
 ## Conventions
 - All frontend functions are global (no modules, no import/export)
@@ -75,8 +80,10 @@ Scripts must load in the order listed in index.html:
 - Rich text descriptions sanitized server-side (sanitize-html allowlist)
 - CSS variables defined in base.css match De Sering brand guidelines
 - Request deduplication via `withDedup()` on mutation actions (save, delete)
-- Task status cycling updates local state + DOM without full page re-render
+- Task status cycling uses optimistic UI: local state updated immediately, rollback on error
 - Suggest/approve workflow: visitors can suggest tasks and projects (approved=false); admins approve via PATCH /:id/approve; pending items shown greyed out to all users
+- All mutation routes broadcast SSE events via `broadcast(eventType, data, mutationId)` from `lib/sse.js`
+- Client-side self-dedup: `apiFetch()` generates a mutation ID (sent as `X-Mutation-ID` header); SSE handler skips events matching `S._pendingMutationIds`
 
 ## Key Data Flow
 - `GET /api/groups` returns groups with nested approved active projects and `taskCounts` (approved tasks only)
@@ -101,11 +108,14 @@ Scripts must load in the order listed in index.html:
 - Tasks: validated status (todo/in_progress/done), optional assignee + deadline; name stripped of HTML tags, max 200 chars
 - Projects: validated status (active/completed/archived), optional tier + joinType; name stripped of HTML tags, max 200 chars
 - Shopping: items (name, link, price, qty) and costs (name, amount) per project
+- `GET /api/events` — SSE stream; all mutation routes broadcast `entity:action` events (e.g. `task:updated`, `comment:created`) with full entity data + optional `_mutationId` for self-dedup
+- SSE event handlers in `sse.js` update `S` state and call targeted re-renders (e.g. `rerenderTaskList()`) or full screen re-renders depending on context
 
 ## Security
 - **Helmet**: CSP, HSTS, X-Frame-Options, nosniff, referrer-policy
 - **CSRF**: double-submit cookie on all `/api/*` write operations (X-CSRF-Token header)
-- **Rate limiting**: 100 req/min general, 20/min writes, 10/min uploads
+- **Rate limiting**: 100 req/min general, 20/min writes, 10/min uploads, 5/min SSE connections
+- **SSE**: max 500 concurrent connections; 30s heartbeat keeps connections alive through proxies
 - **Input sanitization**: HTML tags stripped from task/project/shopping item names and author names server-side; rich text sanitized via sanitize-html
 - **URL validation**: only http/https links allowed in shopping items
 - **Report validation**: screenshot must be `data:image/*` format, description/name stripped of HTML tags, UUID validation on :id params

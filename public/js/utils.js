@@ -18,6 +18,11 @@ async function apiFetch(method, url, body) {
   }
   if (['POST', 'PATCH', 'PUT', 'DELETE'].includes(method)) {
     headers['X-CSRF-Token'] = getCsrfToken();
+    // Mutation ID for SSE self-dedup
+    const mutationId = Date.now() + '-' + Math.random().toString(36).slice(2, 8);
+    headers['X-Mutation-ID'] = mutationId;
+    S._pendingMutationIds.add(mutationId);
+    setTimeout(() => S._pendingMutationIds.delete(mutationId), 10000);
   }
   opts.headers = headers;
   const res = await fetch(url, opts);

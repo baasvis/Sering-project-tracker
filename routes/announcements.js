@@ -4,6 +4,7 @@ const { requireAdmin } = require('./auth');
 const { sanitize } = require('../lib/sanitize');
 const asyncHandler = require('../lib/async-handler');
 const { validateId } = require('../lib/validate');
+const { broadcast, getMutationId } = require('../lib/sse');
 
 const router = Router();
 
@@ -51,6 +52,7 @@ router.post('/', requireAdmin, asyncHandler(async (req, res) => {
     }
   });
   res.status(201).json(announcement);
+  broadcast('announcement:created', { announcement }, getMutationId(req));
 }));
 
 // Update announcement (admin)
@@ -63,12 +65,14 @@ router.patch('/:id', validateId, requireAdmin, asyncHandler(async (req, res) => 
 
   const announcement = await prisma.announcement.update({ where: { id: req.params.id }, data });
   res.json(announcement);
+  broadcast('announcement:updated', { announcement }, getMutationId(req));
 }));
 
 // Delete announcement (admin)
 router.delete('/:id', validateId, requireAdmin, asyncHandler(async (req, res) => {
   await prisma.announcement.delete({ where: { id: req.params.id } });
   res.json({ ok: true });
+  broadcast('announcement:deleted', { announcementId: req.params.id }, getMutationId(req));
 }));
 
 module.exports = router;

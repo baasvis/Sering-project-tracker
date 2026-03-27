@@ -4,6 +4,7 @@ const { requireAdmin } = require('./auth');
 const asyncHandler = require('../lib/async-handler');
 const { deleteMediaFile } = require('../lib/media-utils');
 const { validateId, isValidUuid } = require('../lib/validate');
+const { broadcast, getMutationId } = require('../lib/sse');
 
 const router = Router();
 
@@ -98,10 +99,17 @@ router.post('/', asyncHandler(async (req, res) => {
     data: { targetType, targetId, authorName: name, body: trimmed }
   });
   res.status(201).json(comment);
+  broadcast('comment:created', { comment }, getMutationId(req));
 }));
 
 // Delete comment (admin only)
 router.delete('/:id', validateId, requireAdmin, asyncHandler(async (req, res) => {
+  // Fetch comment info before deleting (for SSE broadcast)
+  const existing = await prisma.comment.findUnique({
+    where: { id: req.params.id },
+    select: { targetType: true, targetId: true }
+  });
+
   // Also delete associated media files
   const media = await prisma.media.findMany({
     where: { parentType: 'comment', parentId: req.params.id }
@@ -114,6 +122,7 @@ router.delete('/:id', validateId, requireAdmin, asyncHandler(async (req, res) =>
   await prisma.media.deleteMany({ where: { parentType: 'comment', parentId: req.params.id } });
   await prisma.comment.delete({ where: { id: req.params.id } });
   res.json({ ok: true });
+  if (existing) broadcast('comment:deleted', { commentId: req.params.id, targetType: existing.targetType, targetId: existing.targetId }, getMutationId(req));
 }));
 
 module.exports = router;

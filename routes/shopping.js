@@ -2,6 +2,8 @@ const { Router } = require('express');
 const prisma = require('../lib/db');
 const { requireAdmin } = require('./auth');
 
+const { broadcast, getMutationId } = require('../lib/sse');
+
 const router = Router();
 
 // Strip HTML tags from user input (defense-in-depth against stored XSS)
@@ -144,6 +146,7 @@ router.post('/', async (req, res) => {
 
   const item = await prisma.shoppingItem.create({ data });
   res.status(201).json(item);
+  broadcast('shopping:created', { item, projectId: item.projectId }, getMutationId(req));
 });
 
 // Update shopping item (admin)
@@ -176,6 +179,7 @@ router.patch('/:id', requireAdmin, async (req, res) => {
   try {
     const item = await prisma.shoppingItem.update({ where: { id: req.params.id }, data });
     res.json(item);
+    broadcast('shopping:updated', { item, projectId: item.projectId }, getMutationId(req));
   } catch (err) {
     if (err.code === 'P2025') return res.status(404).json({ error: 'Item not found' });
     throw err;
@@ -192,6 +196,7 @@ router.patch('/:id/approve', requireAdmin, async (req, res) => {
       data: { approved: true }
     });
     res.json(item);
+    broadcast('shopping:approved', { item, projectId: item.projectId }, getMutationId(req));
   } catch (err) {
     if (err.code === 'P2025') return res.status(404).json({ error: 'Item not found' });
     throw err;
@@ -203,8 +208,10 @@ router.delete('/:id', requireAdmin, async (req, res) => {
   if (!isValidUuid(req.params.id)) return res.status(400).json({ error: 'Invalid item ID format' });
 
   try {
+    const existing = await prisma.shoppingItem.findUnique({ where: { id: req.params.id }, select: { projectId: true } });
     await prisma.shoppingItem.delete({ where: { id: req.params.id } });
     res.json({ ok: true });
+    if (existing) broadcast('shopping:deleted', { itemId: req.params.id, projectId: existing.projectId }, getMutationId(req));
   } catch (err) {
     if (err.code === 'P2025') return res.status(404).json({ error: 'Item not found' });
     throw err;

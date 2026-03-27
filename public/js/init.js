@@ -135,6 +135,9 @@ async function initApp() {
   buildNav();
   renderCurrentScreen();
 
+  // Connect SSE for real-time updates
+  connectSSE();
+
   // Floating report button
   initReportButton();
 }

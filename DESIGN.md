@@ -565,7 +565,8 @@ Things to decide as we build:
 - [x] **Voice note length limit**: 60 seconds, 2MB max
 - [x] **Photo size limit**: 5MB max per file
 - [x] **Comment moderation**: Admin-delete only (no community flag button for now)
-- [ ] **Notifications**: Should admins get notified of new comments? Email? In-app?
+- [x] **Real-time updates**: SSE (Server-Sent Events) implemented — all clients see changes instantly without refreshing. Email notifications still open.
+- [ ] **Email notifications**: Should admins get email notifications for new comments/suggestions?
 - [ ] **Domain**: What URL will this live at? projects.desering.org? sering-projects.up.railway.app?
 - [ ] **Railway volume persistence**: Confirm Railway volume survives redeploys for uploaded media
 - [ ] **Storage cap**: 100MB is conservative — increase once Railway volume size is confirmed
