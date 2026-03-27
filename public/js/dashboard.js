@@ -30,7 +30,7 @@ async function renderDashboard() {
     <div class="announcements-section">
       <div class="section-header">
         <h2>Announcements</h2>
-        ${S.isAdmin ? '<button class="btn btn-primary" onclick="showAnnouncementModal()">+ New</button>' : ''}
+        ${S.isAdmin ? '<button class="btn btn-primary" data-action="showAnnouncementModal">+ New</button>' : ''}
       </div>
       <div class="announcements-grid" id="announcements-list">
         ${S.announcements.length === 0
@@ -44,7 +44,7 @@ async function renderDashboard() {
     <div class="projects-overview" id="dashboard-projects-overview">
       <div class="section-header">
         <h2>Active Projects</h2>
-        ${S.isAdmin ? '<button class="btn btn-primary" onclick="showProjectModal()">+ New Project</button>' : ''}
+        ${S.isAdmin ? '<button class="btn btn-primary" data-action="showProjectModal">+ New Project</button>' : ''}
       </div>
       <div id="dashboard-group-sections">
         ${S.groups.length === 0
@@ -77,13 +77,13 @@ async function loadAnnouncementMedia(a) {
       carousel.classList.remove('empty');
       carousel.innerHTML = `
         <div class="carousel-track" id="ann-track-${annId}">
-          ${photos.map(p => `<img src="/api/media/${p.id}/file" alt="${esc(p.originalName)}" onclick="openLightbox('/api/media/${p.id}/file')">`).join('')}
+          ${photos.map(p => `<img src="/api/media/${p.id}/file" alt="${esc(p.originalName)}" data-action="openLightbox" data-url="/api/media/${p.id}/file">`).join('')}
         </div>
         ${photos.length > 1 ? `
-          <button class="carousel-btn prev" onclick="event.stopPropagation(); slideCarousel('${annId}', -1)">&#8249;</button>
-          <button class="carousel-btn next" onclick="event.stopPropagation(); slideCarousel('${annId}', 1)">&#8250;</button>
+          <button class="carousel-btn prev" data-action="slideCarousel" data-stop data-ann-id="${annId}" data-direction="-1">&#8249;</button>
+          <button class="carousel-btn next" data-action="slideCarousel" data-stop data-ann-id="${annId}" data-direction="1">&#8250;</button>
           <div class="carousel-dots">
-            ${photos.map((_, i) => `<button class="carousel-dot${i === 0 ? ' active' : ''}" onclick="event.stopPropagation(); goToSlide('${annId}', ${i})"></button>`).join('')}
+            ${photos.map((_, i) => `<button class="carousel-dot${i === 0 ? ' active' : ''}" data-action="goToSlide" data-stop data-ann-id="${annId}" data-index="${i}"></button>`).join('')}
           </div>` : ''}`;
       carousel.dataset.slide = '0';
       carousel.dataset.total = photos.length;
@@ -96,7 +96,7 @@ async function loadAnnouncementMedia(a) {
       if (S.isAdmin) {
         if (photos.length > 0) {
           html += `<div class="media-grid">${photos.map(p =>
-            `<div class="media-item"><img src="/api/media/${p.id}/file" class="media-thumb" style="width:40px;height:40px" alt="${esc(p.originalName)}"><button class="media-delete-btn" onclick="event.stopPropagation(); deleteMedia('${p.id}')" title="Delete" style="display:flex">&#10005;</button></div>`
+            `<div class="media-item"><img src="/api/media/${p.id}/file" class="media-thumb" style="width:40px;height:40px" alt="${esc(p.originalName)}"><button class="media-delete-btn" data-action="deleteMedia" data-stop data-media-id="${p.id}" title="Delete" style="display:flex">&#10005;</button></div>`
           ).join('')}</div>`;
         }
         html += renderMediaUploadButtons('announcement', annId);
@@ -150,7 +150,7 @@ function renderAnnouncementCard(a) {
 
   return `<div class="announcement-card${a.pinned ? ' pinned' : ''}" data-ann-id="${a.id}">
     <div class="announcement-carousel empty" id="ann-carousel-${a.id}"></div>
-    <div class="announcement-content" onclick="toggleAnnouncement('${a.id}')">
+    <div class="announcement-content" data-action="toggleAnnouncement" data-id="${a.id}">
       <div class="announcement-meta">
         ${a.pinned ? '<span class="tag tag-group">Pinned</span>' : ''}
         <span>${timeAgo(a.createdAt)}</span>
@@ -161,8 +161,8 @@ function renderAnnouncementCard(a) {
       <div class="announcement-expand-hint">Click to read more</div>
     </div>
     ${S.isAdmin ? `<div class="announcement-admin">
-      <button class="comment-delete" onclick="editAnnouncement('${a.id}')">edit</button>
-      <button class="comment-delete" onclick="deleteAnnouncement('${a.id}')">delete</button>
+      <button class="comment-delete" data-action="editAnnouncement" data-id="${a.id}">edit</button>
+      <button class="comment-delete" data-action="deleteAnnouncement" data-id="${a.id}">delete</button>
     </div>` : ''}
     <div class="announcement-extras" id="ann-extras-${a.id}"></div>
   </div>`;
@@ -208,7 +208,7 @@ function renderProjectCard(project, group) {
 
   return `<div class="project-card card-clickable ${isExpanded ? 'expanded' : ''}"
                id="project-card-${project.id}"
-               onclick="toggleProjectCard('${project.id}')">
+               data-action="toggleProjectCard" data-project-id="${project.id}">
     <div class="project-card-header">
       <h3>${esc(project.name)}</h3>
       <div class="project-card-tags">
@@ -279,7 +279,7 @@ async function toggleProjectCard(projectId) {
         ).join('') +
         '</div>'
       : '') +
-    '<button class="btn btn-secondary btn-small mt-sm" onclick="event.stopPropagation(); navigateToProject(\'' + projectId + '\')">View full details &rarr;</button>';
+    '<button class="btn btn-secondary btn-small mt-sm" data-action="navigateToProject" data-stop data-project-id="' + projectId + '">View full details &rarr;</button>';
 }
 
 // Batch-fetch media for all project cards in one API call (avoids N+1)
@@ -295,7 +295,7 @@ async function loadAllProjectCardMedia(projectIds) {
       if (photos.length > 0) {
         container.innerHTML = `<div class="media-grid project-card-photos">${photos.map(m =>
           `<img src="/api/media/${m.id}/file" class="media-thumb"
-                onclick="event.stopPropagation(); openLightbox('/api/media/${m.id}/file')"
+                data-action="openLightbox" data-stop data-url="/api/media/${m.id}/file"
                 alt="${esc(m.originalName)}">`
         ).join('')}</div>`;
       }
@@ -322,8 +322,8 @@ function showAnnouncementModal(existing) {
       <label><input type="checkbox" id="ann-pinned" ${existing?.pinned ? 'checked' : ''}> Pin to top</label>
     </div>
     <div class="modal-actions">
-      <button class="btn btn-secondary" onclick="this.closest('.modal-backdrop').remove()">Cancel</button>
-      <button class="btn btn-primary" onclick="saveAnnouncement(${isEdit ? `'${existing.id}'` : 'null'})">
+      <button class="btn btn-secondary" data-action="closeModal">Cancel</button>
+      <button class="btn btn-primary" data-action="saveAnnouncement" data-id="${isEdit ? existing.id : ''}">
         ${isEdit ? 'Save' : 'Post'}
       </button>
     </div>
@@ -371,3 +371,19 @@ async function deleteAnnouncement(id) {
     toast(err.message, 'error');
   }
 }
+
+/* ---- onAction registrations for dashboard ---- */
+
+onAction('showAnnouncementModal', () => showAnnouncementModal());
+onAction('showProjectModal', () => showProjectModal());
+onAction('toggleAnnouncement', (el) => toggleAnnouncement(el.dataset.id));
+onAction('editAnnouncement', (el) => editAnnouncement(el.dataset.id));
+onAction('deleteAnnouncement', (el) => deleteAnnouncement(el.dataset.id));
+onAction('toggleProjectCard', (el) => toggleProjectCard(el.dataset.projectId));
+onAction('navigateToProject', (el) => navigateToProject(el.dataset.projectId));
+onAction('slideCarousel', (el) => slideCarousel(el.dataset.annId, parseInt(el.dataset.direction)));
+onAction('goToSlide', (el) => goToSlide(el.dataset.annId, parseInt(el.dataset.index)));
+onAction('openLightbox', (el) => openLightbox(el.dataset.url));
+onAction('deleteMedia', (el) => deleteMedia(el.dataset.mediaId));
+onAction('closeModal', (el) => el.closest('.modal-backdrop').remove());
+onAction('saveAnnouncement', (el) => saveAnnouncement(el.dataset.id || null));

@@ -8,6 +8,32 @@ const { broadcast, getMutationId } = require('../lib/sse');
 
 const router = Router();
 
+// Per-name comment cooldown: max 5 comments per name per 10 minutes
+// In-memory map: name -> [timestamp, timestamp, ...]
+const _commentCooldowns = new Map();
+const COOLDOWN_WINDOW = 10 * 60 * 1000; // 10 minutes
+const COOLDOWN_MAX = 5;
+
+// Clean up old entries every 10 minutes
+setInterval(() => {
+  const cutoff = Date.now() - COOLDOWN_WINDOW;
+  for (const [name, times] of _commentCooldowns) {
+    const recent = times.filter(t => t > cutoff);
+    if (recent.length === 0) _commentCooldowns.delete(name);
+    else _commentCooldowns.set(name, recent);
+  }
+}, COOLDOWN_WINDOW);
+
+function checkCommentCooldown(name) {
+  const now = Date.now();
+  const cutoff = now - COOLDOWN_WINDOW;
+  const times = (_commentCooldowns.get(name) || []).filter(t => t > cutoff);
+  if (times.length >= COOLDOWN_MAX) return false;
+  times.push(now);
+  _commentCooldowns.set(name, times);
+  return true;
+}
+
 // List comments for a target
 router.get('/', asyncHandler(async (req, res) => {
   const { targetType, targetId } = req.query;
@@ -71,6 +97,11 @@ router.post('/', asyncHandler(async (req, res) => {
   // Sanitize author name (strip HTML tags)
   const name = sanitizeName(authorName);
   if (!name) return res.status(400).json({ error: 'Invalid name (1-50 characters, no HTML)' });
+
+  // Per-name cooldown: max 5 comments per 10 minutes (spam protection)
+  if (!checkCommentCooldown(name)) {
+    return res.status(429).json({ error: 'Too many comments — please wait a few minutes' });
+  }
 
   // Duplicate detection: same author + same body within last 5 minutes
   const fiveMinAgo = new Date(Date.now() - 5 * 60 * 1000);

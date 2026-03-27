@@ -25,7 +25,7 @@ async function renderComments(targetType, targetId, container) {
         <textarea id="comment-input-${targetId}" placeholder="Write a comment..." rows="2"></textarea>
         <div class="comment-form-actions">
           <button class="btn btn-primary"
-                  onclick="postComment('${targetType}', '${targetId}')">Send</button>
+                  data-action="postComment" data-target-type="${targetType}" data-id="${targetId}">Send</button>
         </div>
       </div>
     </div>`;
@@ -41,7 +41,7 @@ function renderComment(c) {
       <div class="comment-header">
         <span class="comment-author">${esc(c.authorName)}</span>
         <span class="comment-time">${timeAgo(c.createdAt)}</span>
-        ${canDelete ? `<button class="comment-delete" onclick="deleteComment('${c.id}')">delete</button>` : ''}
+        ${canDelete ? `<button class="comment-delete" data-action="deleteComment" data-id="${c.id}">delete</button>` : ''}
       </div>
       ${c.body ? `<div class="comment-body">${esc(c.body)}</div>` : ''}
       ${renderMediaItems(c.media || [])}
@@ -84,3 +84,7 @@ async function deleteComment(id) {
     toast(err.message, 'error');
   }
 }
+
+// --- Action registrations ---
+onAction('postComment', (el) => postComment(el.dataset.targetType, el.dataset.id));
+onAction('deleteComment', (el) => deleteComment(el.dataset.id));

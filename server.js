@@ -1,5 +1,6 @@
 const express = require('express');
 const session = require('express-session');
+const PgSession = require('connect-pg-simple')(session);
 const cookieParser = require('cookie-parser');
 const compression = require('compression');
 const rateLimit = require('express-rate-limit');
@@ -18,7 +19,7 @@ app.use(compression());
 // Trust reverse proxy (Railway, Nginx, etc.) for correct IP in rate limiting
 app.set('trust proxy', 1);
 
-// Security headers via helmet
+// Security headers via helmet — NO unsafe-inline for scriptSrcAttr
 app.use(helmet({
   contentSecurityPolicy: {
     directives: {
@@ -30,7 +31,6 @@ app.use(helmet({
       frameSrc: ["https://accounts.google.com"],
       fontSrc: ["'self'"],
       mediaSrc: ["'self'", "blob:"],
-      scriptSrcAttr: ["'unsafe-inline'"],
     }
   },
   crossOriginOpenerPolicy: { policy: 'same-origin-allow-popups' },
@@ -43,7 +43,6 @@ app.use(express.urlencoded({ extended: true, limit: '1mb' }));
 
 // ---- Rate limiting ----
 
-// General API: 100 requests per minute per IP
 const apiLimiter = rateLimit({
   windowMs: 60_000,
   max: 100,
@@ -52,7 +51,6 @@ const apiLimiter = rateLimit({
   message: { error: 'Too many requests, please try again later' }
 });
 
-// Write operations: 20 per minute per IP
 const writeLimiter = rateLimit({
   windowMs: 60_000,
   max: 20,
@@ -61,7 +59,6 @@ const writeLimiter = rateLimit({
   message: { error: 'Too many requests, please slow down' }
 });
 
-// File uploads: 10 per minute per IP
 const uploadLimiter = rateLimit({
   windowMs: 60_000,
   max: 10,
@@ -70,7 +67,6 @@ const uploadLimiter = rateLimit({
   message: { error: 'Too many uploads, please wait a minute' }
 });
 
-// SSE: 5 new connections per minute per IP (reconnection protection)
 const sseLimiter = rateLimit({
   windowMs: 60_000,
   max: 5,
@@ -81,24 +77,36 @@ const sseLimiter = rateLimit({
 
 app.use('/api', apiLimiter);
 
-// Write limiter on all mutation endpoints
 app.delete('/api/comments/:id', writeLimiter);
 app.delete('/api/media/:id', writeLimiter);
 app.delete('/api/shopping/:id', writeLimiter);
 app.delete('/api/reports/:id', writeLimiter);
 
-// Session (for admin login)
-app.use(session({
+// Session with Postgres store (survives restarts, no memory leak)
+const sessionConfig = {
   secret: SESSION_SECRET,
   resave: false,
   saveUninitialized: false,
   cookie: {
-    maxAge: 7 * 24 * 60 * 60 * 1000, // 7 days
+    maxAge: 7 * 24 * 60 * 60 * 1000,
     httpOnly: true,
     sameSite: 'lax',
     secure: process.env.NODE_ENV === 'production'
   }
-}));
+};
+
+// Use Postgres session store if DATABASE_URL is available (production)
+// Falls back to MemoryStore in dev (acceptable for 3 admin sessions)
+if (process.env.DATABASE_URL) {
+  sessionConfig.store = new PgSession({
+    conString: process.env.DATABASE_URL,
+    tableName: 'session',
+    createTableIfMissing: true,
+    pruneSessionInterval: 60 * 15, // Clean expired sessions every 15 min
+  });
+}
+
+app.use(session(sessionConfig));
 
 // Cookie parser (needed for CSRF double-submit)
 app.use(cookieParser());
@@ -119,7 +127,7 @@ app.use((req, res, next) => {
   next();
 });
 
-// Request timeout: kill requests that take too long (30s for normal, 120s for exports)
+// Request timeout
 app.use((req, res, next) => {
   const timeout = req.path === '/api/export' ? 120_000 : 30_000;
   req.setTimeout(timeout, () => {
@@ -130,7 +138,7 @@ app.use((req, res, next) => {
   next();
 });
 
-// Static files (cache CSS/JS for 1 hour, HTML short-lived)
+// Static files
 app.use(express.static(path.join(__dirname, 'public'), {
   maxAge: '1h',
   setHeaders(res, filePath) {
@@ -150,13 +158,13 @@ app.get('/api/events', sseLimiter, (req, res) => {
   addClient(req, res);
 });
 
-// Client config endpoint (long cache — doesn't change at runtime)
+// Client config endpoint
 app.get('/api/config', (req, res) => {
   res.set('Cache-Control', 'public, max-age=3600');
   res.json({ googleClientId: GOOGLE_CLIENT_ID, devMode: DEV_MODE });
 });
 
-// Cache-Control for read-heavy API GETs (prevents stampede with 300 users)
+// Cache-Control for read-heavy API GETs
 app.use('/api', (req, res, next) => {
   if (req.method === 'GET') {
     res.set('Cache-Control', 'public, max-age=30, stale-while-revalidate=60');
@@ -193,7 +201,7 @@ app.use('/api/reports', reportsRouter);
 app.use('/api/export', require('./routes/export'));
 app.use('/api', require('./routes/health'));
 
-// SPA fallback — serve index.html for all non-API routes
+// SPA fallback
 app.get('/{*path}', (req, res) => {
   res.sendFile(path.join(__dirname, 'public', 'index.html'));
 });
@@ -211,6 +219,5 @@ const server = app.listen(PORT, () => {
   if (DEV_MODE) console.log('DEV MODE: No Google auth required. Use /auth/dev-login to become admin.');
 });
 
-// Configure server timeouts for long-lived connections (SSE)
 server.keepAliveTimeout = 120_000;
 server.headersTimeout = 125_000;

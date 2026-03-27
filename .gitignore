@@ -5,3 +5,4 @@ uploads/
 data/
 *.log
 .DS_Store
+.claude/launch.json

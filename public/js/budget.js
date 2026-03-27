@@ -30,7 +30,7 @@ async function renderBudget() {
         : `<div class="budget-projects">
           ${summary.map(p => `
             <div class="budget-project" id="budget-project-${p.id}">
-              <div class="budget-project-header" onclick="toggleBudgetFoldout('${p.id}')">
+              <div class="budget-project-header" data-action="toggleBudgetFoldout" data-id="${p.id}">
                 <div class="budget-project-info">
                   <span class="budget-project-name">${esc(p.name)}</span>
                   <span class="tag tag-group">${esc(p.groupName)}</span>
@@ -61,3 +61,6 @@ function toggleBudgetFoldout(projectId) {
     chevron.innerHTML = isOpen ? '&#9654;' : '&#9660;';
   }
 }
+
+// ---- onAction registrations ----
+onAction('toggleBudgetFoldout', (el) => toggleBudgetFoldout(el.dataset.id));

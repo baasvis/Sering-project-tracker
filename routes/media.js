@@ -205,6 +205,10 @@ router.get('/:id/file', validateId, asyncHandler(async (req, res) => {
 
   res.set('Cache-Control', 'public, max-age=604800, immutable');
   res.set('Content-Type', media.mimeType);
+  res.set('X-Content-Type-Options', 'nosniff');
+  // Force download for non-image/non-audio types (defense against HTML-as-image attacks)
+  const safeInline = media.mimeType.startsWith('image/') || media.mimeType.startsWith('audio/');
+  res.set('Content-Disposition', safeInline ? 'inline' : 'attachment');
   const stream = fs.createReadStream(filePath);
   stream.on('error', () => {
     if (!res.headersSent) res.status(500).json({ error: 'Failed to serve file' });

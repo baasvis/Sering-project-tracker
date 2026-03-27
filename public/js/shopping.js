@@ -2,7 +2,7 @@
    Shopping — List rendering, modals, CRUD
    ======================================== */
 
-// Item cache for safe edit (avoids XSS from JSON.stringify in onclick)
+// Item cache for safe edit (avoids XSS from JSON.stringify in data attributes)
 const _shoppingItemCache = {};
 
 // Format currency (euros)
@@ -50,12 +50,12 @@ function renderShoppingSection(items, projectId, options = {}) {
 
   const addButtons = S.isAdmin
     ? `<div class="shopping-actions">
-        <button class="btn btn-primary btn-small" onclick="showShoppingItemModal('product', '${esc(projectId)}')">+ Item</button>
-        <button class="btn btn-secondary btn-small" onclick="showShoppingItemModal('cost', '${esc(projectId)}')">+ Cost</button>
+        <button class="btn btn-primary btn-small" data-action="showShoppingItemModal" data-type="product" data-project-id="${esc(projectId)}">+ Item</button>
+        <button class="btn btn-secondary btn-small" data-action="showShoppingItemModal" data-type="cost" data-project-id="${esc(projectId)}">+ Cost</button>
       </div>`
     : `<div class="shopping-actions">
-        <button class="btn btn-secondary btn-small" onclick="showShoppingItemModal('product', '${esc(projectId)}')">Suggest Item</button>
-        <button class="btn btn-secondary btn-small" onclick="showShoppingItemModal('cost', '${esc(projectId)}')">Suggest Cost</button>
+        <button class="btn btn-secondary btn-small" data-action="showShoppingItemModal" data-type="product" data-project-id="${esc(projectId)}">Suggest Item</button>
+        <button class="btn btn-secondary btn-small" data-action="showShoppingItemModal" data-type="cost" data-project-id="${esc(projectId)}">Suggest Cost</button>
       </div>`;
 
   let html = `<div class="shopping-list" id="shopping-${esc(projectId)}">
@@ -91,12 +91,12 @@ function renderShoppingSection(items, projectId, options = {}) {
         <span class="sh-total">${formatEuro(itemTotal)}</span>
         <span class="sh-status">
           ${S.isAdmin
-            ? `<button class="shopping-check ${item.purchased ? 'checked' : ''}" aria-label="${item.purchased ? 'Mark as not purchased' : 'Mark as purchased'}" onclick="event.stopPropagation(); togglePurchased('${esc(item.id)}', ${!item.purchased})">${item.purchased ? '&#10003;' : ''}</button>`
+            ? `<button class="shopping-check ${item.purchased ? 'checked' : ''}" aria-label="${item.purchased ? 'Mark as not purchased' : 'Mark as purchased'}" data-action="togglePurchased" data-stop data-id="${esc(item.id)}" data-purchased="${!item.purchased}">${item.purchased ? '&#10003;' : ''}</button>`
             : `<span class="shopping-check ${item.purchased ? 'checked' : ''}">${item.purchased ? '&#10003;' : ''}</span>`}
         </span>
         ${S.isAdmin ? `<span class="sh-actions">
-          <button class="btn-icon" aria-label="Edit item" onclick="event.stopPropagation(); editShoppingItem('${esc(item.id)}', 'product', '${esc(projectId)}')">&#9998;</button>
-          <button class="btn-icon btn-icon-danger" aria-label="Delete item" onclick="event.stopPropagation(); deleteShoppingItem('${esc(item.id)}', '${esc(projectId)}')">&#10005;</button>
+          <button class="btn-icon" aria-label="Edit item" data-action="editShoppingItem" data-stop data-id="${esc(item.id)}" data-type="product" data-project-id="${esc(projectId)}">&#9998;</button>
+          <button class="btn-icon btn-icon-danger" aria-label="Delete item" data-action="deleteShoppingItem" data-stop data-id="${esc(item.id)}" data-project-id="${esc(projectId)}">&#10005;</button>
         </span>` : ''}
       </div>`;
     }
@@ -112,8 +112,8 @@ function renderShoppingSection(items, projectId, options = {}) {
         <span class="sh-name">${esc(item.name)}</span>
         <span class="sh-total">${formatEuro(item.amount)}</span>
         ${S.isAdmin ? `<span class="sh-actions">
-          <button class="btn-icon" aria-label="Edit cost" onclick="event.stopPropagation(); editShoppingItem('${esc(item.id)}', 'cost', '${esc(projectId)}')">&#9998;</button>
-          <button class="btn-icon btn-icon-danger" aria-label="Delete cost" onclick="event.stopPropagation(); deleteShoppingItem('${esc(item.id)}', '${esc(projectId)}')">&#10005;</button>
+          <button class="btn-icon" aria-label="Edit cost" data-action="editShoppingItem" data-stop data-id="${esc(item.id)}" data-type="cost" data-project-id="${esc(projectId)}">&#9998;</button>
+          <button class="btn-icon btn-icon-danger" aria-label="Delete cost" data-action="deleteShoppingItem" data-stop data-id="${esc(item.id)}" data-project-id="${esc(projectId)}">&#10005;</button>
         </span>` : ''}
       </div>`;
     }
@@ -143,8 +143,8 @@ function renderShoppingSection(items, projectId, options = {}) {
         </div>
         <div class="shopping-pending-actions">
           ${S.isAdmin
-            ? `<button class="btn btn-small btn-primary" onclick="approveShoppingItem('${esc(item.id)}', '${esc(projectId)}')">Approve</button>
-               <button class="btn btn-small btn-danger" onclick="deleteShoppingItem('${esc(item.id)}', '${esc(projectId)}')">Reject</button>`
+            ? `<button class="btn btn-small btn-primary" data-action="approveShoppingItem" data-id="${esc(item.id)}" data-project-id="${esc(projectId)}">Approve</button>
+               <button class="btn btn-small btn-danger" data-action="deleteShoppingItem" data-id="${esc(item.id)}" data-project-id="${esc(projectId)}">Reject</button>`
             : `<span class="pending-badge">Pending approval</span>`}
         </div>
       </div>`;
@@ -217,8 +217,8 @@ function showShoppingItemModal(type, projectId, existing) {
       <input type="number" id="shop-amount" step="0.01" min="0" max="1000000" value="${existing?.amount ?? ''}">
     </div>`}
     <div class="modal-actions">
-      <button class="btn btn-secondary" onclick="this.closest('.modal-backdrop').remove()">Cancel</button>
-      <button class="btn btn-primary" onclick="saveShoppingItem('${esc(type)}', '${esc(projectId)}', ${isEdit ? `'${esc(existing.id)}'` : 'null'})">${isEdit ? 'Save' : (isAdmin ? 'Add' : 'Suggest')}</button>
+      <button class="btn btn-secondary" data-action="closeModal">Cancel</button>
+      <button class="btn btn-primary" data-action="saveShoppingItem" data-type="${esc(type)}" data-project-id="${esc(projectId)}" data-id="${isEdit ? esc(existing.id) : ''}">${isEdit ? 'Save' : (isAdmin ? 'Add' : 'Suggest')}</button>
     </div>
   </div>`;
   backdrop.addEventListener('click', e => { if (e.target === backdrop) backdrop.remove(); });
@@ -305,3 +305,11 @@ function refreshShoppingView(projectId) {
   }
   loadShoppingSection(projectId, `shopping-container-${projectId}`);
 }
+
+// --- onAction registrations for shopping ---
+onAction('showShoppingItemModal', (el) => showShoppingItemModal(el.dataset.type, el.dataset.projectId));
+onAction('editShoppingItem', (el) => editShoppingItem(el.dataset.id, el.dataset.type, el.dataset.projectId));
+onAction('deleteShoppingItem', (el) => deleteShoppingItem(el.dataset.id, el.dataset.projectId));
+onAction('togglePurchased', (el) => togglePurchased(el.dataset.id, el.dataset.purchased === 'true'));
+onAction('approveShoppingItem', (el) => approveShoppingItem(el.dataset.id, el.dataset.projectId));
+onAction('saveShoppingItem', (el) => saveShoppingItem(el.dataset.type, el.dataset.projectId, el.dataset.id || null));

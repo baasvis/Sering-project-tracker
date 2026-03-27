@@ -206,13 +206,15 @@ function renderTierButtons() {
     ${Object.entries(PROJECT_TIERS).map(([key, tier]) => `
       <button class="tier-btn ${S.selectedTier === key ? 'active' : ''}"
               style="--tier-color: ${tier.color}; --tier-bg: ${tier.bg}"
-              onclick="selectTier('${key}')">
+              data-action="selectTier" data-tier="${key}">
         <span class="tier-btn-label">${esc(tier.label)}</span>
         <span class="tier-btn-desc">${esc(tier.description)}</span>
       </button>
     `).join('')}
   </div>`;
 }
+
+onAction('selectTier', (el) => selectTier(el.dataset.tier));
 
 function selectTier(tier) {
   S.selectedTier = S.selectedTier === tier ? null : tier;
@@ -228,7 +230,7 @@ function selectTier(tier) {
 
 function updateTierButtonStates() {
   document.querySelectorAll('.tier-btn').forEach(btn => {
-    const tierKey = btn.getAttribute('onclick')?.match(/selectTier\('(\w+)'\)/)?.[1];
+    const tierKey = btn.dataset.tier;
     if (tierKey) btn.classList.toggle('active', S.selectedTier === tierKey);
   });
 }

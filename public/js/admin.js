@@ -31,7 +31,7 @@ async function renderAdmin() {
       <div class="admin-section">
         <div class="flex-between">
           <h2>Groups / Themes</h2>
-          <button class="btn btn-primary" onclick="showGroupModal()">+ New Group</button>
+          <button class="btn btn-primary" data-action="showGroupModal">+ New Group</button>
         </div>
         <ul class="admin-list mt-md">
           ${S.groups.length === 0
@@ -46,8 +46,8 @@ async function renderAdmin() {
                   <span class="text-muted text-sm"> — ${g._count?.projects || 0} projects</span>
                 </div>
                 <div class="admin-actions">
-                  <button class="btn btn-ghost btn-small" onclick="showGroupModal(window._groupCache['${g.id}'])">Edit</button>
-                  <button class="btn btn-danger btn-small" onclick="deleteGroup('${g.id}')">Delete</button>
+                  <button class="btn btn-ghost btn-small" data-action="editGroup" data-id="${g.id}">Edit</button>
+                  <button class="btn btn-danger btn-small" data-action="deleteGroup" data-id="${g.id}">Delete</button>
                 </div>
               </li>`;
             }).join('')}
@@ -57,15 +57,15 @@ async function renderAdmin() {
       <div class="admin-section">
         <h2>Quick Actions</h2>
         <div class="flex gap-sm mt-md">
-          <button class="btn btn-primary" onclick="showProjectModal()">+ New Project</button>
-          <button class="btn btn-primary" onclick="S.screen='dashboard'; renderCurrentScreen(); showAnnouncementModal()">+ Announcement</button>
+          <button class="btn btn-primary" data-action="showProjectModal">+ New Project</button>
+          <button class="btn btn-primary" data-action="newAnnouncementFromAdmin">+ Announcement</button>
         </div>
       </div>
 
       <div class="admin-section">
         <div class="flex-between">
           <h2>Reports ${reports.length > 0 ? `<span class="report-badge">${reports.length}</span>` : ''}</h2>
-          <button class="btn btn-ghost btn-small" onclick="toggleResolvedReports()">Show resolved</button>
+          <button class="btn btn-ghost btn-small" data-action="toggleResolvedReports">Show resolved</button>
         </div>
         <div id="admin-reports-list" class="mt-md">
           ${reports.length === 0
@@ -80,10 +80,10 @@ async function renderAdmin() {
                   <span class="text-muted text-xs">${timeAgo(r.createdAt)}${r.currentPage ? ' · ' + esc(r.currentPage) : ''}</span>
                 </div>
                 <p class="report-card-desc">${esc(r.description)}</p>
-                ${r.hasScreenshot ? `<button class="btn btn-ghost btn-small" onclick="viewReportScreenshot('${r.id}')">View screenshot</button>` : ''}
+                ${r.hasScreenshot ? `<button class="btn btn-ghost btn-small" data-action="viewReportScreenshot" data-id="${r.id}">View screenshot</button>` : ''}
                 <div class="report-card-actions">
-                  <button class="btn btn-primary btn-small" onclick="resolveReport('${r.id}')">Resolve</button>
-                  <button class="btn btn-danger btn-small" onclick="deleteReport('${r.id}')">Delete</button>
+                  <button class="btn btn-primary btn-small" data-action="resolveReport" data-id="${r.id}">Resolve</button>
+                  <button class="btn btn-danger btn-small" data-action="deleteReport" data-id="${r.id}">Delete</button>
                 </div>
               </div>`;
             }).join('')}
@@ -118,8 +118,8 @@ function showGroupModal(existing) {
       <input type="text" id="group-mattermost" value="${esc(existing?.mattermostChannel || '')}" placeholder="https://mattermost.desering.org/de-sering/channels/...">
     </div>
     <div class="modal-actions">
-      <button class="btn btn-secondary" onclick="this.closest('.modal-backdrop').remove()">Cancel</button>
-      <button class="btn btn-primary" onclick="saveGroup(${isEdit ? `'${existing.id}'` : 'null'})">
+      <button class="btn btn-secondary" data-action="closeModal">Cancel</button>
+      <button class="btn btn-primary" data-action="saveGroup" data-id="${isEdit ? existing.id : ''}">
         ${isEdit ? 'Save' : 'Create'}
       </button>
     </div>
@@ -172,7 +172,7 @@ async function viewReportScreenshot(id) {
     backdrop.innerHTML = `<div class="modal report-screenshot-modal">
       <div class="flex-between mb-md">
         <h2>Screenshot</h2>
-        <button class="btn btn-ghost btn-small" onclick="this.closest('.modal-backdrop').remove()">Close</button>
+        <button class="btn btn-ghost btn-small" data-action="closeModal">Close</button>
       </div>
       <img src="${report.screenshotData}" alt="Report screenshot" class="report-screenshot-full">
     </div>`;
@@ -225,12 +225,12 @@ async function toggleResolvedReports() {
           <span class="text-muted text-xs">${r.resolved ? 'Resolved · ' : ''}${timeAgo(r.createdAt)}${r.currentPage ? ' · ' + esc(r.currentPage) : ''}</span>
         </div>
         <p class="report-card-desc">${esc(r.description)}</p>
-        ${r.hasScreenshot ? `<button class="btn btn-ghost btn-small" onclick="viewReportScreenshot('${r.id}')">View screenshot</button>` : ''}
+        ${r.hasScreenshot ? `<button class="btn btn-ghost btn-small" data-action="viewReportScreenshot" data-id="${r.id}">View screenshot</button>` : ''}
         <div class="report-card-actions">
           ${r.resolved
-            ? `<button class="btn btn-ghost btn-small" onclick="unresolveReport('${r.id}')">Reopen</button>`
-            : `<button class="btn btn-primary btn-small" onclick="resolveReport('${r.id}')">Resolve</button>`}
-          <button class="btn btn-danger btn-small" onclick="deleteReport('${r.id}')">Delete</button>
+            ? `<button class="btn btn-ghost btn-small" data-action="unresolveReport" data-id="${r.id}">Reopen</button>`
+            : `<button class="btn btn-primary btn-small" data-action="resolveReport" data-id="${r.id}">Resolve</button>`}
+          <button class="btn btn-danger btn-small" data-action="deleteReport" data-id="${r.id}">Delete</button>
         </div>
       </div>`;
     }).join('');
@@ -248,3 +248,15 @@ async function unresolveReport(id) {
     toast(err.message, 'error');
   }
 }
+
+// ---- onAction registrations ----
+onAction('showGroupModal', () => showGroupModal());
+onAction('editGroup', (el) => showGroupModal(window._groupCache[el.dataset.id]));
+onAction('saveGroup', (el) => saveGroup(el.dataset.id || null));
+onAction('deleteGroup', (el) => deleteGroup(el.dataset.id));
+onAction('newAnnouncementFromAdmin', () => { S.screen = 'dashboard'; renderCurrentScreen(); showAnnouncementModal(); });
+onAction('toggleResolvedReports', () => toggleResolvedReports());
+onAction('viewReportScreenshot', (el) => viewReportScreenshot(el.dataset.id));
+onAction('resolveReport', (el) => resolveReport(el.dataset.id));
+onAction('deleteReport', (el) => deleteReport(el.dataset.id));
+onAction('unresolveReport', (el) => unresolveReport(el.dataset.id));

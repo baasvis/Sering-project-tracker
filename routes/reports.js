@@ -22,8 +22,13 @@ router.post('/', asyncHandler(async (req, res) => {
   }
 
   if (screenshotData) {
-    if (typeof screenshotData !== 'string' || !screenshotData.startsWith('data:image/')) {
+    if (typeof screenshotData !== 'string') {
       return res.status(400).json({ error: 'Invalid screenshot format' });
+    }
+    // Only allow raster image formats — reject SVG (can contain embedded scripts)
+    const SAFE_PREFIXES = ['data:image/jpeg', 'data:image/png', 'data:image/webp', 'data:image/gif'];
+    if (!SAFE_PREFIXES.some(p => screenshotData.startsWith(p))) {
+      return res.status(400).json({ error: 'Screenshot must be JPEG, PNG, WebP, or GIF' });
     }
     if (screenshotData.length > 2 * 1024 * 1024) {
       return res.status(400).json({ error: 'Screenshot too large' });

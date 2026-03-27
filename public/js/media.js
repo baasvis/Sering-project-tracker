@@ -8,13 +8,13 @@ function renderMediaItems(mediaList) {
 
   return `<div class="media-grid">${mediaList.map(m => {
     const deleteBtn = S.isAdmin
-      ? `<button class="media-delete-btn" onclick="event.stopPropagation(); deleteMedia('${m.id}')" title="Delete">&#10005;</button>`
+      ? `<button class="media-delete-btn" data-action="deleteMedia" data-id="${m.id}" data-stop title="Delete">&#10005;</button>`
       : '';
 
     if (m.type === 'photo') {
       return `<div class="media-item">
         <img src="/api/media/${m.id}/file" class="media-thumb" loading="lazy"
-              onclick="openLightbox('/api/media/${m.id}/file')"
+              data-action="openLightbox" data-src="/api/media/${m.id}/file"
               alt="${esc(m.originalName)}">
         ${deleteBtn}
       </div>`;
@@ -22,7 +22,7 @@ function renderMediaItems(mediaList) {
     if (m.type === 'voice') {
       return `<div class="media-item">
         <div class="voice-note">
-          <button class="voice-note-btn" onclick="playVoice(this, '/api/media/${m.id}/file')">&#9654;</button>
+          <button class="voice-note-btn" data-action="playVoice" data-src="/api/media/${m.id}/file">&#9654;</button>
           <span class="voice-note-duration">${esc(m.originalName)}</span>
         </div>
         ${deleteBtn}
@@ -38,9 +38,9 @@ function renderMediaUploadButtons(parentType, parentId) {
     <label class="media-upload-btn">
       &#128247; Photo
       <input type="file" accept="image/*" style="display:none"
-             onchange="uploadPhoto(this, '${parentType}', '${parentId}')">
+             data-on-change="uploadPhoto" data-parent-type="${parentType}" data-parent-id="${parentId}">
     </label>
-    <button class="media-upload-btn" onclick="toggleVoiceRecorder(this, '${parentType}', '${parentId}')">
+    <button class="media-upload-btn" data-action="toggleVoiceRecorder" data-parent-type="${parentType}" data-parent-id="${parentId}">
       &#127908; Voice
     </button>
   </div>`;
@@ -81,7 +81,7 @@ async function uploadPhoto(input, parentType, parentId) {
       }
       grid.insertAdjacentHTML('beforeend',
         `<img src="/api/media/${newMedia.id}/file" class="media-thumb"
-              onclick="openLightbox('/api/media/${newMedia.id}/file')"
+              data-action="openLightbox" data-src="/api/media/${newMedia.id}/file"
               alt="${esc(newMedia.originalName)}">`);
     }
   } catch (err) {
@@ -158,7 +158,7 @@ function toggleVoiceRecorder(btn, parentType, parentId) {
           }
           grid.insertAdjacentHTML('beforeend',
             `<div class="voice-note">
-              <button class="voice-note-btn" onclick="playVoice(this, '/api/media/${newMedia.id}/file')">&#9654;</button>
+              <button class="voice-note-btn" data-action="playVoice" data-src="/api/media/${newMedia.id}/file">&#9654;</button>
               <span class="voice-note-duration">${esc(newMedia.originalName)}</span>
             </div>`);
         }
@@ -209,3 +209,10 @@ function openLightbox(src) {
   lb.onclick = () => lb.remove();
   document.body.appendChild(lb);
 }
+
+// --- onAction registrations ---
+onAction('deleteMedia', el => deleteMedia(el.dataset.id));
+onAction('openLightbox', el => openLightbox(el.dataset.src));
+onAction('playVoice', el => playVoice(el, el.dataset.src));
+onAction('toggleVoiceRecorder', el => toggleVoiceRecorder(el, el.dataset.parentType, el.dataset.parentId));
+onAction('uploadPhoto', el => uploadPhoto(el, el.dataset.parentType, el.dataset.parentId));

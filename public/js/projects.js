@@ -78,8 +78,8 @@ async function renderProjects() {
     <div class="flex-between mb-lg">
       <h1>Projects</h1>
       ${S.isAdmin
-        ? '<button class="btn btn-primary" onclick="showProjectModal()">+ New Project</button>'
-        : '<button class="btn btn-secondary" onclick="showSuggestProjectModal()">Suggest Project</button>'}
+        ? '<button class="btn btn-primary" data-action="showProjectModal">+ New Project</button>'
+        : '<button class="btn btn-secondary" data-action="showSuggestProjectModal">Suggest Project</button>'}
     </div>
 
     ${renderTierButtons()}
@@ -100,10 +100,10 @@ async function renderProjects() {
 // Render group tab buttons (extracted for reuse)
 function renderGroupTabs() {
   return `<button class="group-tab ${!S.selectedGroupId ? 'active' : ''}"
-              onclick="selectGroup(null)">All</button>
+              data-action="selectGroup" data-group-id="">All</button>
       ${S.groups.map(g => `
         <button class="group-tab ${S.selectedGroupId === g.id ? 'active' : ''}"
-                onclick="selectGroup('${g.id}')">${esc(g.name)}</button>
+                data-action="selectGroup" data-group-id="${g.id}">${esc(g.name)}</button>
       `).join('')}`;
 }
 
@@ -123,8 +123,8 @@ function renderProjectCards(filtered) {
             </div>
             <p class="text-muted text-sm">Suggested by ${esc(p.suggestedBy || 'someone')} — waiting for admin approval</p>
             ${S.isAdmin ? `<div class="pending-actions mt-sm">
-              <button class="btn btn-small btn-primary" onclick="event.stopPropagation(); approveSuggestedProject('${p.id}')">Approve</button>
-              <button class="btn btn-small btn-danger" onclick="event.stopPropagation(); declineSuggested('project', '${p.id}')">Decline</button>
+              <button class="btn btn-small btn-primary" data-action="approveSuggestedProject" data-id="${p.id}" data-stop>Approve</button>
+              <button class="btn btn-small btn-danger" data-action="declineSuggested" data-type="project" data-id="${p.id}" data-stop>Decline</button>
             </div>` : ''}
           </div>`;
         }
@@ -187,8 +187,8 @@ async function renderProjectDetail() {
     <div class="project-detail">
       <div class="project-detail-header">
         <div class="breadcrumb">
-          <a href="#projects" onclick="S.currentProjectId = null; window.location.hash = 'projects'; renderProjects(); return false;">Projects</a>
-          &rsaquo; <a href="#projects" onclick="S.selectedGroupId = '${p.groupId}'; S.currentProjectId = null; window.location.hash = 'projects'; renderProjects(); return false;">${esc(p.group?.name || '')}</a>
+          <a href="#projects" data-action="breadcrumbProjects">Projects</a>
+          &rsaquo; <a href="#projects" data-action="breadcrumbGroup" data-group-id="${p.groupId}">${esc(p.group?.name || '')}</a>
           &rsaquo; ${esc(p.name)}
         </div>
         <div class="flex-between">
@@ -198,8 +198,8 @@ async function renderProjectDetail() {
             ${p.joinType && JOIN_TYPES[p.joinType] ? `<span class="tag tag-join-${esc(p.joinType)}">${JOIN_TYPES[p.joinType].label}</span>` : ''}
           </div>
           ${S.isAdmin ? `<div class="flex gap-sm">
-            <button class="btn btn-ghost" onclick="showEditProjectModal('${p.id}')">Edit</button>
-            <button class="btn btn-danger" onclick="deleteProject('${p.id}')">Delete</button>
+            <button class="btn btn-ghost" data-action="showEditProjectModal" data-id="${p.id}">Edit</button>
+            <button class="btn btn-danger" data-action="deleteProject" data-id="${p.id}">Delete</button>
           </div>` : ''}
         </div>
       </div>
@@ -254,8 +254,8 @@ async function renderProjectDetail() {
         <div class="task-list-header">
           <h2>Tasks</h2>
           ${S.isAdmin
-            ? '<button class="btn btn-primary" onclick="showTaskModal()">+ Add Task</button>'
-            : '<button class="btn btn-secondary" onclick="showSuggestTaskModal()">Suggest Task</button>'}
+            ? '<button class="btn btn-primary" data-action="showTaskModal">+ Add Task</button>'
+            : '<button class="btn btn-secondary" data-action="showSuggestTaskModal">Suggest Task</button>'}
         </div>
         ${tasks.length === 0
           ? '<div class="empty-state"><h3>No tasks yet</h3><p>Add tasks to track progress.</p></div>'
@@ -296,8 +296,8 @@ function rerenderTaskList() {
     <div class="task-list-header">
       <h2>Tasks</h2>
       ${S.isAdmin
-        ? '<button class="btn btn-primary" onclick="showTaskModal()">+ Add Task</button>'
-        : '<button class="btn btn-secondary" onclick="showSuggestTaskModal()">Suggest Task</button>'}
+        ? '<button class="btn btn-primary" data-action="showTaskModal">+ Add Task</button>'
+        : '<button class="btn btn-secondary" data-action="showSuggestTaskModal">Suggest Task</button>'}
     </div>
     ${tasks.length === 0
       ? '<div class="empty-state"><h3>No tasks yet</h3><p>Add tasks to track progress.</p></div>'
@@ -341,8 +341,8 @@ function renderTaskItem(task) {
         </div>
       </div>
       ${S.isAdmin ? `<div class="task-pending-actions">
-        <button class="btn btn-small btn-primary" onclick="event.stopPropagation(); approveSuggestedTask('${task.id}')">Approve</button>
-        <button class="btn btn-small btn-danger" onclick="event.stopPropagation(); declineSuggested('task', '${task.id}')">Decline</button>
+        <button class="btn btn-small btn-primary" data-action="approveSuggestedTask" data-id="${task.id}" data-stop>Approve</button>
+        <button class="btn btn-small btn-danger" data-action="declineSuggested" data-type="task" data-id="${task.id}" data-stop>Decline</button>
       </div>` : ''}
     </div>`;
   }
@@ -351,9 +351,9 @@ function renderTaskItem(task) {
   const statusIcon = task.status === 'done' ? '&#10003;' : (task.status === 'in_progress' ? '&#9679;' : '');
   const nameClass = task.status === 'done' ? 'done' : '';
 
-  return `<div class="task-item" onclick="showTaskDetail('${task.id}')">
+  return `<div class="task-item" data-action="showTaskDetail" data-id="${task.id}">
     ${S.isAdmin ? `<button class="task-status-btn ${statusClass}"
-      onclick="event.stopPropagation(); cycleTaskStatus('${task.id}', '${task.status}')">${statusIcon}</button>` :
+      data-action="cycleTaskStatus" data-id="${task.id}" data-status="${task.status}" data-stop>${statusIcon}</button>` :
       `<div class="task-status-btn ${statusClass}" style="cursor:default">${statusIcon}</div>`}
     <div class="task-content">
       <div class="task-name ${nameClass}">${esc(task.name)}</div>
@@ -458,14 +458,14 @@ async function showTaskDetail(taskId) {
     ${S.isAdmin ? renderMediaUploadButtons('task', task.id) : ''}
 
     ${S.isAdmin ? `<div class="flex gap-sm mt-md">
-      <button class="btn btn-ghost" onclick="document.querySelector('.modal-backdrop').remove(); showTaskModal(window._taskCache['${task.id}'])">Edit</button>
-      <button class="btn btn-danger" onclick="deleteTask('${task.id}')">Delete</button>
+      <button class="btn btn-ghost" data-action="editTaskFromDetail" data-id="${task.id}">Edit</button>
+      <button class="btn btn-danger" data-action="deleteTask" data-id="${task.id}">Delete</button>
     </div>` : ''}
 
     <div id="task-comments-${task.id}" class="mt-lg"></div>
 
     <div class="modal-actions">
-      <button class="btn btn-secondary" onclick="this.closest('.modal-backdrop').remove()">Close</button>
+      <button class="btn btn-secondary" data-action="closeModal">Close</button>
     </div>
   </div>`;
 
@@ -530,8 +530,8 @@ function showProjectModal(existing) {
       </select>
     </div>` : ''}
     <div class="modal-actions">
-      <button class="btn btn-secondary" onclick="this.closest('.modal-backdrop').remove()">Cancel</button>
-      <button class="btn btn-primary" onclick="saveProject(${isEdit ? `'${existing.id}'` : 'null'})">
+      <button class="btn btn-secondary" data-action="closeModal">Cancel</button>
+      <button class="btn btn-primary" data-action="saveProject" data-id="${isEdit ? existing.id : ''}">
         ${isEdit ? 'Save' : 'Create'}
       </button>
     </div>
@@ -623,8 +623,8 @@ function showTaskModal(existing) {
       </select>
     </div>` : ''}
     <div class="modal-actions">
-      <button class="btn btn-secondary" onclick="this.closest('.modal-backdrop').remove()">Cancel</button>
-      <button class="btn btn-primary" onclick="saveTask(${isEdit ? `'${existing.id}'` : 'null'})">
+      <button class="btn btn-secondary" data-action="closeModal">Cancel</button>
+      <button class="btn btn-primary" data-action="saveTask" data-id="${isEdit ? existing.id : ''}">
         ${isEdit ? 'Save' : 'Add'}
       </button>
     </div>
@@ -701,8 +701,8 @@ function showSuggestTaskModal() {
       <input type="text" id="suggest-task-name" maxlength="200" placeholder="What needs to be done?">
     </div>
     <div class="modal-actions">
-      <button class="btn btn-secondary" onclick="this.closest('.modal-backdrop').remove()">Cancel</button>
-      <button class="btn btn-primary" onclick="saveSuggestedTask()">Suggest</button>
+      <button class="btn btn-secondary" data-action="closeModal">Cancel</button>
+      <button class="btn btn-primary" data-action="saveSuggestedTask">Suggest</button>
     </div>
   </div>`;
   backdrop.addEventListener('click', e => { if (e.target === backdrop) backdrop.remove(); });
@@ -755,8 +755,8 @@ function showSuggestProjectModal() {
       <input type="text" id="suggest-proj-name" maxlength="200" placeholder="What project do you have in mind?">
     </div>
     <div class="modal-actions">
-      <button class="btn btn-secondary" onclick="this.closest('.modal-backdrop').remove()">Cancel</button>
-      <button class="btn btn-primary" onclick="saveSuggestedProject()">Suggest</button>
+      <button class="btn btn-secondary" data-action="closeModal">Cancel</button>
+      <button class="btn btn-primary" data-action="saveSuggestedProject">Suggest</button>
     </div>
   </div>`;
   backdrop.addEventListener('click', e => { if (e.target === backdrop) backdrop.remove(); });
@@ -837,3 +837,41 @@ function navigateToProject(projectId) {
   renderCurrentScreen();
   buildNav();
 }
+
+/* ---- onAction registrations for projects ---- */
+
+// Note: showProjectModal (no args) and closeModal are already registered in dashboard.js
+
+onAction('showSuggestProjectModal', () => showSuggestProjectModal());
+onAction('selectGroup', (el) => selectGroup(el.dataset.groupId || null));
+onAction('approveSuggestedProject', (el) => approveSuggestedProject(el.dataset.id));
+onAction('declineSuggested', (el) => declineSuggested(el.dataset.type, el.dataset.id));
+onAction('breadcrumbProjects', (el, e) => {
+  e.preventDefault();
+  S.currentProjectId = null;
+  window.location.hash = 'projects';
+  renderProjects();
+});
+onAction('breadcrumbGroup', (el, e) => {
+  e.preventDefault();
+  S.selectedGroupId = el.dataset.groupId;
+  S.currentProjectId = null;
+  window.location.hash = 'projects';
+  renderProjects();
+});
+onAction('showEditProjectModal', (el) => showEditProjectModal(el.dataset.id));
+onAction('deleteProject', (el) => deleteProject(el.dataset.id));
+onAction('showTaskModal', () => showTaskModal());
+onAction('showSuggestTaskModal', () => showSuggestTaskModal());
+onAction('approveSuggestedTask', (el) => approveSuggestedTask(el.dataset.id));
+onAction('showTaskDetail', (el) => showTaskDetail(el.dataset.id));
+onAction('cycleTaskStatus', (el) => cycleTaskStatus(el.dataset.id, el.dataset.status));
+onAction('editTaskFromDetail', (el) => {
+  document.querySelector('.modal-backdrop').remove();
+  showTaskModal(window._taskCache[el.dataset.id]);
+});
+onAction('deleteTask', (el) => deleteTask(el.dataset.id));
+onAction('saveProject', (el) => saveProject(el.dataset.id || null));
+onAction('saveTask', (el) => saveTask(el.dataset.id || null));
+onAction('saveSuggestedTask', () => saveSuggestedTask());
+onAction('saveSuggestedProject', () => saveSuggestedProject());

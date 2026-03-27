@@ -32,8 +32,8 @@ async function showReportModal() {
       </div>
     </div>
     <div class="modal-actions">
-      <button class="btn btn-secondary" onclick="this.closest('.modal-backdrop').remove()">Cancel</button>
-      <button class="btn btn-primary" id="report-submit-btn" onclick="submitReport()" disabled>Send Report</button>
+      <button class="btn btn-secondary" data-action="closeModal">Cancel</button>
+      <button class="btn btn-primary" id="report-submit-btn" data-action="submitReport" disabled>Send Report</button>
     </div>
   </div>`;
   backdrop.addEventListener('click', e => { if (e.target === backdrop) backdrop.remove(); });
@@ -102,3 +102,6 @@ async function submitReport() {
     btn.textContent = 'Send Report';
   }
 }
+
+// ---- onAction registrations ----
+onAction('submitReport', () => submitReport());
