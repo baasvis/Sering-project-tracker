@@ -80,7 +80,7 @@ function renderShoppingSection(items, projectId, options = {}) {
       const nameHtml = href
         ? `<a href="${href}" target="_blank" rel="noopener noreferrer">${esc(item.name)}</a>`
         : esc(item.name);
-      html += `<div class="shopping-row ${item.purchased ? 'purchased' : ''} ${S.isAdmin ? 'has-actions' : ''}">`;
+      html += `<div class="shopping-row ${item.purchased ? 'purchased' : ''} ${S.isAdmin ? 'has-actions' : ''}">
         <span class="sh-name">${nameHtml}</span>
         <span class="sh-price">${formatEuro(item.pricePerItem)}</span>
         <span class="sh-qty">${item.quantity || 1}</span>
