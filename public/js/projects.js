@@ -2,9 +2,13 @@
    Projects — List, Detail, Tasks
    ======================================== */
 
+// Cache for passing objects to modals without JSON.stringify in onclick
+window._taskCache = {};
+
 // ---- Project list screen ----
 async function renderProjects() {
   const app = document.getElementById('app');
+  showLoading();
 
   try {
     S.groups = await apiGet('/api/groups');
@@ -40,7 +44,9 @@ async function renderProjects() {
         seenIds.add(p.id);
       }
     }
-  } catch (e) { /* fallback to what we have */ }
+  } catch (e) {
+    console.warn('Could not load all projects:', e.message);
+  }
 
   // Filter by group
   const filtered = S.selectedGroupId
@@ -66,9 +72,9 @@ async function renderProjects() {
       ${filtered.length === 0
         ? '<div class="empty-state"><h3>No projects yet</h3><p>Create a project to get started.</p></div>'
         : filtered.map(p => {
-          const tasks = p.tasks || [];
-          const total = tasks.length;
-          const done = tasks.filter(t => t.status === 'done').length;
+          const counts = p.taskCounts || { todo: 0, in_progress: 0, done: 0 };
+          const total = counts.todo + counts.in_progress + counts.done;
+          const done = counts.done;
           const pct = total > 0 ? Math.round((done / total) * 100) : 0;
           const jt = p.joinType && JOIN_TYPES[p.joinType];
           return `<div class="project-card card-clickable" onclick="navigateToProject('${p.id}')">
@@ -96,6 +102,7 @@ async function renderProjects() {
 // ---- Project detail ----
 async function renderProjectDetail() {
   const app = document.getElementById('app');
+  showLoading();
 
   try {
     S.currentProject = await apiGet(`/api/projects/${S.currentProjectId}`);
@@ -178,7 +185,7 @@ async function renderProjectDetail() {
         <div class="progress-bar-fill" style="width: ${pct}%"></div>
       </div>
 
-      <div class="task-list">
+      <div id="task-list-section" class="task-list">
         <div class="task-list-header">
           <h2>Tasks</h2>
           ${S.isAdmin ? '<button class="btn btn-primary" onclick="showTaskModal()">+ Add Task</button>' : ''}
@@ -193,25 +200,64 @@ async function renderProjectDetail() {
       <div id="project-comments"></div>
     </div>`;
 
-  // Load project media
-  try {
-    const projectMedia = await apiGet(`/api/media?parentType=project&parentId=${p.id}`);
-    const mediaContainer = document.getElementById('project-media');
-    if (projectMedia.length > 0 || S.isAdmin) {
-      mediaContainer.innerHTML = renderMediaItems(projectMedia) +
-        (S.isAdmin ? renderMediaUploadButtons('project', p.id) : '');
-    }
-  } catch (e) { /* ignore */ }
+  // Load project media and comments in parallel
+  const mediaPromise = apiGet(`/api/media?parentType=project&parentId=${p.id}`)
+    .then(projectMedia => {
+      const mediaContainer = document.getElementById('project-media');
+      if (mediaContainer && (projectMedia.length > 0 || S.isAdmin)) {
+        mediaContainer.innerHTML = renderMediaItems(projectMedia) +
+          (S.isAdmin ? renderMediaUploadButtons('project', p.id) : '');
+      }
+    })
+    .catch(e => console.warn('Could not load project media:', e.message));
 
   // Load shopping list
   loadShoppingSection(p.id, `shopping-container-${p.id}`);
 
-  // Load comments
-  const commentsContainer = document.getElementById('project-comments');
-  await renderComments('project', p.id, commentsContainer);
+  // Load comments in parallel with media
+  const commentsPromise = renderComments('project', p.id, document.getElementById('project-comments'));
+  await Promise.all([mediaPromise, commentsPromise]);
+}
+
+// Re-render just the task list section without touching the rest of the page
+function rerenderTaskList() {
+  const section = document.getElementById('task-list-section');
+  if (!section || !S.currentProject) return;
+
+  const tasks = S.currentProject.tasks || [];
+  section.innerHTML = `
+    <div class="task-list-header">
+      <h2>Tasks</h2>
+      ${S.isAdmin ? '<button class="btn btn-primary" onclick="showTaskModal()">+ Add Task</button>' : ''}
+    </div>
+    ${tasks.length === 0
+      ? '<div class="empty-state"><h3>No tasks yet</h3><p>Add tasks to track progress.</p></div>'
+      : tasks.map(renderTaskItem).join('')}`;
+
+  // Also update the stats
+  const total = tasks.length;
+  const done = tasks.filter(t => t.status === 'done').length;
+  const inProgress = tasks.filter(t => t.status === 'in_progress').length;
+  const pct = total > 0 ? Math.round((done / total) * 100) : 0;
+
+  const stats = document.querySelector('.project-stats');
+  if (stats) {
+    const statValues = stats.querySelectorAll('.stat-value');
+    if (statValues.length >= 4) {
+      statValues[0].textContent = total;
+      statValues[1].textContent = total - done - inProgress;
+      statValues[2].textContent = inProgress;
+      statValues[3].textContent = done;
+    }
+  }
+  const progressFill = document.querySelector('.progress-bar-fill');
+  if (progressFill) progressFill.style.width = `${pct}%`;
 }
 
 function renderTaskItem(task) {
+  // Cache task for modal access
+  window._taskCache[task.id] = task;
+
   const statusClass = task.status;
   const statusIcon = task.status === 'done' ? '&#10003;' : (task.status === 'in_progress' ? '&#9679;' : '');
   const nameClass = task.status === 'done' ? 'done' : '';
@@ -231,15 +277,22 @@ function renderTaskItem(task) {
   </div>`;
 }
 
-// ---- Task status cycling (admin) ----
+// ---- Task status cycling (admin) — targeted update, no full re-render ----
 async function cycleTaskStatus(taskId, currentStatus) {
-  const next = STATUS_CYCLE[currentStatus] || 'todo';
-  try {
-    await apiPatch(`/api/tasks/${taskId}`, { status: next });
-    renderProjectDetail();
-  } catch (err) {
-    toast(err.message, 'error');
-  }
+  return withDedup(`cycleTask-${taskId}`, async () => {
+    const next = STATUS_CYCLE[currentStatus] || 'todo';
+    try {
+      const updated = await apiPatch(`/api/tasks/${taskId}`, { status: next });
+      // Update task in local state
+      if (S.currentProject && S.currentProject.tasks) {
+        const idx = S.currentProject.tasks.findIndex(t => t.id === taskId);
+        if (idx !== -1) S.currentProject.tasks[idx] = { ...S.currentProject.tasks[idx], ...updated };
+      }
+      rerenderTaskList();
+    } catch (err) {
+      toast(err.message, 'error');
+    }
+  });
 }
 
 // ---- Task detail modal ----
@@ -252,11 +305,16 @@ async function showTaskDetail(taskId) {
     return;
   }
 
+  // Cache for edit modal
+  window._taskCache[taskId] = task;
+
   // Load media
   let media = [];
   try {
     media = await apiGet(`/api/media?parentType=task&parentId=${taskId}`);
-  } catch (e) { /* ignore */ }
+  } catch (e) {
+    console.warn('Could not load task media:', e.message);
+  }
 
   const backdrop = document.createElement('div');
   backdrop.className = 'modal-backdrop';
@@ -296,7 +354,7 @@ async function showTaskDetail(taskId) {
     ${S.isAdmin ? renderMediaUploadButtons('task', task.id) : ''}
 
     ${S.isAdmin ? `<div class="flex gap-sm mt-md">
-      <button class="btn btn-ghost" onclick="document.querySelector('.modal-backdrop').remove(); showTaskModal(${JSON.stringify(task).replace(/"/g, '&quot;')})">Edit</button>
+      <button class="btn btn-ghost" onclick="document.querySelector('.modal-backdrop').remove(); showTaskModal(window._taskCache['${task.id}'])">Edit</button>
       <button class="btn btn-danger" onclick="deleteTask('${task.id}')">Delete</button>
     </div>` : ''}
 
@@ -384,32 +442,34 @@ async function showEditProjectModal(id) {
 }
 
 async function saveProject(id) {
-  const groupId = document.getElementById('proj-group')?.value;
-  const name = document.getElementById('proj-name').value.trim();
-  const description = getRichEditorHTML('proj-description-editor');
-  const contactPerson = document.getElementById('proj-contact').value.trim();
-  const tier = document.getElementById('proj-tier').value;
+  return withDedup('saveProject', async () => {
+    const groupId = document.getElementById('proj-group')?.value;
+    const name = document.getElementById('proj-name').value.trim();
+    const description = getRichEditorHTML('proj-description-editor');
+    const contactPerson = document.getElementById('proj-contact').value.trim();
+    const tier = document.getElementById('proj-tier').value;
 
-  if (!name) return toast('Name is required', 'error');
-  if (!groupId) return toast('Select a group first', 'error');
+    if (!name) return toast('Name is required', 'error');
+    if (!groupId) return toast('Select a group first', 'error');
 
-  const joinType = document.getElementById('proj-jointype')?.value || null;
-  const data = { groupId, name, description, contactPerson: contactPerson || null, tier: tier || null, joinType };
-  const statusEl = document.getElementById('proj-status');
-  if (statusEl) data.status = statusEl.value;
+    const joinType = document.getElementById('proj-jointype')?.value || null;
+    const data = { groupId, name, description, contactPerson: contactPerson || null, tier: tier || null, joinType };
+    const statusEl = document.getElementById('proj-status');
+    if (statusEl) data.status = statusEl.value;
 
-  try {
-    if (id) {
-      await apiPatch(`/api/projects/${id}`, data);
-    } else {
-      await apiPost('/api/projects', data);
+    try {
+      if (id) {
+        await apiPatch(`/api/projects/${id}`, data);
+      } else {
+        await apiPost('/api/projects', data);
+      }
+      document.querySelector('.modal-backdrop')?.remove();
+      renderCurrentScreen();
+      toast(id ? 'Project updated' : 'Project created', 'success');
+    } catch (err) {
+      toast(err.message, 'error');
     }
-    document.querySelector('.modal-backdrop')?.remove();
-    renderCurrentScreen();
-    toast(id ? 'Project updated' : 'Project created', 'success');
-  } catch (err) {
-    toast(err.message, 'error');
-  }
+  });
 }
 
 async function deleteProject(id) {
@@ -471,39 +531,54 @@ function showTaskModal(existing) {
 }
 
 async function saveTask(id) {
-  const name = document.getElementById('task-name').value.trim();
-  const description = getRichEditorHTML('task-description-editor');
-  const assignee = document.getElementById('task-assignee').value.trim();
-  const deadline = document.getElementById('task-deadline').value;
+  return withDedup('saveTask', async () => {
+    const name = document.getElementById('task-name').value.trim();
+    const description = getRichEditorHTML('task-description-editor');
+    const assignee = document.getElementById('task-assignee').value.trim();
+    const deadline = document.getElementById('task-deadline').value;
 
-  if (!name) return toast('Task name is required', 'error');
+    if (!name) return toast('Task name is required', 'error');
 
-  const data = { name, description, assignee: assignee || null, deadline: deadline || null };
+    const data = { name, description, assignee: assignee || null, deadline: deadline || null };
 
-  const statusEl = document.getElementById('task-status');
-  if (statusEl) data.status = statusEl.value;
+    const statusEl = document.getElementById('task-status');
+    if (statusEl) data.status = statusEl.value;
 
-  try {
-    if (id) {
-      await apiPatch(`/api/tasks/${id}`, data);
-    } else {
-      data.projectId = S.currentProjectId;
-      await apiPost('/api/tasks', data);
+    try {
+      if (id) {
+        const updated = await apiPatch(`/api/tasks/${id}`, data);
+        // Update in local state
+        if (S.currentProject && S.currentProject.tasks) {
+          const idx = S.currentProject.tasks.findIndex(t => t.id === id);
+          if (idx !== -1) S.currentProject.tasks[idx] = { ...S.currentProject.tasks[idx], ...updated };
+        }
+      } else {
+        data.projectId = S.currentProjectId;
+        const created = await apiPost('/api/tasks', data);
+        if (S.currentProject) {
+          S.currentProject.tasks = S.currentProject.tasks || [];
+          S.currentProject.tasks.push(created);
+        }
+      }
+      document.querySelector('.modal-backdrop')?.remove();
+      rerenderTaskList();
+      toast(id ? 'Task updated' : 'Task added', 'success');
+    } catch (err) {
+      toast(err.message, 'error');
     }
-    document.querySelector('.modal-backdrop')?.remove();
-    renderProjectDetail();
-    toast(id ? 'Task updated' : 'Task added', 'success');
-  } catch (err) {
-    toast(err.message, 'error');
-  }
+  });
 }
 
 async function deleteTask(id) {
   if (!confirm('Delete this task?')) return;
   try {
     await apiDelete(`/api/tasks/${id}`);
+    // Remove from local state
+    if (S.currentProject && S.currentProject.tasks) {
+      S.currentProject.tasks = S.currentProject.tasks.filter(t => t.id !== id);
+    }
     document.querySelector('.modal-backdrop')?.remove();
-    renderProjectDetail();
+    rerenderTaskList();
     toast('Task deleted');
   } catch (err) {
     toast(err.message, 'error');

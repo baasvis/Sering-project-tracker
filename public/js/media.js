@@ -68,9 +68,22 @@ async function uploadPhoto(input, parentType, parentId) {
   formData.append('uploaderName', getUploaderName());
 
   try {
-    await apiUpload('/api/media', formData);
+    const newMedia = await apiUpload('/api/media', formData);
     toast('Photo uploaded', 'success');
-    renderCurrentScreen();
+    // Append to nearest media grid instead of full re-render
+    const uploadArea = input.closest('.media-upload-area');
+    if (uploadArea) {
+      let grid = uploadArea.previousElementSibling;
+      if (!grid || !grid.classList.contains('media-grid')) {
+        grid = document.createElement('div');
+        grid.className = 'media-grid';
+        uploadArea.parentNode.insertBefore(grid, uploadArea);
+      }
+      grid.insertAdjacentHTML('beforeend',
+        `<img src="/api/media/${newMedia.id}/file" class="media-thumb"
+              onclick="openLightbox('/api/media/${newMedia.id}/file')"
+              alt="${esc(newMedia.originalName)}">`);
+    }
   } catch (err) {
     toast(err.message, 'error');
   }
@@ -114,9 +127,23 @@ function toggleVoiceRecorder(btn, parentType, parentId) {
       formData.append('uploaderName', getUploaderName());
 
       try {
-        await apiUpload('/api/media', formData);
+        const newMedia = await apiUpload('/api/media', formData);
         toast('Voice note uploaded', 'success');
-        renderCurrentScreen();
+        // Append to nearest media grid instead of full re-render
+        const uploadArea = btn.closest('.media-upload-area');
+        if (uploadArea) {
+          let grid = uploadArea.previousElementSibling;
+          if (!grid || !grid.classList.contains('media-grid')) {
+            grid = document.createElement('div');
+            grid.className = 'media-grid';
+            uploadArea.parentNode.insertBefore(grid, uploadArea);
+          }
+          grid.insertAdjacentHTML('beforeend',
+            `<div class="voice-note">
+              <button class="voice-note-btn" onclick="playVoice(this, '/api/media/${newMedia.id}/file')">&#9654;</button>
+              <span class="voice-note-duration">${esc(newMedia.originalName)}</span>
+            </div>`);
+        }
       } catch (err) {
         toast(err.message, 'error');
       }

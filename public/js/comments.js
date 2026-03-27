@@ -50,26 +50,28 @@ function renderComment(c) {
 }
 
 async function postComment(targetType, targetId) {
-  const input = document.getElementById(`comment-input-${targetId}`);
-  const body = input.value.trim();
-  if (!body) return;
+  return withDedup(`postComment-${targetId}`, async () => {
+    const input = document.getElementById(`comment-input-${targetId}`);
+    const body = input.value.trim();
+    if (!body) return;
 
-  const authorName = S.isAdmin ? (S.adminEmail || 'Admin') : S.visitorName;
-  if (!authorName) {
-    toast('Please enter your name first', 'error');
-    return;
-  }
+    const authorName = S.isAdmin ? (S.adminEmail || 'Admin') : S.visitorName;
+    if (!authorName) {
+      toast('Please enter your name first', 'error');
+      return;
+    }
 
-  try {
-    await apiPost('/api/comments', { targetType, targetId, authorName, body });
-    input.value = '';
-    // Re-render comments
-    const container = input.closest('.comments-section').parentElement;
-    await renderComments(targetType, targetId, container);
-    toast('Comment posted', 'success');
-  } catch (err) {
-    toast(err.message, 'error');
-  }
+    try {
+      await apiPost('/api/comments', { targetType, targetId, authorName, body });
+      input.value = '';
+      // Re-render comments
+      const container = input.closest('.comments-section').parentElement;
+      await renderComments(targetType, targetId, container);
+      toast('Comment posted', 'success');
+    } catch (err) {
+      toast(err.message, 'error');
+    }
+  });
 }
 
 async function deleteComment(id) {

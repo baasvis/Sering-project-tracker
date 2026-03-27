@@ -106,38 +106,16 @@
   color: var(--accent);
 }
 
-/* Voice recorder */
-.voice-recorder {
-  display: inline-flex;
-  align-items: center;
-  gap: var(--space-sm);
-}
-
-.voice-recorder.recording .record-btn {
-  background: #cc0000;
+/* Recording state — applied to media-upload-btn when recording */
+.media-upload-btn.recording {
+  border-color: #cc0000;
+  color: #cc0000;
   animation: pulse 1s infinite;
 }
 
 @keyframes pulse {
   0%, 100% { opacity: 1; }
   50% { opacity: 0.6; }
-}
-
-.record-btn {
-  width: 32px;
-  height: 32px;
-  border-radius: 50%;
-  border: none;
-  background: var(--accent);
-  color: white;
-  cursor: pointer;
-  font-size: 14px;
-}
-
-.record-timer {
-  font-size: var(--font-size-sm);
-  color: var(--text-muted);
-  font-variant-numeric: tabular-nums;
 }
 
 /* Lightbox */

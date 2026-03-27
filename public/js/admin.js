@@ -4,6 +4,7 @@
 
 async function renderAdmin() {
   const app = document.getElementById('app');
+  showLoading();
 
   if (!S.isAdmin) {
     app.innerHTML = '<div class="empty-state"><h3>Admin access required</h3><p>Log in as admin to manage groups and settings.</p></div>';
@@ -29,17 +30,21 @@ async function renderAdmin() {
         <ul class="admin-list mt-md">
           ${S.groups.length === 0
             ? '<p class="text-muted">No groups yet. Create one to start organising projects.</p>'
-            : S.groups.map(g => `
+            : S.groups.map(g => {
+              window._groupCache = window._groupCache || {};
+              window._groupCache[g.id] = g;
+              return `
               <li class="admin-list-item">
                 <div>
                   <strong>${esc(g.name)}</strong>
                   <span class="text-muted text-sm"> — ${g._count?.projects || 0} projects</span>
                 </div>
                 <div class="admin-actions">
-                  <button class="btn btn-ghost btn-small" onclick="showGroupModal(${JSON.stringify(g).replace(/"/g, '&quot;')})">Edit</button>
+                  <button class="btn btn-ghost btn-small" onclick="showGroupModal(window._groupCache['${g.id}'])">Edit</button>
                   <button class="btn btn-danger btn-small" onclick="deleteGroup('${g.id}')">Delete</button>
                 </div>
-              </li>`).join('')}
+              </li>`;
+            }).join('')}
         </ul>
       </div>
 

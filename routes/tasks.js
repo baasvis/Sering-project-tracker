@@ -2,11 +2,14 @@ const { Router } = require('express');
 const prisma = require('../lib/db');
 const { requireAdmin } = require('./auth');
 const { sanitize } = require('../lib/sanitize');
+const asyncHandler = require('../lib/async-handler');
 
 const router = Router();
 
+const VALID_TASK_STATUSES = ['todo', 'in_progress', 'done'];
+
 // List tasks for a project
-router.get('/', async (req, res) => {
+router.get('/', asyncHandler(async (req, res) => {
   const { projectId } = req.query;
   if (!projectId) return res.status(400).json({ error: 'projectId query param required' });
 
@@ -15,20 +18,20 @@ router.get('/', async (req, res) => {
     orderBy: { order: 'asc' }
   });
   res.json(tasks);
-});
+}));
 
 // Get single task
-router.get('/:id', async (req, res) => {
+router.get('/:id', asyncHandler(async (req, res) => {
   const task = await prisma.task.findUnique({
     where: { id: req.params.id },
     include: { project: { select: { id: true, name: true, groupId: true } } }
   });
   if (!task) return res.status(404).json({ error: 'Task not found' });
   res.json(task);
-});
+}));
 
 // Create task (admin)
-router.post('/', requireAdmin, async (req, res) => {
+router.post('/', requireAdmin, asyncHandler(async (req, res) => {
   const { projectId, name, description, assignee, deadline } = req.body;
   if (!projectId || !name) return res.status(400).json({ error: 'projectId and name are required' });
 
@@ -48,11 +51,16 @@ router.post('/', requireAdmin, async (req, res) => {
     }
   });
   res.status(201).json(task);
-});
+}));
 
 // Update task (admin)
-router.patch('/:id', requireAdmin, async (req, res) => {
+router.patch('/:id', requireAdmin, asyncHandler(async (req, res) => {
   const { name, description, status, assignee, deadline, order } = req.body;
+
+  if (status !== undefined && !VALID_TASK_STATUSES.includes(status)) {
+    return res.status(400).json({ error: `Invalid status. Must be one of: ${VALID_TASK_STATUSES.join(', ')}` });
+  }
+
   const data = {};
   if (name !== undefined) data.name = name;
   if (description !== undefined) data.description = sanitize(description);
@@ -63,12 +71,12 @@ router.patch('/:id', requireAdmin, async (req, res) => {
 
   const task = await prisma.task.update({ where: { id: req.params.id }, data });
   res.json(task);
-});
+}));
 
 // Delete task (admin)
-router.delete('/:id', requireAdmin, async (req, res) => {
+router.delete('/:id', requireAdmin, asyncHandler(async (req, res) => {
   await prisma.task.delete({ where: { id: req.params.id } });
   res.json({ ok: true });
-});
+}));
 
 module.exports = router;

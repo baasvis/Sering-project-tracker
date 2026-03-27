@@ -4,6 +4,7 @@
 
 async function renderDashboard() {
   const app = document.getElementById('app');
+  showLoading();
 
   // Load data
   try {
@@ -46,17 +47,20 @@ async function renderDashboard() {
         : S.groups.map(renderGroupSection).join('')}
     </div>`;
 
-  // Load all media in parallel
+  // Load all media in parallel (announcements have inline media from backend,
+  // but carousel needs separate loading for photo/voice split)
   const projectIds = S.groups.flatMap(g => (g.projects || []).map(p => p.id));
   await Promise.all([
-    ...S.announcements.map(a => loadAnnouncementMedia(a.id)),
+    ...S.announcements.map(a => loadAnnouncementMedia(a)),
     ...projectIds.map(id => loadProjectCardMedia(id))
   ]);
 }
 
-async function loadAnnouncementMedia(annId) {
+async function loadAnnouncementMedia(a) {
   try {
-    const media = await apiGet(`/api/media?parentType=announcement&parentId=${annId}`);
+    // Use inline media from backend response (batch-fetched)
+    const media = a.media || [];
+    const annId = a.id;
     const carousel = document.getElementById(`ann-carousel-${annId}`);
     const extras = document.getElementById(`ann-extras-${annId}`);
 
@@ -76,7 +80,6 @@ async function loadAnnouncementMedia(annId) {
           <div class="carousel-dots">
             ${photos.map((_, i) => `<button class="carousel-dot${i === 0 ? ' active' : ''}" onclick="event.stopPropagation(); goToSlide('${annId}', ${i})"></button>`).join('')}
           </div>` : ''}`;
-      // Store slide state
       carousel.dataset.slide = '0';
       carousel.dataset.total = photos.length;
     }
@@ -86,7 +89,6 @@ async function loadAnnouncementMedia(annId) {
       let html = '';
       if (voiceNotes.length > 0) html += renderMediaItems(voiceNotes);
       if (S.isAdmin) {
-        // Photo delete buttons for carousel photos
         if (photos.length > 0) {
           html += `<div class="media-grid">${photos.map(p =>
             `<div class="media-item"><img src="/api/media/${p.id}/file" class="media-thumb" style="width:40px;height:40px" alt="${esc(p.originalName)}"><button class="media-delete-btn" onclick="event.stopPropagation(); deleteMedia('${p.id}')" title="Delete" style="display:flex">&#10005;</button></div>`
@@ -96,7 +98,9 @@ async function loadAnnouncementMedia(annId) {
       }
       if (html) extras.innerHTML = html;
     }
-  } catch (e) { /* ignore */ }
+  } catch (e) {
+    console.warn('Could not load announcement media:', e.message);
+  }
 }
 
 function slideCarousel(annId, direction) {
@@ -135,6 +139,10 @@ function toggleAnnouncement(id) {
 }
 
 function renderAnnouncementCard(a) {
+  // Media is now included inline from the backend
+  const mediaHtml = renderMediaItems(a.media || []);
+  const uploadHtml = S.isAdmin ? renderMediaUploadButtons('announcement', a.id) : '';
+
   return `<div class="announcement-card${a.pinned ? ' pinned' : ''}" data-ann-id="${a.id}">
     <div class="announcement-carousel empty" id="ann-carousel-${a.id}"></div>
     <div class="announcement-content" onclick="toggleAnnouncement('${a.id}')">
@@ -167,9 +175,10 @@ function renderGroupSection(group) {
 }
 
 function renderProjectCard(project, group) {
-  const tasks = project.tasks || [];
-  const total = tasks.length;
-  const done = tasks.filter(t => t.status === 'done').length;
+  // Use taskCounts from the backend (transformed response)
+  const counts = project.taskCounts || { todo: 0, in_progress: 0, done: 0 };
+  const total = counts.todo + counts.in_progress + counts.done;
+  const done = counts.done;
   const pct = total > 0 ? Math.round((done / total) * 100) : 0;
 
   return `<div class="project-card card-clickable" onclick="navigateToProject('${project.id}')">
@@ -236,24 +245,26 @@ function showAnnouncementModal(existing) {
 }
 
 async function saveAnnouncement(id) {
-  const title = document.getElementById('ann-title').value.trim();
-  const body = getRichEditorHTML('ann-body-editor');
-  const pinned = document.getElementById('ann-pinned').checked;
+  return withDedup('saveAnnouncement', async () => {
+    const title = document.getElementById('ann-title').value.trim();
+    const body = getRichEditorHTML('ann-body-editor');
+    const pinned = document.getElementById('ann-pinned').checked;
 
-  if (!title || !body) return toast('Title and body are required', 'error');
+    if (!title || !body) return toast('Title and body are required', 'error');
 
-  try {
-    if (id) {
-      await apiPatch(`/api/announcements/${id}`, { title, body, pinned });
-    } else {
-      await apiPost('/api/announcements', { title, body, pinned });
+    try {
+      if (id) {
+        await apiPatch(`/api/announcements/${id}`, { title, body, pinned });
+      } else {
+        await apiPost('/api/announcements', { title, body, pinned });
+      }
+      document.querySelector('.modal-backdrop')?.remove();
+      renderDashboard();
+      toast(id ? 'Announcement updated' : 'Announcement posted', 'success');
+    } catch (err) {
+      toast(err.message, 'error');
     }
-    document.querySelector('.modal-backdrop')?.remove();
-    renderDashboard();
-    toast(id ? 'Announcement updated' : 'Announcement posted', 'success');
-  } catch (err) {
-    toast(err.message, 'error');
-  }
+  });
 }
 
 async function editAnnouncement(id) {

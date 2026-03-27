@@ -1,0 +1,15 @@
+{
+  "permissions": {
+    "allow": [
+      "mcp__Claude_Preview__preview_start",
+      "Bash(npx prisma:*)",
+      "Bash(netstat -ano)",
+      "Bash(taskkill //F //PID 15940)",
+      "Bash(git fetch:*)",
+      "Bash(git rebase:*)",
+      "Bash(git add:*)",
+      "Bash(git commit:*)",
+      "Bash(npm install:*)"
+    ]
+  }
+}

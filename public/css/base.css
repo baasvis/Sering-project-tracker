@@ -548,3 +548,24 @@ label {
   color: var(--text-secondary);
   margin-bottom: var(--space-sm);
 }
+
+/* ---- Loading spinner ---- */
+.loading-spinner {
+  display: flex;
+  justify-content: center;
+  padding: var(--space-2xl) 0;
+}
+
+.loading-spinner::after {
+  content: '';
+  width: 36px;
+  height: 36px;
+  border: 3px solid var(--border-color);
+  border-top-color: var(--sering-red);
+  border-radius: 50%;
+  animation: spin 0.7s linear infinite;
+}
+
+@keyframes spin {
+  to { transform: rotate(360deg); }
+}

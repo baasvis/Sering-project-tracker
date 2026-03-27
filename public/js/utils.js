@@ -145,10 +145,7 @@ function getRichEditorHTML(containerId) {
   const quill = _quillInstances[containerId];
   if (!quill) return '';
   const html = quill.root.innerHTML;
-  // Quill uses <p><br></p> for empty content
   if (html === '<p><br></p>' || html === '<p></p>') return '';
-  // Normalize Quill's list format to standard HTML
-  // Quill 2.x uses <ol> with <li data-list="bullet"|"ordered"> for all lists
   return normalizeQuillHTML(html);
 }
 
@@ -157,15 +154,12 @@ function normalizeQuillHTML(html) {
   const div = document.createElement('div');
   div.innerHTML = html;
 
-  // Remove all ql-ui spans (Quill's internal UI elements)
   div.querySelectorAll('.ql-ui').forEach(el => el.remove());
 
-  // Convert Quill's <ol> with data-list attributes to proper <ul>/<ol>
   div.querySelectorAll('ol').forEach(ol => {
     const items = ol.querySelectorAll('li[data-list]');
     if (items.length === 0) return;
 
-    // Group consecutive items by list type
     let currentType = null;
     let currentList = null;
     const fragment = document.createDocumentFragment();
@@ -192,4 +186,17 @@ function normalizeQuillHTML(html) {
 function renderDescription(html) {
   if (!html) return '';
   return `<div class="rich-content">${html}</div>`;
+}
+
+// Loading spinner — show while fetching screen data
+function showLoading() {
+  document.getElementById('app').innerHTML = '<div class="loading-spinner"></div>';
+}
+
+// Request deduplication guard
+const _pendingRequests = {};
+function withDedup(key, fn) {
+  if (_pendingRequests[key]) return;
+  _pendingRequests[key] = true;
+  return fn().finally(() => { delete _pendingRequests[key]; });
 }

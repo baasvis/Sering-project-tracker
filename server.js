@@ -68,7 +68,12 @@ app.use(session({
   secret: SESSION_SECRET,
   resave: false,
   saveUninitialized: false,
-  cookie: { maxAge: 7 * 24 * 60 * 60 * 1000 } // 7 days
+  cookie: {
+    maxAge: 7 * 24 * 60 * 60 * 1000, // 7 days
+    httpOnly: true,
+    sameSite: 'lax',
+    secure: process.env.NODE_ENV === 'production'
+  }
 }));
 
 // Cookie parser (needed for CSRF double-submit)
@@ -150,16 +155,6 @@ app.use((err, req, res, next) => {
   console.error('Unhandled error:', err);
   res.status(500).json({ error: 'Internal server error' });
 });
-
-// Sync database schema on startup, then start listening
-const { execSync } = require('child_process');
-try {
-  console.log('Syncing database schema...');
-  execSync('npx prisma db push --skip-generate --accept-data-loss', { stdio: 'inherit', cwd: __dirname });
-  console.log('Database schema synced.');
-} catch (err) {
-  console.error('Warning: Could not sync database schema:', err.message);
-}
 
 app.listen(PORT, () => {
   console.log(`Sering Project Tracker running on http://localhost:${PORT}`);

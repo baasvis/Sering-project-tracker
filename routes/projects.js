@@ -2,14 +2,16 @@ const { Router } = require('express');
 const prisma = require('../lib/db');
 const { requireAdmin } = require('./auth');
 const { sanitize } = require('../lib/sanitize');
+const asyncHandler = require('../lib/async-handler');
 
 const router = Router();
 
+const VALID_PROJECT_STATUSES = ['active', 'completed', 'archived'];
 const VALID_JOIN_TYPES = ['open', 'contact', 'closed'];
 const VALID_TIERS = ['mvp', 'medium', 'next_level'];
 
 // List projects (optional ?groupId= filter, ?status= filter)
-router.get('/', async (req, res) => {
+router.get('/', asyncHandler(async (req, res) => {
   const where = {};
   if (req.query.groupId) where.groupId = req.query.groupId;
   if (req.query.status) where.status = req.query.status;
@@ -23,11 +25,22 @@ router.get('/', async (req, res) => {
       tasks: { select: { status: true } }
     }
   });
-  res.json(projects);
-});
+
+  // Transform: replace tasks array with status counts
+  const result = projects.map(p => {
+    const counts = { todo: 0, in_progress: 0, done: 0 };
+    for (const t of p.tasks) {
+      if (counts[t.status] !== undefined) counts[t.status]++;
+    }
+    const { tasks, ...rest } = p;
+    return { ...rest, taskCounts: counts };
+  });
+
+  res.json(result);
+}));
 
 // Get single project with tasks
-router.get('/:id', async (req, res) => {
+router.get('/:id', asyncHandler(async (req, res) => {
   const project = await prisma.project.findUnique({
     where: { id: req.params.id },
     include: {
@@ -37,10 +50,10 @@ router.get('/:id', async (req, res) => {
   });
   if (!project) return res.status(404).json({ error: 'Project not found' });
   res.json(project);
-});
+}));
 
 // Create project (admin)
-router.post('/', requireAdmin, async (req, res) => {
+router.post('/', requireAdmin, asyncHandler(async (req, res) => {
   const { groupId, name, description, contactPerson, tier, joinType } = req.body;
   if (!groupId || !name) return res.status(400).json({ error: 'groupId and name are required' });
   if (joinType && !VALID_JOIN_TYPES.includes(joinType)) return res.status(400).json({ error: 'Invalid joinType' });
@@ -51,11 +64,15 @@ router.post('/', requireAdmin, async (req, res) => {
     include: { group: { select: { id: true, name: true } } }
   });
   res.status(201).json(project);
-});
+}));
 
 // Update project (admin)
-router.patch('/:id', requireAdmin, async (req, res) => {
+router.patch('/:id', requireAdmin, asyncHandler(async (req, res) => {
   const { name, description, contactPerson, status, groupId, tier, joinType } = req.body;
+
+  if (status !== undefined && !VALID_PROJECT_STATUSES.includes(status)) {
+    return res.status(400).json({ error: `Invalid status. Must be one of: ${VALID_PROJECT_STATUSES.join(', ')}` });
+  }
   if (joinType && !VALID_JOIN_TYPES.includes(joinType)) return res.status(400).json({ error: 'Invalid joinType' });
   if (tier && !VALID_TIERS.includes(tier)) return res.status(400).json({ error: 'Invalid tier' });
 
@@ -74,12 +91,12 @@ router.patch('/:id', requireAdmin, async (req, res) => {
     include: { group: { select: { id: true, name: true } } }
   });
   res.json(project);
-});
+}));
 
 // Delete project (admin)
-router.delete('/:id', requireAdmin, async (req, res) => {
+router.delete('/:id', requireAdmin, asyncHandler(async (req, res) => {
   await prisma.project.delete({ where: { id: req.params.id } });
   res.json({ ok: true });
-});
+}));
 
 module.exports = router;

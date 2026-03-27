@@ -1,7 +1,9 @@
 const { Router } = require('express');
-const { ADMIN_EMAILS, DEV_MODE } = require('../lib/config');
+const { OAuth2Client } = require('google-auth-library');
+const { ADMIN_EMAILS, DEV_MODE, GOOGLE_CLIENT_ID } = require('../lib/config');
 
 const router = Router();
+const googleClient = GOOGLE_CLIENT_ID ? new OAuth2Client(GOOGLE_CLIENT_ID) : null;
 
 // Check current auth state
 router.get('/me', (req, res) => {
@@ -16,11 +18,17 @@ router.post('/google', async (req, res) => {
   const { credential } = req.body;
   if (!credential) return res.status(400).json({ error: 'No credential provided' });
 
+  if (!googleClient) {
+    return res.status(500).json({ error: 'Google Sign-In not configured' });
+  }
+
   try {
-    // Decode JWT payload (Google ID tokens are JWTs)
-    const payload = JSON.parse(
-      Buffer.from(credential.split('.')[1], 'base64').toString()
-    );
+    // Verify JWT signature against Google's public keys
+    const ticket = await googleClient.verifyIdToken({
+      idToken: credential,
+      audience: GOOGLE_CLIENT_ID
+    });
+    const payload = ticket.getPayload();
     const email = (payload.email || '').toLowerCase();
 
     if (!ADMIN_EMAILS.includes(email)) {

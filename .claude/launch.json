@@ -4,7 +4,7 @@
     {
       "name": "project-tracker",
       "runtimeExecutable": "node",
-      "runtimeArgs": ["C:/Users/Daan/Sering-project-tracker/.claude/worktrees/goofy-mccarthy/server.js"],
+      "runtimeArgs": ["--watch", "server.js"],
       "port": 3001,
       "autoPort": true
     }

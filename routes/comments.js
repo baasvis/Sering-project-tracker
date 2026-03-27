@@ -1,11 +1,15 @@
 const { Router } = require('express');
 const prisma = require('../lib/db');
 const { requireAdmin } = require('./auth');
+const asyncHandler = require('../lib/async-handler');
+const { deleteMediaFile } = require('../lib/media-utils');
 
 const router = Router();
 
+const VALID_TARGET_TYPES = ['group', 'project', 'task', 'announcement'];
+
 // List comments for a target
-router.get('/', async (req, res) => {
+router.get('/', asyncHandler(async (req, res) => {
   const { targetType, targetId } = req.query;
   if (!targetType || !targetId) {
     return res.status(400).json({ error: 'targetType and targetId required' });
@@ -36,14 +40,19 @@ router.get('/', async (req, res) => {
   }));
 
   res.json(result);
-});
+}));
 
 // Create comment (anyone — requires authorName)
-router.post('/', async (req, res) => {
+router.post('/', asyncHandler(async (req, res) => {
   const { targetType, targetId, authorName, body } = req.body;
   if (!targetType || !targetId || !authorName) {
     return res.status(400).json({ error: 'targetType, targetId, and authorName are required' });
   }
+
+  if (!VALID_TARGET_TYPES.includes(targetType)) {
+    return res.status(400).json({ error: `Invalid targetType. Must be one of: ${VALID_TARGET_TYPES.join(', ')}` });
+  }
+
   if (!body || body.trim().length === 0) {
     return res.status(400).json({ error: 'Comment body is required' });
   }
@@ -81,30 +90,22 @@ router.post('/', async (req, res) => {
     data: { targetType, targetId, authorName: name, body: trimmed }
   });
   res.status(201).json(comment);
-});
+}));
 
 // Delete comment (admin only)
-router.delete('/:id', requireAdmin, async (req, res) => {
+router.delete('/:id', requireAdmin, asyncHandler(async (req, res) => {
   // Also delete associated media files
   const media = await prisma.media.findMany({
     where: { parentType: 'comment', parentId: req.params.id }
   });
 
-  const fs = require('fs');
-  const path = require('path');
-  const uploadsDir = path.join(__dirname, '..', 'uploads');
-  await Promise.all(media.map(m => {
-    const filePath = path.join(uploadsDir, m.filename);
-    return fs.promises.unlink(filePath).catch(() => {
-      // Try nested path as fallback
-      const nested = path.join(uploadsDir, m.parentType, m.parentId, m.filename);
-      return fs.promises.unlink(nested).catch(() => {});
-    });
-  }));
+  for (const m of media) {
+    deleteMediaFile(m);
+  }
 
   await prisma.media.deleteMany({ where: { parentType: 'comment', parentId: req.params.id } });
   await prisma.comment.delete({ where: { id: req.params.id } });
   res.json({ ok: true });
-});
+}));
 
 module.exports = router;

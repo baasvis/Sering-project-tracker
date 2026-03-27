@@ -5,11 +5,14 @@ const fs = require('fs');
 const { v4: uuidv4 } = require('uuid');
 const prisma = require('../lib/db');
 const { requireAdmin } = require('./auth');
+const asyncHandler = require('../lib/async-handler');
+const { deleteMediaFile } = require('../lib/media-utils');
 
 const router = Router();
 
+const VALID_PARENT_TYPES = ['task', 'project', 'announcement', 'comment'];
+
 // Configure multer for file uploads — save to a flat directory
-// (req.body fields aren't available yet in destination when file comes first in FormData)
 const uploadsDir = path.join(__dirname, '..', 'uploads');
 if (!fs.existsSync(uploadsDir)) fs.mkdirSync(uploadsDir, { recursive: true });
 
@@ -29,12 +32,11 @@ const MAX_VOICE_SIZE = 2 * 1024 * 1024;
 
 const upload = multer({
   storage,
-  limits: { fileSize: MAX_IMAGE_SIZE }, // 5MB max (covers both, voice is smaller)
+  limits: { fileSize: MAX_IMAGE_SIZE },
   fileFilter: (req, file, cb) => {
     if (file.mimetype.startsWith('image/')) {
       cb(null, true);
     } else if (file.mimetype.startsWith('audio/')) {
-      // Voice notes get a stricter size check after upload (multer limits apply globally)
       cb(null, true);
     } else {
       cb(new Error('Only image and audio files are allowed'));
@@ -62,7 +64,7 @@ async function getTotalStorageUsed() {
 }
 
 // Upload media — requires admin session OR uploaderName in body
-router.post('/', upload.single('file'), async (req, res) => {
+router.post('/', upload.single('file'), asyncHandler(async (req, res) => {
   if (!req.file) return res.status(400).json({ error: 'No file uploaded' });
 
   const isAdmin = req.session && req.session.admin;
@@ -78,6 +80,11 @@ router.post('/', upload.single('file'), async (req, res) => {
   if (!parentType || !parentId) {
     fs.unlinkSync(req.file.path);
     return res.status(400).json({ error: 'parentType and parentId are required' });
+  }
+
+  if (!VALID_PARENT_TYPES.includes(parentType)) {
+    fs.unlinkSync(req.file.path);
+    return res.status(400).json({ error: `Invalid parentType. Must be one of: ${VALID_PARENT_TYPES.join(', ')}` });
   }
 
   // Enforce voice note size limit (2MB)
@@ -111,10 +118,10 @@ router.post('/', upload.single('file'), async (req, res) => {
   if (cachedStorageUsed !== null) cachedStorageUsed += req.file.size;
 
   res.status(201).json(media);
-});
+}));
 
 // List media for a parent
-router.get('/', async (req, res) => {
+router.get('/', asyncHandler(async (req, res) => {
   const { parentType, parentId } = req.query;
   if (!parentType || !parentId) {
     return res.status(400).json({ error: 'parentType and parentId required' });
@@ -125,59 +132,44 @@ router.get('/', async (req, res) => {
     orderBy: { createdAt: 'asc' }
   });
   res.json(media);
-});
+}));
 
 // Serve a media file
-router.get('/:id/file', async (req, res) => {
-  try {
-    const media = await prisma.media.findUnique({ where: { id: req.params.id } });
-    if (!media) return res.status(404).json({ error: 'Media not found' });
-
-    // Check multiple possible locations for the file:
-    // 1. Flat directory (current layout)
-    // 2. Nested by parent type/id (original design)
-    // 3. misc/unknown (files uploaded before multer fix when parentType/parentId weren't available)
-    let filePath = path.resolve(uploadsDir, media.filename);
-    if (!fs.existsSync(filePath)) {
-      filePath = path.resolve(uploadsDir, media.parentType, media.parentId, media.filename);
-    }
-    if (!fs.existsSync(filePath)) {
-      filePath = path.resolve(uploadsDir, 'misc', 'unknown', media.filename);
-    }
-    if (!fs.existsSync(filePath)) return res.status(404).json({ error: 'File not found on disk' });
-
-    res.set('Cache-Control', 'public, max-age=604800, immutable');
-    res.set('Content-Type', media.mimeType);
-    const stream = fs.createReadStream(filePath);
-    stream.on('error', () => {
-      if (!res.headersSent) res.status(500).json({ error: 'Failed to serve file' });
-    });
-    stream.pipe(res);
-  } catch (err) {
-    if (!res.headersSent) res.status(500).json({ error: 'Server error' });
-  }
-});
-
-// Delete media (admin only)
-router.delete('/:id', requireAdmin, async (req, res) => {
+router.get('/:id/file', asyncHandler(async (req, res) => {
   const media = await prisma.media.findUnique({ where: { id: req.params.id } });
   if (!media) return res.status(404).json({ error: 'Media not found' });
 
-  // Check all possible file locations
-  let filePath = path.join(uploadsDir, media.filename);
+  // Check multiple possible locations for the file
+  let filePath = path.resolve(uploadsDir, media.filename);
   if (!fs.existsSync(filePath)) {
-    filePath = path.join(uploadsDir, media.parentType, media.parentId, media.filename);
+    filePath = path.resolve(uploadsDir, media.parentType, media.parentId, media.filename);
   }
   if (!fs.existsSync(filePath)) {
-    filePath = path.join(uploadsDir, 'misc', 'unknown', media.filename);
+    filePath = path.resolve(uploadsDir, 'misc', 'unknown', media.filename);
   }
-  if (fs.existsSync(filePath)) fs.unlinkSync(filePath);
+  if (!fs.existsSync(filePath)) return res.status(404).json({ error: 'File not found on disk' });
+
+  res.set('Cache-Control', 'public, max-age=604800, immutable');
+  res.set('Content-Type', media.mimeType);
+  const stream = fs.createReadStream(filePath);
+  stream.on('error', () => {
+    if (!res.headersSent) res.status(500).json({ error: 'Failed to serve file' });
+  });
+  stream.pipe(res);
+}));
+
+// Delete media (admin only)
+router.delete('/:id', requireAdmin, asyncHandler(async (req, res) => {
+  const media = await prisma.media.findUnique({ where: { id: req.params.id } });
+  if (!media) return res.status(404).json({ error: 'Media not found' });
+
+  deleteMediaFile(media);
 
   // Invalidate storage cache on delete
   cachedStorageUsed = null;
 
   await prisma.media.delete({ where: { id: req.params.id } });
   res.json({ ok: true });
-});
+}));
 
 module.exports = router;
