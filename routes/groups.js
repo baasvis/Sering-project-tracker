@@ -30,6 +30,7 @@ router.get('/', asyncHandler(async (req, res) => {
           name: true,
           status: true,
           tier: true,
+          joinType: true,
           _count: { select: { tasks: true } },
           tasks: { select: { status: true } }
         }
