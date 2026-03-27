@@ -29,6 +29,13 @@ const PROJECT_TIERS = {
   next_level: { label: 'Next Level', color: '#8F0500', bg: '#FAE8E7' }
 };
 
+// Join types — how accessible a project is for newcomers
+const JOIN_TYPES = {
+  open:    { label: 'At get-together', color: 'var(--status-done)', bg: '#EEF3E5' },
+  contact: { label: 'Contact us', color: 'var(--accent)', bg: '#FFF0EB' },
+  closed:  { label: 'No help needed', color: 'var(--text-muted)', bg: '#F0F0F0' }
+};
+
 // Global app state
 const S = {
   screen: 'dashboard',

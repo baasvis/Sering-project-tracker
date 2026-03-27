@@ -252,6 +252,10 @@ a:hover { text-decoration: underline; }
 .tag-status-in_progress { background: #FFF0EB; color: var(--status-progress); }
 .tag-status-done { background: #EEF3E5; color: var(--status-done); }
 
+.tag-join-open { background: #EEF3E5; color: var(--status-done); }
+.tag-join-contact { background: #FFF0EB; color: var(--accent); }
+.tag-join-closed { background: #F0F0F0; color: var(--text-muted); }
+
 /* ---- Forms ---- */
 input[type="text"],
 input[type="date"],

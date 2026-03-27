@@ -233,6 +233,7 @@
 .project-card-tags {
   display: flex;
   gap: var(--space-xs);
+  flex-wrap: wrap;
   flex-shrink: 0;
 }
 

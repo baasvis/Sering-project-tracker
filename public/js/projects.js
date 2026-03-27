@@ -64,11 +64,13 @@ async function renderProjects() {
           const total = tasks.length;
           const done = tasks.filter(t => t.status === 'done').length;
           const pct = total > 0 ? Math.round((done / total) * 100) : 0;
+          const jt = p.joinType && JOIN_TYPES[p.joinType];
           return `<div class="project-card card-clickable" onclick="navigateToProject('${p.id}')">
             <div class="project-card-header">
               <h3>${esc(p.name)}</h3>
               <div class="project-card-tags">
                 ${p.tier && PROJECT_TIERS[p.tier] ? `<span class="tag tag-tier" style="background:${PROJECT_TIERS[p.tier].bg};color:${PROJECT_TIERS[p.tier].color}">${PROJECT_TIERS[p.tier].label}</span>` : ''}
+                ${jt ? `<span class="tag tag-join-${esc(p.joinType)}">${jt.label}</span>` : ''}
                 <span class="tag tag-group">${esc(p.groupName)}</span>
               </div>
             </div>
@@ -117,6 +119,7 @@ async function renderProjectDetail() {
           <div class="flex gap-sm" style="align-items:center">
             <h1>${esc(p.name)}</h1>
             ${p.tier && PROJECT_TIERS[p.tier] ? `<span class="tag tag-tier" style="background:${PROJECT_TIERS[p.tier].bg};color:${PROJECT_TIERS[p.tier].color}">${PROJECT_TIERS[p.tier].label}</span>` : ''}
+            ${p.joinType && JOIN_TYPES[p.joinType] ? `<span class="tag tag-join-${esc(p.joinType)}">${JOIN_TYPES[p.joinType].label}</span>` : ''}
           </div>
           ${S.isAdmin ? `<div class="flex gap-sm">
             <button class="btn btn-ghost" onclick="showEditProjectModal('${p.id}')">Edit</button>
@@ -325,6 +328,15 @@ function showProjectModal(existing) {
         </select>
       </div>
     </div>
+    <div class="form-group">
+      <label>Join Type</label>
+      <select id="proj-jointype">
+        <option value="" ${!existing?.joinType ? 'selected' : ''}>— No tag —</option>
+        ${Object.entries(JOIN_TYPES).map(([k, v]) =>
+          `<option value="${k}" ${existing?.joinType === k ? 'selected' : ''}>${v.label}</option>`
+        ).join('')}
+      </select>
+    </div>
     ${isEdit ? `<div class="form-group">
       <label>Status</label>
       <select id="proj-status">
@@ -357,7 +369,8 @@ async function saveProject(id) {
   if (!name) return toast('Name is required', 'error');
   if (!groupId) return toast('Select a group first', 'error');
 
-  const data = { groupId, name, description, contactPerson: contactPerson || null, tier: tier || null };
+  const joinType = document.getElementById('proj-jointype')?.value || null;
+  const data = { groupId, name, description, contactPerson: contactPerson || null, tier: tier || null, joinType };
   const statusEl = document.getElementById('proj-status');
   if (statusEl) data.status = statusEl.value;
 
