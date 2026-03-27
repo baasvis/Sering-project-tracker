@@ -306,19 +306,34 @@ function renderTaskItem(task) {
   </div>`;
 }
 
-// ---- Task status cycling (admin) — targeted update, no full re-render ----
+// ---- Task status cycling (admin) — optimistic update with rollback ----
 async function cycleTaskStatus(taskId, currentStatus) {
   return withDedup(`cycleTask-${taskId}`, async () => {
     const next = STATUS_CYCLE[currentStatus] || 'todo';
+
+    // Optimistic: update local state immediately
+    if (S.currentProject && S.currentProject.tasks) {
+      const idx = S.currentProject.tasks.findIndex(t => t.id === taskId);
+      if (idx !== -1) {
+        S.currentProject.tasks[idx] = { ...S.currentProject.tasks[idx], status: next };
+        rerenderTaskList();
+      }
+    }
+
     try {
       const updated = await apiPatch(`/api/tasks/${taskId}`, { status: next });
-      // Update task in local state
+      // Merge server response (may have extra fields like updatedAt)
       if (S.currentProject && S.currentProject.tasks) {
         const idx = S.currentProject.tasks.findIndex(t => t.id === taskId);
         if (idx !== -1) S.currentProject.tasks[idx] = { ...S.currentProject.tasks[idx], ...updated };
       }
-      rerenderTaskList();
     } catch (err) {
+      // Rollback on error
+      if (S.currentProject && S.currentProject.tasks) {
+        const idx = S.currentProject.tasks.findIndex(t => t.id === taskId);
+        if (idx !== -1) S.currentProject.tasks[idx].status = currentStatus;
+        rerenderTaskList();
+      }
       toast(err.message, 'error');
     }
   });

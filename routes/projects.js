@@ -4,6 +4,7 @@ const { requireAdmin } = require('./auth');
 const { sanitize } = require('../lib/sanitize');
 const asyncHandler = require('../lib/async-handler');
 const { validateId, isValidUuid } = require('../lib/validate');
+const { broadcast, getMutationId } = require('../lib/sse');
 
 const router = Router();
 
@@ -105,6 +106,7 @@ router.post('/', asyncHandler(async (req, res) => {
     include: { group: { select: { id: true, name: true } } }
   });
   res.status(201).json(project);
+  broadcast('project:created', { project }, getMutationId(req));
 }));
 
 // Update project (admin)
@@ -133,6 +135,7 @@ router.patch('/:id', validateId, requireAdmin, asyncHandler(async (req, res) => 
     include: { group: { select: { id: true, name: true } } }
   });
   res.json(project);
+  broadcast('project:updated', { project }, getMutationId(req));
 }));
 
 // Approve a suggested project (admin)
@@ -144,6 +147,7 @@ router.patch('/:id/approve', validateId, requireAdmin, asyncHandler(async (req, 
       include: { group: { select: { id: true, name: true } } }
     });
     res.json(project);
+    broadcast('project:approved', { project }, getMutationId(req));
   } catch (err) {
     if (err.code === 'P2025') return res.status(404).json({ error: 'Project not found' });
     throw err;
@@ -154,6 +158,7 @@ router.patch('/:id/approve', validateId, requireAdmin, asyncHandler(async (req, 
 router.delete('/:id', validateId, requireAdmin, asyncHandler(async (req, res) => {
   await prisma.project.delete({ where: { id: req.params.id } });
   res.json({ ok: true });
+  broadcast('project:deleted', { projectId: req.params.id }, getMutationId(req));
 }));
 
 module.exports = router;

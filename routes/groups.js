@@ -4,6 +4,7 @@ const { requireAdmin } = require('./auth');
 const { sanitize } = require('../lib/sanitize');
 const asyncHandler = require('../lib/async-handler');
 const { validateId } = require('../lib/validate');
+const { broadcast, getMutationId } = require('../lib/sse');
 
 const router = Router();
 
@@ -98,6 +99,7 @@ router.post('/', requireAdmin, asyncHandler(async (req, res) => {
     data: { name, description: sanitize(description), mattermostChannel, order: (maxOrder._max.order || 0) + 1 }
   });
   res.status(201).json(group);
+  broadcast('group:created', { group }, getMutationId(req));
 }));
 
 // Update group (admin)
@@ -113,6 +115,7 @@ router.patch('/:id', validateId, requireAdmin, asyncHandler(async (req, res) => 
 
   const group = await prisma.group.update({ where: { id: req.params.id }, data });
   res.json(group);
+  broadcast('group:updated', { group }, getMutationId(req));
 }));
 
 // Delete group (admin, only if no projects)
@@ -122,6 +125,7 @@ router.delete('/:id', validateId, requireAdmin, asyncHandler(async (req, res) =>
 
   await prisma.group.delete({ where: { id: req.params.id } });
   res.json({ ok: true });
+  broadcast('group:deleted', { groupId: req.params.id }, getMutationId(req));
 }));
 
 module.exports = router;

@@ -67,4 +67,8 @@ const S = {
   // Fold-open card state
   _expandedCardId: null,
   _expandedProjects: {},
+
+  // SSE state
+  _pendingMutationIds: new Set(),
+  _sseConnected: false,
 };
