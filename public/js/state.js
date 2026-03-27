@@ -38,7 +38,7 @@ const WHATSAPP_GROUP  = 'https://chat.whatsapp.com/Itn12adPqBFAvoXqkv8dgS?mode=g
 const JOIN_TYPES = {
   open:    { label: 'At get-together', color: 'var(--status-done)', bg: '#EEF3E5' },
   contact: { label: 'Contact us', color: 'var(--accent)', bg: '#FFF0EB' },
-  closed:  { label: 'No help needed', color: 'var(--text-muted)', bg: '#F0F0F0' }
+  closed:  { label: 'No help needed', color: 'var(--text-secondary)', bg: 'var(--border)' }
 };
 
 // Global app state
