@@ -25,6 +25,7 @@ app.use(helmet({
       frameSrc: ["https://accounts.google.com"],
       fontSrc: ["'self'"],
       mediaSrc: ["'self'", "blob:"],
+      scriptSrcAttr: ["'unsafe-inline'"], // app uses onclick handlers extensively
     }
   },
   crossOriginEmbedderPolicy: false, // needed for Google Sign-In

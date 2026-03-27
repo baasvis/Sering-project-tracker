@@ -10,7 +10,11 @@ function toCSV(rows) {
   const headers = Object.keys(rows[0]);
   const escape = val => {
     if (val === null || val === undefined) return '';
-    const str = String(val);
+    let str = String(val);
+    // Prevent CSV formula injection: prefix dangerous starting chars with a single quote
+    if (/^[=+\-@\t\r]/.test(str)) {
+      str = "'" + str;
+    }
     // Wrap in quotes if contains comma, newline, or quote
     if (str.includes(',') || str.includes('\n') || str.includes('"')) {
       return '"' + str.replace(/"/g, '""') + '"';
