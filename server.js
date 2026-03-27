@@ -7,6 +7,9 @@ const { PORT, SESSION_SECRET, GOOGLE_CLIENT_ID, DEV_MODE } = require('./lib/conf
 
 const app = express();
 
+// Trust reverse proxy (Railway, Nginx, etc.) for correct IP in rate limiting
+app.set('trust proxy', 1);
+
 // Body parsing
 app.use(express.json({ limit: '1mb' }));
 app.use(express.urlencoded({ extended: true }));
