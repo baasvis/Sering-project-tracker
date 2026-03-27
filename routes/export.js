@@ -34,7 +34,7 @@ router.get('/', requireAdmin, asyncHandler(async (req, res) => {
   const date = new Date().toISOString().slice(0, 10);
 
   // Fetch all tables in parallel
-  const [groups, projects, tasks, announcements, comments, shoppingItems, media] = await Promise.all([
+  const [groups, projects, tasks, announcements, comments, shoppingItems, media, reports] = await Promise.all([
     prisma.group.findMany({ orderBy: { order: 'asc' } }),
     prisma.project.findMany({ orderBy: { createdAt: 'asc' } }),
     prisma.task.findMany({ orderBy: { createdAt: 'asc' } }),
@@ -42,7 +42,14 @@ router.get('/', requireAdmin, asyncHandler(async (req, res) => {
     prisma.comment.findMany({ orderBy: { createdAt: 'asc' } }),
     prisma.shoppingItem.findMany({ orderBy: { createdAt: 'asc' } }),
     prisma.media.findMany({ orderBy: { createdAt: 'asc' } }),
+    prisma.report.findMany({ orderBy: { createdAt: 'asc' } }),
   ]);
+
+  // Strip screenshot data from reports (would bloat CSV)
+  const reportsClean = reports.map(({ screenshotData, ...rest }) => ({
+    ...rest,
+    hasScreenshot: !!screenshotData
+  }));
 
   res.setHeader('Content-Type', 'application/zip');
   res.setHeader('Content-Disposition', `attachment; filename="sering-backup-${date}.zip"`);
@@ -58,6 +65,7 @@ router.get('/', requireAdmin, asyncHandler(async (req, res) => {
   archive.append(toCSV(comments),      { name: 'comments.csv' });
   archive.append(toCSV(shoppingItems), { name: 'shopping_items.csv' });
   archive.append(toCSV(media),         { name: 'media.csv' });
+  archive.append(toCSV(reportsClean),  { name: 'reports.csv' });
 
   await archive.finalize();
 }));

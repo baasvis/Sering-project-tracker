@@ -23,7 +23,6 @@ router.post('/google', async (req, res) => {
   }
 
   try {
-    // Verify JWT signature against Google's public keys
     const ticket = await googleClient.verifyIdToken({
       idToken: credential,
       audience: GOOGLE_CLIENT_ID
@@ -41,7 +40,7 @@ router.post('/google', async (req, res) => {
     req.session.name = name;
     res.json({ admin: true, email });
   } catch (err) {
-    console.error('Google auth error:', err);
+    console.error('Google auth error:', err.message);
     res.status(401).json({ error: 'Invalid credential' });
   }
 });

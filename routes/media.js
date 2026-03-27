@@ -183,23 +183,25 @@ router.get('/:id/file', validateId, asyncHandler(async (req, res) => {
   const media = await prisma.media.findUnique({ where: { id: req.params.id } });
   if (!media) return res.status(404).json({ error: 'Media not found' });
 
-  // Validate filename to prevent path traversal
+  // Validate filename to prevent path traversal — use basename only
   const safeFilename = path.basename(media.filename);
-  let filePath = path.resolve(uploadsDir, safeFilename);
+  const resolvedUploads = path.resolve(uploadsDir);
 
-  // Ensure resolved path is still within uploads directory
-  if (!filePath.startsWith(path.resolve(uploadsDir))) {
-    return res.status(403).json({ error: 'Access denied' });
+  // Check multiple possible locations for the file, validating each
+  const candidates = [
+    path.resolve(uploadsDir, safeFilename),
+    path.resolve(uploadsDir, media.parentType, media.parentId, safeFilename),
+    path.resolve(uploadsDir, 'misc', 'unknown', safeFilename),
+  ];
+
+  let filePath = null;
+  for (const candidate of candidates) {
+    // Path traversal guard: every candidate must resolve within uploads dir
+    if (!candidate.startsWith(resolvedUploads)) continue;
+    if (fs.existsSync(candidate)) { filePath = candidate; break; }
   }
 
-  // Check multiple possible locations for the file
-  if (!fs.existsSync(filePath)) {
-    filePath = path.resolve(uploadsDir, media.parentType, media.parentId, media.filename);
-  }
-  if (!fs.existsSync(filePath)) {
-    filePath = path.resolve(uploadsDir, 'misc', 'unknown', media.filename);
-  }
-  if (!fs.existsSync(filePath)) return res.status(404).json({ error: 'File not found on disk' });
+  if (!filePath) return res.status(404).json({ error: 'File not found on disk' });
 
   res.set('Cache-Control', 'public, max-age=604800, immutable');
   res.set('Content-Type', media.mimeType);
