@@ -18,20 +18,26 @@ async function renderProjects() {
     return renderProjectDetail();
   }
 
-  // Collect all projects from groups
+  // Collect active projects from groups (already loaded)
   let allProjects = [];
+  const seenIds = new Set();
   for (const g of S.groups) {
     for (const p of (g.projects || [])) {
       allProjects.push({ ...p, groupName: g.name, groupId: g.id });
+      seenIds.add(p.id);
     }
   }
 
-  // Also fetch completed/archived projects not in groups.projects (which only has active)
+  // Only fetch non-active projects (completed/archived) — avoids re-fetching active ones
   try {
-    const all = await apiGet('/api/projects');
-    for (const p of all) {
-      if (!allProjects.find(x => x.id === p.id)) {
+    const [completed, archived] = await Promise.all([
+      apiGet('/api/projects?status=completed'),
+      apiGet('/api/projects?status=archived')
+    ]);
+    for (const p of [...completed, ...archived]) {
+      if (!seenIds.has(p.id)) {
         allProjects.push({ ...p, groupName: p.group?.name || '', groupId: p.groupId });
+        seenIds.add(p.id);
       }
     }
   } catch (e) { /* fallback to what we have */ }

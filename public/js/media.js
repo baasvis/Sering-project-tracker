@@ -13,7 +13,7 @@ function renderMediaItems(mediaList) {
 
     if (m.type === 'photo') {
       return `<div class="media-item">
-        <img src="/api/media/${m.id}/file" class="media-thumb"
+        <img src="/api/media/${m.id}/file" class="media-thumb" loading="lazy"
               onclick="openLightbox('/api/media/${m.id}/file')"
               alt="${esc(m.originalName)}">
         ${deleteBtn}

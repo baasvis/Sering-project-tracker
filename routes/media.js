@@ -127,6 +127,7 @@ router.get('/:id/file', async (req, res) => {
     }
     if (!fs.existsSync(filePath)) return res.status(404).json({ error: 'File not found on disk' });
 
+    res.set('Cache-Control', 'public, max-age=604800, immutable');
     res.set('Content-Type', media.mimeType);
     const stream = fs.createReadStream(filePath);
     stream.on('error', () => {

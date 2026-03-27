@@ -46,17 +46,12 @@ async function renderDashboard() {
         : S.groups.map(renderGroupSection).join('')}
     </div>`;
 
-  // Load media for each announcement
-  for (const a of S.announcements) {
-    loadAnnouncementMedia(a.id);
-  }
-
-  // Load media for each project card
-  for (const g of S.groups) {
-    for (const p of (g.projects || [])) {
-      loadProjectCardMedia(p.id);
-    }
-  }
+  // Load all media in parallel
+  const projectIds = S.groups.flatMap(g => (g.projects || []).map(p => p.id));
+  await Promise.all([
+    ...S.announcements.map(a => loadAnnouncementMedia(a.id)),
+    ...projectIds.map(id => loadProjectCardMedia(id))
+  ]);
 }
 
 async function loadAnnouncementMedia(annId) {

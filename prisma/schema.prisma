@@ -31,6 +31,8 @@ model Project {
   updatedAt   DateTime @updatedAt
   tasks         Task[]
   shoppingItems ShoppingItem[]
+
+  @@index([groupId, status])
 }
 
 model Task {
@@ -45,6 +47,8 @@ model Task {
   order       Int       @default(0)
   createdAt   DateTime  @default(now())
   updatedAt   DateTime  @updatedAt
+
+  @@index([projectId])
 }
 
 model Announcement {
@@ -55,6 +59,8 @@ model Announcement {
   pinned      Boolean  @default(false)
   createdAt   DateTime @default(now())
   updatedAt   DateTime @updatedAt
+
+  @@index([pinned, createdAt])
 }
 
 model Comment {
