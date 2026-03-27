@@ -9,6 +9,8 @@ window._taskCache = {};
 async function renderProjects() {
   const app = document.getElementById('app');
   showLoading();
+  S._expandedProjects = {};
+  S._expandedCardId = null;
 
   try {
     S.groups = await apiGet('/api/groups');

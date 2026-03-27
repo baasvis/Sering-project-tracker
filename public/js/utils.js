@@ -223,10 +223,9 @@ function sortProjectsByTier(projects) {
 function extractPreviewText(html, maxLength) {
   if (!html) return '';
   maxLength = maxLength || 150;
-  const div = document.createElement('div');
-  div.innerHTML = html;
-  const firstP = div.querySelector('p');
-  const text = (firstP ? firstP.textContent : div.textContent).trim();
+  const doc = new DOMParser().parseFromString(html, 'text/html');
+  const firstP = doc.querySelector('p');
+  const text = (firstP ? firstP.textContent : doc.body.textContent).trim();
   if (text.length <= maxLength) return text;
   return text.slice(0, maxLength).replace(/\s+\S*$/, '') + '\u2026';
 }

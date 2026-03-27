@@ -5,6 +5,8 @@
 async function renderDashboard() {
   const app = document.getElementById('app');
   showLoading();
+  S._expandedProjects = {};
+  S._expandedCardId = null;
 
   // Load data
   try {

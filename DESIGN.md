@@ -201,7 +201,8 @@ The landing page. Two sections:
 
 **Announcements** (top)
 - Reverse-chronological list of admin-posted announcements
-- Each announcement: title, text, optional media (photos/voice), timestamp, author
+- Each announcement: title, preview text (first ~150 characters of body), optional media (photos/voice), timestamp, author
+- Click to expand and read full body; click again to collapse
 - "Post announcement" button (admin only)
 
 **Tier filter buttons** (between announcements and projects)
@@ -210,16 +211,19 @@ The landing page. Two sections:
 - Filter state persists when navigating between Dashboard and Projects screens
 
 **Active Projects** (below)
-- Cards showing active projects grouped by theme/group
-- Each card: project name, group tag, progress indicator (X of Y tasks done), latest activity
-- Click to open project detail
+- Cards showing active projects grouped by theme/group, sorted by tier within each group (MVP first, then Medium, then Next Level, then untiered)
+- Each card: project name, tier/join-type/group tags, progress indicator (X of Y tasks done)
+- Click a card to fold open inline — shows project description and task list with status indicators
+- Expanded card spans full width of the grid; click again to collapse
+- "View full details" button inside expanded card navigates to the full project detail page
 
 ### Screen: Projects
 
 Browse and explore:
 - **Tier filter buttons** — MVP / Medium / Next Level (same as dashboard, above group tabs)
 - **Group filter** — tabs to filter by group/theme (combines with tier filter)
-- **Project list** — cards for each project matching the active filters
+- **Project list** — cards for each project matching the active filters, sorted by tier (MVP → Medium → Next Level → untiered)
+- Cards fold open inline on click (same behaviour as dashboard); "View full details" button navigates to full project detail
 - **Search** — find projects or tasks by keyword
 
 ### Screen: Project Detail
