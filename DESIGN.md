@@ -96,7 +96,8 @@ Two tiers:
 - **No login required** — just enter a name when first visiting
 - Name stored in localStorage, shown on their comments
 - Can: view everything, comment on everything (with media)
-- Cannot: create/edit/delete groups, projects, tasks, or announcements
+- Can: suggest tasks, projects, and shopping items (pending admin approval — visible to all as greyed-out pending)
+- Cannot: create/edit/delete groups, announcements, or directly approved items
 
 ---
 
@@ -225,11 +226,11 @@ Browse and explore:
 
 Single project view:
 - **Header**: Project name, group tag, description, media, progress bar
-- **Task list**: All tasks with status, optional assignee, optional deadline
-- **Shopping list**: Products (name, link, price, quantity) and extra costs (description, amount) with totals
+- **Task list**: All tasks with status, optional assignee, optional deadline. Pending tasks shown greyed out with dashed border for all users; admins see Approve / Decline buttons
+- **Shopping list**: Products (name, link, price, quantity) and extra costs (description, amount) with totals. Pending suggestions visible to all, greyed out; admins see Approve / Reject
 - **Comments section**: Thread of comments (text + media) from anyone
-- Admin controls: edit project, add/edit/delete tasks, manage shopping items
-- Visitors can suggest shopping items (pending admin approval)
+- Admin controls: edit project, add/edit/delete tasks, approve/decline suggestions, manage shopping items
+- Visitors can suggest tasks and shopping items (pending admin approval — shown immediately as greyed-out pending)
 
 ### Screen: Task Detail
 
@@ -255,6 +256,7 @@ Visible to everyone (between Projects and Admin in nav):
 Only accessible to signed-in admins:
 - **Manage groups**: Create, rename, reorder, delete groups
 - **Quick actions**: Links to create new project, post announcement
+- **Reports**: View unresolved problem reports with screenshots, resolve or delete them
 - **Data export**: Download all data as a ZIP of CSVs (groups, projects, tasks, announcements, comments, shopping items, media)
 - **Admin list**: Which Google accounts have admin access
 
@@ -280,6 +282,8 @@ Only accessible to signed-in admins:
 | description | String? | Rich text or plain |
 | contactPerson | String? | Who to contact about this project |
 | status | Enum | active / completed / archived |
+| approved | Boolean | true for admin-created; false = pending approval |
+| suggestedBy | String? | Visitor name if suggestion |
 | createdAt | DateTime | |
 | updatedAt | DateTime | |
 
@@ -294,6 +298,8 @@ Only accessible to signed-in admins:
 | assignee | String? | Free text name |
 | deadline | Date? | Optional |
 | order | Int | Display order within project |
+| approved | Boolean | true for admin-created; false = pending approval |
+| suggestedBy | String? | Visitor name if suggestion |
 | createdAt | DateTime | |
 | updatedAt | DateTime | |
 
@@ -348,6 +354,19 @@ Only accessible to signed-in admins:
 | sizeBytes | Int | File size |
 | createdAt | DateTime | |
 
+### Report
+| Field | Type | Notes |
+|-------|------|-------|
+| id | UUID | Primary key |
+| description | String | Problem description (max 2000 chars, HTML stripped) |
+| screenshotData | String? | Base64 data URL of auto-captured screenshot |
+| reporterName | String | Visitor name or admin email |
+| currentPage | String? | Hash route when report was created |
+| resolved | Boolean | Default false; admin marks resolved |
+| adminNotes | String? | Admin response/notes |
+| createdAt | DateTime | |
+| updatedAt | DateTime | |
+
 Media files stored on disk (Railway volume) at `/uploads/{parentType}/{parentId}/{filename}`.
 
 ---
@@ -384,17 +403,19 @@ This app has ~6 screens with relatively simple interactions. The most complex pa
 - `DELETE /api/groups/:id` — Delete group (admin, only if no projects)
 
 ### Projects
-- `GET /api/projects` — List projects (optional `?groupId=` filter)
-- `GET /api/projects/:id` — Single project with tasks
-- `POST /api/projects` — Create project (admin)
+- `GET /api/projects` — List projects (optional `?groupId=`, `?status=` filter) — includes pending
+- `GET /api/projects/:id` — Single project with all tasks (including pending)
+- `POST /api/projects` — Create project (admin, auto-approved) or suggest project (visitor, pending approval)
 - `PATCH /api/projects/:id` — Update project (admin)
-- `DELETE /api/projects/:id` — Delete project (admin)
+- `PATCH /api/projects/:id/approve` — Approve a suggested project (admin)
+- `DELETE /api/projects/:id` — Delete / decline project (admin)
 
 ### Tasks
 - `GET /api/projects/:projectId/tasks` — List tasks for project
-- `POST /api/projects/:projectId/tasks` — Create task (admin)
+- `POST /api/tasks` — Create task (admin, auto-approved) or suggest task (visitor, pending approval)
 - `PATCH /api/tasks/:id` — Update task (admin)
-- `DELETE /api/tasks/:id` — Delete task (admin)
+- `PATCH /api/tasks/:id/approve` — Approve a suggested task (admin)
+- `DELETE /api/tasks/:id` — Delete / decline task (admin)
 
 ### Announcements
 - `GET /api/announcements` — List announcements (newest first)
@@ -414,6 +435,13 @@ This app has ~6 screens with relatively simple interactions. The most complex pa
 - `GET /api/comments?targetType=project&targetId=xxx` — List comments for a target
 - `POST /api/comments` — Create comment (anyone, requires `authorName`)
 - `DELETE /api/comments/:id` — Delete comment (admin only)
+
+### Reports
+- `POST /api/reports` — Submit a problem report (anyone; auto-captured screenshot as base64)
+- `GET /api/reports` — List reports (admin only, `?resolved=true/false` filter)
+- `GET /api/reports/:id` — Single report with screenshot (admin only)
+- `PATCH /api/reports/:id` — Resolve or add notes (admin only)
+- `DELETE /api/reports/:id` — Delete report (admin only)
 
 ### Export
 - `GET /api/export` — Download all tables as a ZIP of CSVs (admin only)
@@ -443,6 +471,7 @@ routes/
   announcements.js       — Announcement CRUD
   comments.js            — Comment CRUD
   media.js               — File upload/serve/delete
+  reports.js             — Problem reports (submit + admin manage)
   health.js              — Health check
 public/
   index.html             — HTML shell
@@ -464,7 +493,8 @@ public/
     tasks.js             — Task detail, status changes
     comments.js          — Comment threads, media-in-comments
     media.js             — Photo upload, voice recorder
-    admin.js             — Admin panel
+    reports.js           — Floating report button, screenshot capture modal
+    admin.js             — Admin panel (incl. report management)
     init.js              — Router, navigation, app init
   fonts/                 — Self-hosted font files (if licensed)
 uploads/                 — User-uploaded media (gitignored)
@@ -523,6 +553,7 @@ Implemented protections for a public-facing app:
 - **Media upload restrictions**: requires identity (admin session or visitor name), photos max 5MB, voice notes max 2MB (~60 seconds), auto-stop recording at 60s, client-side size check before upload
 - **Global storage cap**: 100MB total uploads — prevents abuse as free storage. Returns 507 when full.
 - **Admin-only moderation**: only admins can delete comments and media
+- **Report validation**: screenshot must be `data:image/*` data URL (max 2MB), description/name HTML-stripped, UUID validation on all `:id` params
 
 ---
 

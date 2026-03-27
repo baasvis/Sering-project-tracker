@@ -301,7 +301,7 @@ a:hover { text-decoration: underline; }
 
 .tag-join-open { background: #EEF3E5; color: var(--status-done); }
 .tag-join-contact { background: #FFF0EB; color: var(--accent); }
-.tag-join-closed { background: var(--sering-off-white); color: var(--text-muted); }
+.tag-join-closed { background: var(--border); color: var(--text-secondary); }
 
 /* ---- Forms ---- */
 input[type="text"],

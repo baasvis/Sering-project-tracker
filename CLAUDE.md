@@ -27,6 +27,7 @@ routes/
   comments.js          — Comment CRUD (anyone can post, admin can delete)
   shopping.js          — Shopping list CRUD (items + costs per project)
   media.js             — File upload/serve/delete (photos + voice notes)
+  reports.js           — Problem reports (anyone submits, admin manages)
   export.js            — Admin data export (ZIP of CSVs)
   health.js            — Health check endpoint
 public/
@@ -50,7 +51,8 @@ public/
     projects.js        — Project list, project detail, task list, modals, targeted re-renders
     shopping.js        — Shopping list UI per project
     budget.js          — Budget overview screen
-    admin.js           — Admin panel (group management, data export)
+    reports.js         — Floating report button, screenshot capture modal
+    admin.js           — Admin panel (group management, reports, data export)
     init.js            — Navigation, routing, app bootstrap (MUST load last)
 prisma/
   schema.prisma        — Database schema
@@ -59,7 +61,7 @@ uploads/               — User-uploaded media files (gitignored)
 
 ## Script Load Order
 Scripts must load in the order listed in index.html:
-`state.js` → `auth.js` → `utils.js` → `media.js` → `comments.js` → `dashboard.js` → `projects.js` → `shopping.js` → `budget.js` → `admin.js` → `init.js` (last)
+`state.js` → `auth.js` → `utils.js` → `media.js` → `comments.js` → `dashboard.js` → `projects.js` → `shopping.js` → `budget.js` → `reports.js` → `admin.js` → `init.js` (last)
 
 ## Conventions
 - All frontend functions are global (no modules, no import/export)
@@ -74,29 +76,39 @@ Scripts must load in the order listed in index.html:
 - CSS variables defined in base.css match De Sering brand guidelines
 - Request deduplication via `withDedup()` on mutation actions (save, delete)
 - Task status cycling updates local state + DOM without full page re-render
+- Suggest/approve workflow: visitors can suggest tasks and projects (approved=false); admins approve via PATCH /:id/approve; pending items shown greyed out to all users
 
 ## Key Data Flow
-- `GET /api/groups` returns groups with nested active projects and `taskCounts` (todo/in_progress/done)
-- `GET /api/projects/:id` returns project with full tasks array
+- `GET /api/groups` returns groups with nested approved active projects and `taskCounts` (approved tasks only)
+- `GET /api/projects/:id` returns project with full tasks array (including pending suggestions)
+- `GET /api/projects?status=active` returns all active projects including pending suggestions
 - `GET /api/announcements` returns announcements with inline media (batch-fetched)
 - `GET /api/comments?targetType=X&targetId=Y` returns comments with attached media
-- `GET /api/shopping?projectId=X` returns shopping items (approved only for visitors)
+- `GET /api/shopping?projectId=X` returns all shopping items including pending (visible to everyone)
 - `GET /api/shopping/summary` returns all projects with shopping totals (budget page)
 - `POST /api/shopping` creates item (anyone can suggest, admin auto-approved)
+- `POST /api/tasks` creates task (admin auto-approved) or suggestion (visitor, approved=false)
+- `POST /api/projects` creates project (admin auto-approved) or suggestion (visitor, approved=false)
+- `PATCH /api/tasks/:id/approve` and `PATCH /api/projects/:id/approve` — admin approves suggestion
+- `POST /api/reports` creates report (anyone, with auto-captured screenshot as base64)
+- `GET /api/reports` lists reports (admin only, with `?resolved=true/false` filter)
+- `GET /api/reports/:id` returns single report with screenshot data (admin only)
+- `PATCH /api/reports/:id` resolves or adds notes (admin only)
 - `GET /api/export` downloads ZIP of all tables as CSVs (admin only)
 - `POST /api/media` accepts multipart form upload (photo or voice)
 - `GET /api/media/:id/file` serves the uploaded file (checks flat + nested + misc paths)
 - Comments: anyone can create (requires authorName); only admin can delete
-- Tasks: validated status (todo/in_progress/done), optional assignee + deadline
-- Projects: validated status (active/completed/archived), optional tier + joinType
+- Tasks: validated status (todo/in_progress/done), optional assignee + deadline; name stripped of HTML tags, max 200 chars
+- Projects: validated status (active/completed/archived), optional tier + joinType; name stripped of HTML tags, max 200 chars
 - Shopping: items (name, link, price, qty) and costs (name, amount) per project
 
 ## Security
 - **Helmet**: CSP, HSTS, X-Frame-Options, nosniff, referrer-policy
 - **CSRF**: double-submit cookie on all `/api/*` write operations (X-CSRF-Token header)
 - **Rate limiting**: 100 req/min general, 20/min writes, 10/min uploads
-- **Input sanitization**: HTML tags stripped from shopping item names/authors server-side; rich text sanitized via sanitize-html
+- **Input sanitization**: HTML tags stripped from task/project/shopping item names and author names server-side; rich text sanitized via sanitize-html
 - **URL validation**: only http/https links allowed in shopping items
+- **Report validation**: screenshot must be `data:image/*` format, description/name stripped of HTML tags, UUID validation on :id params
 
 ## Running
 ```bash

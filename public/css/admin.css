@@ -39,3 +39,123 @@
   display: flex;
   gap: var(--space-xs);
 }
+
+/* ========================================
+   Report FAB (floating action button)
+   ======================================== */
+
+.report-fab {
+  position: fixed;
+  bottom: 80px;
+  right: 24px;
+  width: 48px;
+  height: 48px;
+  border-radius: var(--radius-full);
+  background: var(--sering-red);
+  color: #fff;
+  border: none;
+  font-size: var(--font-size-xl);
+  font-weight: 700;
+  cursor: pointer;
+  box-shadow: var(--shadow-lg);
+  z-index: 90;
+  transition: transform 0.15s, box-shadow 0.15s;
+  line-height: 1;
+}
+
+.report-fab:hover {
+  transform: scale(1.1);
+  box-shadow: 0 6px 20px rgba(0, 0, 0, 0.25);
+}
+
+/* ========================================
+   Report Modal
+   ======================================== */
+
+.report-modal {
+  max-width: 520px;
+}
+
+.report-modal textarea {
+  width: 100%;
+  padding: var(--space-sm);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-sm);
+  font-family: var(--font-family);
+  font-size: var(--font-size-sm);
+  resize: vertical;
+}
+
+.report-screenshot-preview {
+  border: 1px solid var(--border-light);
+  border-radius: var(--radius-sm);
+  padding: var(--space-sm);
+  background: var(--bg-card);
+  min-height: 80px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: var(--space-sm);
+}
+
+.report-screenshot-preview img {
+  max-width: 100%;
+  max-height: 200px;
+  border-radius: var(--radius-sm);
+}
+
+/* ========================================
+   Report Cards (Admin Panel)
+   ======================================== */
+
+.report-badge {
+  display: inline-block;
+  background: var(--sering-red);
+  color: #fff;
+  font-size: var(--font-size-xs);
+  font-weight: 600;
+  padding: 2px 8px;
+  border-radius: var(--radius-full);
+  margin-left: var(--space-xs);
+  vertical-align: middle;
+}
+
+.report-card {
+  padding: var(--space-md);
+  border-radius: var(--radius-sm);
+  background: var(--bg-card);
+  border: 1px solid var(--border-light);
+  margin-bottom: var(--space-sm);
+}
+
+.report-card.report-resolved {
+  opacity: 0.6;
+}
+
+.report-card-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-bottom: var(--space-xs);
+}
+
+.report-card-desc {
+  margin: var(--space-xs) 0 var(--space-sm);
+  white-space: pre-wrap;
+  font-size: var(--font-size-sm);
+}
+
+.report-card-actions {
+  display: flex;
+  gap: var(--space-xs);
+  margin-top: var(--space-sm);
+}
+
+.report-screenshot-modal {
+  max-width: 800px;
+}
+
+.report-screenshot-full {
+  width: 100%;
+  border-radius: var(--radius-sm);
+}

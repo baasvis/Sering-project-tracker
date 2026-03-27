@@ -28,6 +28,8 @@ model Project {
   tier          String?  // mvp, medium, next_level
   joinType      String?  // open, contact, closed
   status        String   @default("active") // active, completed, archived
+  approved      Boolean  @default(true)
+  suggestedBy   String?
   createdAt   DateTime @default(now())
   updatedAt   DateTime @updatedAt
   tasks         Task[]
@@ -46,6 +48,8 @@ model Task {
   assignee    String?
   deadline    DateTime?
   order       Int       @default(0)
+  approved    Boolean   @default(true)
+  suggestedBy String?
   createdAt   DateTime  @default(now())
   updatedAt   DateTime  @updatedAt
 
@@ -108,4 +112,18 @@ model Media {
   createdAt    DateTime @default(now())
 
   @@index([parentType, parentId])
+}
+
+model Report {
+  id             String   @id @default(uuid())
+  description    String
+  screenshotData String?  // base64 data URL of auto-captured screenshot
+  reporterName   String
+  currentPage    String?  // hash route when report was created
+  resolved       Boolean  @default(false)
+  adminNotes     String?
+  createdAt      DateTime @default(now())
+  updatedAt      DateTime @updatedAt
+
+  @@index([resolved, createdAt])
 }

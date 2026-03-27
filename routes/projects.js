@@ -11,6 +11,11 @@ const VALID_PROJECT_STATUSES = ['active', 'completed', 'archived'];
 const VALID_JOIN_TYPES = ['open', 'contact', 'closed'];
 const VALID_TIERS = ['mvp', 'medium', 'next_level'];
 
+// Strip HTML tags from user input
+function stripTags(str) {
+  return String(str).replace(/<[^>]*>/g, '');
+}
+
 // List projects (optional ?groupId= filter, ?status= filter)
 router.get('/', asyncHandler(async (req, res) => {
   const where = {};
@@ -23,11 +28,11 @@ router.get('/', asyncHandler(async (req, res) => {
     include: {
       group: { select: { id: true, name: true } },
       _count: { select: { tasks: true } },
-      tasks: { select: { status: true } }
+      tasks: { where: { approved: true }, select: { status: true } }
     }
   });
 
-  // Transform: replace tasks array with status counts
+  // Transform: replace tasks array with status counts (approved tasks only)
   const result = projects.map(p => {
     const counts = { todo: 0, in_progress: 0, done: 0 };
     for (const t of p.tasks) {
@@ -40,7 +45,7 @@ router.get('/', asyncHandler(async (req, res) => {
   res.json(result);
 }));
 
-// Get single project with tasks
+// Get single project with tasks (all tasks including pending)
 router.get('/:id', validateId, asyncHandler(async (req, res) => {
   const project = await prisma.project.findUnique({
     where: { id: req.params.id },
@@ -53,15 +58,50 @@ router.get('/:id', validateId, asyncHandler(async (req, res) => {
   res.json(project);
 }));
 
-// Create project (admin)
-router.post('/', requireAdmin, asyncHandler(async (req, res) => {
-  const { groupId, name, description, contactPerson, tier, joinType } = req.body;
+// Create project — admin creates immediately; visitor suggestion goes to pending
+router.post('/', asyncHandler(async (req, res) => {
+  const { groupId, name, description, contactPerson, tier, joinType, authorName } = req.body;
   if (!groupId || !name) return res.status(400).json({ error: 'groupId and name are required' });
+  if (!isValidUuid(groupId)) return res.status(400).json({ error: 'Invalid groupId format' });
   if (joinType && !VALID_JOIN_TYPES.includes(joinType)) return res.status(400).json({ error: 'Invalid joinType' });
   if (tier && !VALID_TIERS.includes(tier)) return res.status(400).json({ error: 'Invalid tier' });
 
+  const isAdmin = !!req.session?.admin;
+
+  // Non-admins must provide a name
+  if (!isAdmin && !authorName) {
+    return res.status(400).json({ error: 'authorName is required for suggestions' });
+  }
+
+  let sanitizedAuthor = null;
+  if (!isAdmin && authorName) {
+    sanitizedAuthor = stripTags(String(authorName).trim());
+    if (sanitizedAuthor.length < 1 || sanitizedAuthor.length > 50) {
+      return res.status(400).json({ error: 'Author name must be 1-50 characters' });
+    }
+  }
+
+  // Validate group exists
+  const group = await prisma.group.findUnique({ where: { id: groupId }, select: { id: true } });
+  if (!group) return res.status(404).json({ error: 'Group not found' });
+
+  // Sanitize and validate project name
+  const trimmedName = stripTags(String(name).trim());
+  if (trimmedName.length < 1 || trimmedName.length > 200) {
+    return res.status(400).json({ error: 'Project name must be 1-200 characters' });
+  }
+
   const project = await prisma.project.create({
-    data: { groupId, name, description: sanitize(description), contactPerson, tier: tier || null, joinType: joinType || null },
+    data: {
+      groupId,
+      name: trimmedName,
+      description: isAdmin ? sanitize(description) : null,
+      contactPerson: isAdmin ? (contactPerson || null) : null,
+      tier: isAdmin ? (tier || null) : null,
+      joinType: isAdmin ? (joinType || null) : null,
+      approved: isAdmin,
+      suggestedBy: sanitizedAuthor
+    },
     include: { group: { select: { id: true, name: true } } }
   });
   res.status(201).json(project);
@@ -95,7 +135,22 @@ router.patch('/:id', validateId, requireAdmin, asyncHandler(async (req, res) => 
   res.json(project);
 }));
 
-// Delete project (admin)
+// Approve a suggested project (admin)
+router.patch('/:id/approve', validateId, requireAdmin, asyncHandler(async (req, res) => {
+  try {
+    const project = await prisma.project.update({
+      where: { id: req.params.id },
+      data: { approved: true },
+      include: { group: { select: { id: true, name: true } } }
+    });
+    res.json(project);
+  } catch (err) {
+    if (err.code === 'P2025') return res.status(404).json({ error: 'Project not found' });
+    throw err;
+  }
+}));
+
+// Delete project (admin) — also used to decline suggestions
 router.delete('/:id', validateId, requireAdmin, asyncHandler(async (req, res) => {
   await prisma.project.delete({ where: { id: req.params.id } });
   res.json({ ok: true });

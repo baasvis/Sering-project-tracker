@@ -11,10 +11,16 @@ async function renderAdmin() {
     return;
   }
 
+  let reports = [];
   try {
-    S.groups = await apiGet('/api/groups');
+    const [groups, reportsData] = await Promise.all([
+      apiGet('/api/groups'),
+      apiGet('/api/reports?resolved=false').catch(() => [])
+    ]);
+    S.groups = groups;
+    reports = reportsData;
   } catch (err) {
-    app.innerHTML = `<p class="text-muted">Could not load groups.</p>`;
+    app.innerHTML = `<p class="text-muted">Could not load admin data.</p>`;
     return;
   }
 
@@ -53,6 +59,34 @@ async function renderAdmin() {
         <div class="flex gap-sm mt-md">
           <button class="btn btn-primary" onclick="showProjectModal()">+ New Project</button>
           <button class="btn btn-primary" onclick="S.screen='dashboard'; renderCurrentScreen(); showAnnouncementModal()">+ Announcement</button>
+        </div>
+      </div>
+
+      <div class="admin-section">
+        <div class="flex-between">
+          <h2>Reports ${reports.length > 0 ? `<span class="report-badge">${reports.length}</span>` : ''}</h2>
+          <button class="btn btn-ghost btn-small" onclick="toggleResolvedReports()">Show resolved</button>
+        </div>
+        <div id="admin-reports-list" class="mt-md">
+          ${reports.length === 0
+            ? '<p class="text-muted">No open reports.</p>'
+            : reports.map(r => {
+              window._reportCache = window._reportCache || {};
+              window._reportCache[r.id] = r;
+              return `
+              <div class="report-card">
+                <div class="report-card-header">
+                  <strong>${esc(r.reporterName)}</strong>
+                  <span class="text-muted text-xs">${timeAgo(r.createdAt)}${r.currentPage ? ' · ' + esc(r.currentPage) : ''}</span>
+                </div>
+                <p class="report-card-desc">${esc(r.description)}</p>
+                ${r.hasScreenshot ? `<button class="btn btn-ghost btn-small" onclick="viewReportScreenshot('${r.id}')">View screenshot</button>` : ''}
+                <div class="report-card-actions">
+                  <button class="btn btn-primary btn-small" onclick="resolveReport('${r.id}')">Resolve</button>
+                  <button class="btn btn-danger btn-small" onclick="deleteReport('${r.id}')">Delete</button>
+                </div>
+              </div>`;
+            }).join('')}
         </div>
       </div>
 
@@ -121,6 +155,95 @@ async function deleteGroup(id) {
     await apiDelete(`/api/groups/${id}`);
     renderAdmin();
     toast('Group deleted');
+  } catch (err) {
+    toast(err.message, 'error');
+  }
+}
+
+// ---- Reports management ----
+
+async function viewReportScreenshot(id) {
+  try {
+    const report = await apiGet(`/api/reports/${id}`);
+    if (!report.screenshotData) return toast('No screenshot available', 'error');
+
+    const backdrop = document.createElement('div');
+    backdrop.className = 'modal-backdrop';
+    backdrop.innerHTML = `<div class="modal report-screenshot-modal">
+      <div class="flex-between mb-md">
+        <h2>Screenshot</h2>
+        <button class="btn btn-ghost btn-small" onclick="this.closest('.modal-backdrop').remove()">Close</button>
+      </div>
+      <img src="${report.screenshotData}" alt="Report screenshot" class="report-screenshot-full">
+    </div>`;
+    backdrop.addEventListener('click', e => { if (e.target === backdrop) backdrop.remove(); });
+    document.body.appendChild(backdrop);
+  } catch (err) {
+    toast(err.message, 'error');
+  }
+}
+
+async function resolveReport(id) {
+  try {
+    await apiPatch(`/api/reports/${id}`, { resolved: true });
+    renderAdmin();
+    toast('Report resolved', 'success');
+  } catch (err) {
+    toast(err.message, 'error');
+  }
+}
+
+async function deleteReport(id) {
+  if (!confirm('Delete this report permanently?')) return;
+  try {
+    await apiDelete(`/api/reports/${id}`);
+    renderAdmin();
+    toast('Report deleted');
+  } catch (err) {
+    toast(err.message, 'error');
+  }
+}
+
+async function toggleResolvedReports() {
+  try {
+    const reports = await apiGet('/api/reports');
+    const container = document.getElementById('admin-reports-list');
+    if (!container) return;
+
+    if (reports.length === 0) {
+      container.innerHTML = '<p class="text-muted">No reports at all.</p>';
+      return;
+    }
+
+    container.innerHTML = reports.map(r => {
+      window._reportCache = window._reportCache || {};
+      window._reportCache[r.id] = r;
+      return `
+      <div class="report-card ${r.resolved ? 'report-resolved' : ''}">
+        <div class="report-card-header">
+          <strong>${esc(r.reporterName)}</strong>
+          <span class="text-muted text-xs">${r.resolved ? 'Resolved · ' : ''}${timeAgo(r.createdAt)}${r.currentPage ? ' · ' + esc(r.currentPage) : ''}</span>
+        </div>
+        <p class="report-card-desc">${esc(r.description)}</p>
+        ${r.hasScreenshot ? `<button class="btn btn-ghost btn-small" onclick="viewReportScreenshot('${r.id}')">View screenshot</button>` : ''}
+        <div class="report-card-actions">
+          ${r.resolved
+            ? `<button class="btn btn-ghost btn-small" onclick="unresolveReport('${r.id}')">Reopen</button>`
+            : `<button class="btn btn-primary btn-small" onclick="resolveReport('${r.id}')">Resolve</button>`}
+          <button class="btn btn-danger btn-small" onclick="deleteReport('${r.id}')">Delete</button>
+        </div>
+      </div>`;
+    }).join('');
+  } catch (err) {
+    toast(err.message, 'error');
+  }
+}
+
+async function unresolveReport(id) {
+  try {
+    await apiPatch(`/api/reports/${id}`, { resolved: false });
+    renderAdmin();
+    toast('Report reopened');
   } catch (err) {
     toast(err.message, 'error');
   }

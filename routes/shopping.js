@@ -38,14 +38,8 @@ router.get('/', async (req, res) => {
   if (!projectId) return res.status(400).json({ error: 'projectId query param required' });
   if (!isValidUuid(projectId)) return res.status(400).json({ error: 'Invalid projectId format' });
 
-  const where = { projectId };
-  // Non-admins only see approved items
-  if (!req.session?.admin) {
-    where.approved = true;
-  }
-
   const items = await prisma.shoppingItem.findMany({
-    where,
+    where: { projectId },
     orderBy: { order: 'asc' }
   });
   res.json(items);

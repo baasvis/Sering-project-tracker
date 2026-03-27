@@ -85,6 +85,38 @@
     grid-template-columns: 1fr;
   }
 
+  /* Pending task actions — stack below content on mobile */
+  .task-item.pending {
+    flex-wrap: wrap;
+  }
+
+  .task-pending-actions {
+    width: 100%;
+    padding-left: calc(24px + var(--space-md));
+    margin-top: var(--space-xs);
+  }
+
+  /* Pending project actions */
+  .pending-actions {
+    flex-wrap: wrap;
+  }
+
+  /* Report FAB — smaller on mobile, away from toast */
+  .report-fab {
+    bottom: 72px;
+    right: 16px;
+    width: 42px;
+    height: 42px;
+    font-size: var(--font-size-lg);
+  }
+
+  /* Report card header stacks on narrow screens */
+  .report-card-header {
+    flex-direction: column;
+    align-items: flex-start;
+    gap: 2px;
+  }
+
   /* Budget responsive */
   .budget-project-info {
     flex-wrap: wrap;
