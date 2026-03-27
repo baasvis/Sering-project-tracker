@@ -32,7 +32,7 @@ app.use(helmet({
 }));
 
 // Body parsing
-app.use(express.json({ limit: '1mb' }));
+app.use(express.json({ limit: '3mb' }));
 app.use(express.urlencoded({ extended: true }));
 
 // Rate limiting — general API: 100 requests per minute per IP
@@ -142,6 +142,11 @@ app.use('/api/comments', commentsRouter);
 const mediaRouter = require('./routes/media');
 app.post('/api/media', uploadLimiter);
 app.use('/api/media', mediaRouter);
+
+// Reports: write limit for submissions
+const reportsRouter = require('./routes/reports');
+app.post('/api/reports', writeLimiter);
+app.use('/api/reports', reportsRouter);
 
 app.use('/api/export', require('./routes/export'));
 app.use('/api', require('./routes/health'));

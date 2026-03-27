@@ -109,3 +109,17 @@ model Media {
 
   @@index([parentType, parentId])
 }
+
+model Report {
+  id             String   @id @default(uuid())
+  description    String
+  screenshotData String?  // base64 data URL of auto-captured screenshot
+  reporterName   String
+  currentPage    String?  // hash route when report was created
+  resolved       Boolean  @default(false)
+  adminNotes     String?
+  createdAt      DateTime @default(now())
+  updatedAt      DateTime @updatedAt
+
+  @@index([resolved, createdAt])
+}

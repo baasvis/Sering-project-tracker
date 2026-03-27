@@ -106,6 +106,9 @@ async function initApp() {
   handleRoute();
   buildNav();
   renderCurrentScreen();
+
+  // Floating report button
+  initReportButton();
 }
 
 // Handle back/forward
