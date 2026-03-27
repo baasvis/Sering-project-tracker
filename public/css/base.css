@@ -324,11 +324,13 @@ label {
 }
 
 .overlay-warning {
+  display: inline-block;
   font-size: var(--font-size-sm);
-  color: var(--text-muted);
-  background: rgba(0,0,0,0.05);
-  border-radius: var(--radius-sm);
-  padding: var(--space-sm) var(--space-md);
+  font-weight: 700;
+  color: var(--sering-black);
+  background: var(--sering-yellow);
+  border-radius: var(--radius-full);
+  padding: var(--space-xs) var(--space-md);
   margin-bottom: var(--space-lg);
 }
 
@@ -340,8 +342,12 @@ label {
 
 .overlay-card .btn {
   width: 100%;
-  padding: var(--space-md);
+  padding: var(--space-md) var(--space-lg);
   font-size: var(--font-size-base);
+  font-weight: 700;
+  border-radius: var(--radius-full);
+  justify-content: center;
+  letter-spacing: 0.01em;
 }
 
 /* ---- Progress bar ---- */
