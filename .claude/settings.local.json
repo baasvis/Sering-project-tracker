@@ -9,7 +9,9 @@
       "Bash(git rebase:*)",
       "Bash(git add:*)",
       "Bash(git commit:*)",
-      "Bash(npm install:*)"
+      "Bash(npm install:*)",
+      "Bash(GIT_EDITOR=true git rebase --continue)",
+      "Bash(GIT_SEQUENCE_EDITOR=true EDITOR=true git rebase --continue)"
     ]
   }
 }

@@ -5,8 +5,19 @@
 // Build navigation links
 function buildNav() {
   const nav = document.getElementById('nav-links');
-  nav.innerHTML = NAV_SCREENS
-    .filter(s => !s.adminOnly || S.isAdmin)
+  const screens = NAV_SCREENS.filter(s => !s.adminOnly || S.isAdmin);
+
+  // Optimization: only update active class if links already built
+  const existing = nav.querySelectorAll('a[data-screen]');
+  if (existing.length === screens.length) {
+    existing.forEach(a => {
+      a.classList.toggle('active', a.dataset.screen === S.screen);
+    });
+    return;
+  }
+
+  // Full rebuild (only on first load or admin state change)
+  nav.innerHTML = screens
     .map(s => `<a href="#${s.id}" data-screen="${s.id}" class="${S.screen === s.id ? 'active' : ''}">${s.label}</a>`)
     .join('');
 
@@ -37,6 +48,9 @@ function buildNav() {
 
 // Render current screen
 function renderCurrentScreen() {
+  // Clean up Quill instances from previous screen
+  cleanupQuillInstances();
+
   switch (S.screen) {
     case 'dashboard': return renderDashboard();
     case 'projects': return renderProjects();
@@ -60,13 +74,23 @@ function handleRoute() {
   }
 }
 
-// Close modals on Escape
+// Close modals on Escape — also clean up Quill instances
 document.addEventListener('keydown', e => {
   if (e.key === 'Escape') {
-    document.querySelector('.modal-backdrop')?.remove();
+    const backdrop = document.querySelector('.modal-backdrop');
+    if (backdrop) {
+      cleanupQuillInstances();
+      backdrop.remove();
+    }
     document.querySelector('.lightbox')?.remove();
   }
 });
+
+// Show loading state while screen renders
+function showLoading() {
+  const app = document.getElementById('app');
+  app.innerHTML = '<div class="loading-spinner">Loading...</div>';
+}
 
 // App init
 async function initApp() {
@@ -79,16 +103,20 @@ async function initApp() {
     S.devMode = true;
   }
 
-  // Initialize Google Sign-In SDK if configured
+  // Initialize Google Sign-In SDK with timeout
   if (S.googleClientId) {
+    let attempts = 0;
+    const maxAttempts = 50; // 10 seconds max
     const waitForGoogle = () => {
       if (window.google && google.accounts) {
         google.accounts.id.initialize({
           client_id: S.googleClientId,
           callback: handleGoogleCredential
         });
-      } else {
+      } else if (++attempts < maxAttempts) {
         setTimeout(waitForGoogle, 200);
+      } else {
+        console.warn('Google Sign-In SDK failed to load after 10s');
       }
     };
     waitForGoogle();
@@ -111,11 +139,15 @@ async function initApp() {
   initReportButton();
 }
 
-// Handle back/forward
+// Handle back/forward — debounced
+let _hashDebounce = null;
 window.addEventListener('hashchange', () => {
-  handleRoute();
-  buildNav();
-  renderCurrentScreen();
+  clearTimeout(_hashDebounce);
+  _hashDebounce = setTimeout(() => {
+    handleRoute();
+    buildNav();
+    renderCurrentScreen();
+  }, 50);
 });
 
 // Boot

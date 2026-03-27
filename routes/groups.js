@@ -3,12 +3,18 @@ const prisma = require('../lib/db');
 const { requireAdmin } = require('./auth');
 const { sanitize } = require('../lib/sanitize');
 const asyncHandler = require('../lib/async-handler');
+const { validateId } = require('../lib/validate');
 
 const router = Router();
 
 function validUrl(val) {
   if (!val) return true;
-  return val.startsWith('https://') || val.startsWith('http://');
+  try {
+    const parsed = new URL(val);
+    return ['http:', 'https:'].includes(parsed.protocol);
+  } catch {
+    return false;
+  }
 }
 
 // List all groups with project counts and task status counts
@@ -18,14 +24,15 @@ router.get('/', asyncHandler(async (req, res) => {
     include: {
       _count: { select: { projects: true } },
       projects: {
-        where: { status: 'active' },
+        where: { status: 'active', approved: true },
         select: {
           id: true,
           name: true,
           status: true,
           tier: true,
+          joinType: true,
           _count: { select: { tasks: true } },
-          tasks: { select: { status: true } }
+          tasks: { where: { approved: true }, select: { status: true } }
         }
       }
     }
@@ -48,7 +55,7 @@ router.get('/', asyncHandler(async (req, res) => {
 }));
 
 // Get single group
-router.get('/:id', asyncHandler(async (req, res) => {
+router.get('/:id', validateId, asyncHandler(async (req, res) => {
   const group = await prisma.group.findUnique({
     where: { id: req.params.id },
     include: {
@@ -56,7 +63,7 @@ router.get('/:id', asyncHandler(async (req, res) => {
         orderBy: { createdAt: 'desc' },
         include: {
           _count: { select: { tasks: true } },
-          tasks: { select: { status: true } }
+          tasks: { where: { approved: true }, select: { status: true } }
         }
       }
     }
@@ -94,7 +101,7 @@ router.post('/', requireAdmin, asyncHandler(async (req, res) => {
 }));
 
 // Update group (admin)
-router.patch('/:id', requireAdmin, asyncHandler(async (req, res) => {
+router.patch('/:id', validateId, requireAdmin, asyncHandler(async (req, res) => {
   const { name, description, order } = req.body;
   const mattermostChannel = req.body.mattermostChannel !== undefined ? (req.body.mattermostChannel?.trim() || null) : undefined;
   if (!validUrl(mattermostChannel)) return res.status(400).json({ error: 'mattermostChannel must be a valid URL' });
@@ -109,7 +116,7 @@ router.patch('/:id', requireAdmin, asyncHandler(async (req, res) => {
 }));
 
 // Delete group (admin, only if no projects)
-router.delete('/:id', requireAdmin, asyncHandler(async (req, res) => {
+router.delete('/:id', validateId, requireAdmin, asyncHandler(async (req, res) => {
   const count = await prisma.project.count({ where: { groupId: req.params.id } });
   if (count > 0) return res.status(400).json({ error: 'Cannot delete group with projects' });
 

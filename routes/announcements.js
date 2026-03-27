@@ -3,14 +3,16 @@ const prisma = require('../lib/db');
 const { requireAdmin } = require('./auth');
 const { sanitize } = require('../lib/sanitize');
 const asyncHandler = require('../lib/async-handler');
+const { validateId } = require('../lib/validate');
 
 const router = Router();
 
 // List announcements (pinned first, then newest) — includes media inline
 router.get('/', asyncHandler(async (req, res) => {
+  const limit = Math.min(parseInt(req.query.limit, 10) || 20, 100);
   const announcements = await prisma.announcement.findMany({
     orderBy: [{ pinned: 'desc' }, { createdAt: 'desc' }],
-    take: req.query.limit ? parseInt(req.query.limit) : 20
+    take: limit
   });
 
   // Batch-fetch media for all announcements in one query
@@ -42,29 +44,29 @@ router.post('/', requireAdmin, asyncHandler(async (req, res) => {
 
   const announcement = await prisma.announcement.create({
     data: {
-      title,
+      title: String(title).slice(0, 500),
       body: sanitize(body),
       authorEmail: req.session.email,
-      pinned: pinned || false
+      pinned: !!pinned
     }
   });
   res.status(201).json(announcement);
 }));
 
 // Update announcement (admin)
-router.patch('/:id', requireAdmin, asyncHandler(async (req, res) => {
+router.patch('/:id', validateId, requireAdmin, asyncHandler(async (req, res) => {
   const { title, body, pinned } = req.body;
   const data = {};
-  if (title !== undefined) data.title = title;
+  if (title !== undefined) data.title = String(title).slice(0, 500);
   if (body !== undefined) data.body = sanitize(body);
-  if (pinned !== undefined) data.pinned = pinned;
+  if (pinned !== undefined) data.pinned = !!pinned;
 
   const announcement = await prisma.announcement.update({ where: { id: req.params.id }, data });
   res.json(announcement);
 }));
 
 // Delete announcement (admin)
-router.delete('/:id', requireAdmin, asyncHandler(async (req, res) => {
+router.delete('/:id', validateId, requireAdmin, asyncHandler(async (req, res) => {
   await prisma.announcement.delete({ where: { id: req.params.id } });
   res.json({ ok: true });
 }));

@@ -24,7 +24,7 @@
 }
 
 .group-tab:hover { border-color: var(--text-muted); color: var(--text-primary); }
-.group-tab.active { background: var(--sering-black); color: white; border-color: var(--sering-black); }
+.group-tab.active { background: var(--sering-olive); color: white; border-color: var(--sering-olive); }
 
 /* ---- Project detail ---- */
 .project-detail {
@@ -151,7 +151,7 @@
 }
 
 .task-meta .deadline { color: var(--accent); font-weight: 500; }
-.task-meta .deadline.overdue { color: #cc0000; }
+.task-meta .deadline.overdue { color: var(--color-danger); }
 
 /* ---- Task detail modal ---- */
 .task-detail-header {
@@ -195,6 +195,61 @@
 .contact-link:hover {
   background: var(--bg-card-hover);
   border-color: var(--text-muted);
+}
+
+/* ---- Pending task item ---- */
+.task-item.pending {
+  opacity: 0.65;
+  border-style: dashed;
+  background: var(--bg-card);
+  cursor: default;
+}
+
+.task-item.pending:hover {
+  box-shadow: none;
+}
+
+.task-pending-actions {
+  display: flex;
+  gap: var(--space-xs);
+  flex-shrink: 0;
+  align-items: center;
+}
+
+/* ---- Pending project card ---- */
+.project-card.pending {
+  opacity: 0.65;
+  border-style: dashed;
+  cursor: default;
+}
+
+.project-card.pending:hover {
+  box-shadow: none;
+  transform: none;
+}
+
+.pending-actions {
+  display: flex;
+  gap: var(--space-xs);
+}
+
+/* ---- Pending badge (shared) ---- */
+.pending-badge {
+  display: inline-block;
+  padding: 2px var(--space-sm);
+  border-radius: var(--radius-full);
+  background: #FFF8E0;
+  border: 1px solid #E8D87A;
+  color: #7A6A00;
+  font-size: var(--font-size-xs);
+  font-weight: 500;
+}
+
+/* ---- Tag for pending projects ---- */
+.tag-pending {
+  background: #FFF8E0;
+  color: #7A6A00;
+  border: 1px solid #E8D87A;
 }
 
 /* ---- Project card media ---- */

@@ -59,4 +59,7 @@ const S = {
   selectedGroupId: null,     // filter on projects screen
   currentProjectId: null,    // viewing a project detail
   currentProject: null,      // full project object with tasks
+
+  // Cache for safe data passing (avoids XSS via JSON in onclick)
+  _taskCache: {},
 };

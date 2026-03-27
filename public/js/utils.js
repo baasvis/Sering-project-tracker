@@ -8,8 +8,19 @@ function getCsrfToken() {
   return match ? match[1] : '';
 }
 
-async function apiGet(url) {
-  const res = await fetch(url);
+// Core API function — all HTTP methods go through here
+async function apiFetch(method, url, body) {
+  const opts = { method };
+  const headers = {};
+  if (body !== undefined) {
+    headers['Content-Type'] = 'application/json';
+    opts.body = JSON.stringify(body);
+  }
+  if (['POST', 'PATCH', 'PUT', 'DELETE'].includes(method)) {
+    headers['X-CSRF-Token'] = getCsrfToken();
+  }
+  opts.headers = headers;
+  const res = await fetch(url, opts);
   if (!res.ok) {
     const err = await res.json().catch(() => ({ error: res.statusText }));
     throw new Error(err.error || 'Request failed');
@@ -17,40 +28,11 @@ async function apiGet(url) {
   return res.json();
 }
 
-async function apiPost(url, body) {
-  const res = await fetch(url, {
-    method: 'POST',
-    headers: { 'Content-Type': 'application/json', 'X-CSRF-Token': getCsrfToken() },
-    body: JSON.stringify(body)
-  });
-  if (!res.ok) {
-    const err = await res.json().catch(() => ({ error: res.statusText }));
-    throw new Error(err.error || 'Request failed');
-  }
-  return res.json();
-}
-
-async function apiPatch(url, body) {
-  const res = await fetch(url, {
-    method: 'PATCH',
-    headers: { 'Content-Type': 'application/json', 'X-CSRF-Token': getCsrfToken() },
-    body: JSON.stringify(body)
-  });
-  if (!res.ok) {
-    const err = await res.json().catch(() => ({ error: res.statusText }));
-    throw new Error(err.error || 'Request failed');
-  }
-  return res.json();
-}
-
-async function apiDelete(url) {
-  const res = await fetch(url, { method: 'DELETE', headers: { 'X-CSRF-Token': getCsrfToken() } });
-  if (!res.ok) {
-    const err = await res.json().catch(() => ({ error: res.statusText }));
-    throw new Error(err.error || 'Request failed');
-  }
-  return res.json();
-}
+// Convenience wrappers
+function apiGet(url) { return apiFetch('GET', url); }
+function apiPost(url, body) { return apiFetch('POST', url, body); }
+function apiPatch(url, body) { return apiFetch('PATCH', url, body); }
+function apiDelete(url) { return apiFetch('DELETE', url); }
 
 async function apiUpload(url, formData) {
   const res = await fetch(url, { method: 'POST', body: formData, headers: { 'X-CSRF-Token': getCsrfToken() } });
@@ -81,16 +63,12 @@ function esc(str) {
 
 // Format relative time
 function timeAgo(dateStr) {
-  const date = new Date(dateStr);
-  const now = new Date();
-  const seconds = Math.floor((now - date) / 1000);
-
+  const seconds = Math.floor((Date.now() - new Date(dateStr)) / 1000);
   if (seconds < 60) return 'just now';
   if (seconds < 3600) return `${Math.floor(seconds / 60)}m ago`;
   if (seconds < 86400) return `${Math.floor(seconds / 3600)}h ago`;
   if (seconds < 604800) return `${Math.floor(seconds / 86400)}d ago`;
-
-  return date.toLocaleDateString('en-GB', { day: 'numeric', month: 'short' });
+  return new Date(dateStr).toLocaleDateString('en-GB', { day: 'numeric', month: 'short' });
 }
 
 // Format date for display
@@ -112,10 +90,22 @@ function isOverdue(dateStr) {
 // Active Quill instances (keyed by container ID)
 const _quillInstances = {};
 
+// Clean up all Quill instances (call on screen change / modal close)
+function cleanupQuillInstances() {
+  for (const key of Object.keys(_quillInstances)) {
+    delete _quillInstances[key];
+  }
+}
+
 // Create a Quill editor inside a container element
 function createRichEditor(containerId, initialHTML) {
   const container = document.getElementById(containerId);
   if (!container) return null;
+
+  // Clean up existing instance if any
+  if (_quillInstances[containerId]) {
+    delete _quillInstances[containerId];
+  }
 
   const quill = new Quill(container, {
     theme: 'snow',
