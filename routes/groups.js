@@ -5,6 +5,11 @@ const { sanitize } = require('../lib/sanitize');
 
 const router = Router();
 
+function validUrl(val) {
+  if (!val) return true;
+  return val.startsWith('https://') || val.startsWith('http://');
+}
+
 // List all groups with project counts
 router.get('/', async (req, res) => {
   const groups = await prisma.group.findMany({
@@ -48,11 +53,13 @@ router.get('/:id', async (req, res) => {
 // Create group (admin)
 router.post('/', requireAdmin, async (req, res) => {
   const { name, description } = req.body;
+  const mattermostChannel = req.body.mattermostChannel?.trim() || null;
   if (!name) return res.status(400).json({ error: 'Name is required' });
+  if (!validUrl(mattermostChannel)) return res.status(400).json({ error: 'mattermostChannel must be a valid URL' });
 
   const maxOrder = await prisma.group.aggregate({ _max: { order: true } });
   const group = await prisma.group.create({
-    data: { name, description: sanitize(description), order: (maxOrder._max.order || 0) + 1 }
+    data: { name, description: sanitize(description), mattermostChannel, order: (maxOrder._max.order || 0) + 1 }
   });
   res.status(201).json(group);
 });
@@ -60,10 +67,13 @@ router.post('/', requireAdmin, async (req, res) => {
 // Update group (admin)
 router.patch('/:id', requireAdmin, async (req, res) => {
   const { name, description, order } = req.body;
+  const mattermostChannel = req.body.mattermostChannel !== undefined ? (req.body.mattermostChannel?.trim() || null) : undefined;
+  if (!validUrl(mattermostChannel)) return res.status(400).json({ error: 'mattermostChannel must be a valid URL' });
   const data = {};
   if (name !== undefined) data.name = name;
   if (description !== undefined) data.description = sanitize(description);
   if (order !== undefined) data.order = order;
+  if (mattermostChannel !== undefined) data.mattermostChannel = mattermostChannel;
 
   const group = await prisma.group.update({ where: { id: req.params.id }, data });
   res.json(group);

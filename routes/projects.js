@@ -31,7 +31,7 @@ router.get('/:id', async (req, res) => {
   const project = await prisma.project.findUnique({
     where: { id: req.params.id },
     include: {
-      group: { select: { id: true, name: true } },
+      group: { select: { id: true, name: true, mattermostChannel: true } },
       tasks: { orderBy: { order: 'asc' } }
     }
   });

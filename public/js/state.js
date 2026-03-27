@@ -30,6 +30,10 @@ const PROJECT_TIERS = {
   next_level: { label: 'Next Level', color: '#8F0500', bg: '#FAE8E7' }
 };
 
+// Static contact links (same for all groups)
+const WHATSAPP_DIRECT = 'https://wa.me/31644795523';
+const WHATSAPP_GROUP  = 'https://chat.whatsapp.com/Itn12adPqBFAvoXqkv8dgS?mode=gi_t';
+
 // Join types — how accessible a project is for newcomers
 const JOIN_TYPES = {
   open:    { label: 'At get-together', color: 'var(--status-done)', bg: '#EEF3E5' },

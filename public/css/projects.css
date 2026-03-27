@@ -170,6 +170,33 @@
   margin-bottom: var(--space-lg);
 }
 
+/* ---- Contact links ---- */
+.contact-links {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--space-sm);
+}
+
+.contact-link {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--space-xs);
+  padding: var(--space-xs) var(--space-md);
+  border-radius: var(--radius-full);
+  font-size: var(--font-size-sm);
+  font-weight: 500;
+  border: 1px solid var(--border);
+  color: var(--text-primary);
+  background: var(--bg-card);
+  text-decoration: none;
+  transition: background 0.15s, border-color 0.15s;
+}
+
+.contact-link:hover {
+  background: var(--bg-card-hover);
+  border-color: var(--text-muted);
+}
+
 /* ---- Project card media ---- */
 .project-card-media:empty {
   display: none;

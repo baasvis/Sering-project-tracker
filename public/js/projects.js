@@ -140,6 +140,21 @@ async function renderProjectDetail() {
         <span class="text-sm text-muted">Contact:</span> <strong>${esc(p.contactPerson)}</strong>
       </div>` : ''}
 
+      <div class="project-contact-links mb-lg">
+        <p class="text-sm text-muted mb-sm">Get involved or ask questions:</p>
+        <div class="contact-links">
+          <a href="${WHATSAPP_DIRECT}" target="_blank" rel="noopener" class="contact-link">
+            💬 WhatsApp direct
+          </a>
+          ${p.group?.mattermostChannel ? `<a href="${esc(p.group.mattermostChannel)}" target="_blank" rel="noopener" class="contact-link">
+            # Mattermost channel
+          </a>` : ''}
+          <a href="${WHATSAPP_GROUP}" target="_blank" rel="noopener" class="contact-link">
+            👥 WhatsApp group
+          </a>
+        </div>
+      </div>
+
       <div id="project-media" class="mb-lg"></div>
 
       <div class="project-stats">

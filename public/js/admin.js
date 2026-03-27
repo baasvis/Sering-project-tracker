@@ -68,6 +68,10 @@ function showGroupModal(existing) {
       <label>Description (optional)</label>
       <div id="group-description-editor"></div>
     </div>
+    <div class="form-group">
+      <label>Mattermost channel URL (optional)</label>
+      <input type="text" id="group-mattermost" value="${esc(existing?.mattermostChannel || '')}" placeholder="https://mattermost.desering.org/de-sering/channels/...">
+    </div>
     <div class="modal-actions">
       <button class="btn btn-secondary" onclick="this.closest('.modal-backdrop').remove()">Cancel</button>
       <button class="btn btn-primary" onclick="saveGroup(${isEdit ? `'${existing.id}'` : 'null'})">
@@ -83,13 +87,14 @@ function showGroupModal(existing) {
 async function saveGroup(id) {
   const name = document.getElementById('group-name').value.trim();
   const description = getRichEditorHTML('group-description-editor');
+  const mattermostChannel = document.getElementById('group-mattermost').value.trim() || null;
   if (!name) return toast('Name is required', 'error');
 
   try {
     if (id) {
-      await apiPatch(`/api/groups/${id}`, { name, description });
+      await apiPatch(`/api/groups/${id}`, { name, description, mattermostChannel });
     } else {
-      await apiPost('/api/groups', { name, description });
+      await apiPost('/api/groups', { name, description, mattermostChannel });
     }
     document.querySelector('.modal-backdrop')?.remove();
     renderAdmin();
