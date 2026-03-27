@@ -250,6 +250,7 @@ Visible to everyone (between Projects and Admin in nav):
 Only accessible to signed-in admins:
 - **Manage groups**: Create, rename, reorder, delete groups
 - **Quick actions**: Links to create new project, post announcement
+- **Reports**: View unresolved problem reports with screenshots, resolve or delete them
 - **Data export**: Download all data as a ZIP of CSVs (groups, projects, tasks, announcements, comments, shopping items, media)
 - **Admin list**: Which Google accounts have admin access
 
@@ -347,6 +348,19 @@ Only accessible to signed-in admins:
 | sizeBytes | Int | File size |
 | createdAt | DateTime | |
 
+### Report
+| Field | Type | Notes |
+|-------|------|-------|
+| id | UUID | Primary key |
+| description | String | Problem description (max 2000 chars, HTML stripped) |
+| screenshotData | String? | Base64 data URL of auto-captured screenshot |
+| reporterName | String | Visitor name or admin email |
+| currentPage | String? | Hash route when report was created |
+| resolved | Boolean | Default false; admin marks resolved |
+| adminNotes | String? | Admin response/notes |
+| createdAt | DateTime | |
+| updatedAt | DateTime | |
+
 Media files stored on disk (Railway volume) at `/uploads/{parentType}/{parentId}/{filename}`.
 
 ---
@@ -416,6 +430,13 @@ This app has ~6 screens with relatively simple interactions. The most complex pa
 - `POST /api/comments` — Create comment (anyone, requires `authorName`)
 - `DELETE /api/comments/:id` — Delete comment (admin only)
 
+### Reports
+- `POST /api/reports` — Submit a problem report (anyone; auto-captured screenshot as base64)
+- `GET /api/reports` — List reports (admin only, `?resolved=true/false` filter)
+- `GET /api/reports/:id` — Single report with screenshot (admin only)
+- `PATCH /api/reports/:id` — Resolve or add notes (admin only)
+- `DELETE /api/reports/:id` — Delete report (admin only)
+
 ### Export
 - `GET /api/export` — Download all tables as a ZIP of CSVs (admin only)
 
@@ -444,6 +465,7 @@ routes/
   announcements.js       — Announcement CRUD
   comments.js            — Comment CRUD
   media.js               — File upload/serve/delete
+  reports.js             — Problem reports (submit + admin manage)
   health.js              — Health check
 public/
   index.html             — HTML shell
@@ -465,7 +487,8 @@ public/
     tasks.js             — Task detail, status changes
     comments.js          — Comment threads, media-in-comments
     media.js             — Photo upload, voice recorder
-    admin.js             — Admin panel
+    reports.js           — Floating report button, screenshot capture modal
+    admin.js             — Admin panel (incl. report management)
     init.js              — Router, navigation, app init
   fonts/                 — Self-hosted font files (if licensed)
 uploads/                 — User-uploaded media (gitignored)
@@ -524,6 +547,7 @@ Implemented protections for a public-facing app:
 - **Media upload restrictions**: requires identity (admin session or visitor name), photos max 5MB, voice notes max 2MB (~60 seconds), auto-stop recording at 60s, client-side size check before upload
 - **Global storage cap**: 100MB total uploads — prevents abuse as free storage. Returns 507 when full.
 - **Admin-only moderation**: only admins can delete comments and media
+- **Report validation**: screenshot must be `data:image/*` data URL (max 2MB), description/name HTML-stripped, UUID validation on all `:id` params
 
 ---
 

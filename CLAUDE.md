@@ -27,6 +27,7 @@ routes/
   comments.js          — Comment CRUD (anyone can post, admin can delete)
   shopping.js          — Shopping list CRUD (items + costs per project)
   media.js             — File upload/serve/delete (photos + voice notes)
+  reports.js           — Problem reports (anyone submits, admin manages)
   export.js            — Admin data export (ZIP of CSVs)
   health.js            — Health check endpoint
 public/
@@ -50,7 +51,8 @@ public/
     projects.js        — Project list, project detail, task list, modals, targeted re-renders
     shopping.js        — Shopping list UI per project
     budget.js          — Budget overview screen
-    admin.js           — Admin panel (group management, data export)
+    reports.js         — Floating report button, screenshot capture modal
+    admin.js           — Admin panel (group management, reports, data export)
     init.js            — Navigation, routing, app bootstrap (MUST load last)
 prisma/
   schema.prisma        — Database schema
@@ -59,7 +61,7 @@ uploads/               — User-uploaded media files (gitignored)
 
 ## Script Load Order
 Scripts must load in the order listed in index.html:
-`state.js` → `auth.js` → `utils.js` → `media.js` → `comments.js` → `dashboard.js` → `projects.js` → `shopping.js` → `budget.js` → `admin.js` → `init.js` (last)
+`state.js` → `auth.js` → `utils.js` → `media.js` → `comments.js` → `dashboard.js` → `projects.js` → `shopping.js` → `budget.js` → `reports.js` → `admin.js` → `init.js` (last)
 
 ## Conventions
 - All frontend functions are global (no modules, no import/export)
@@ -88,6 +90,10 @@ Scripts must load in the order listed in index.html:
 - `POST /api/tasks` creates task (admin auto-approved) or suggestion (visitor, approved=false)
 - `POST /api/projects` creates project (admin auto-approved) or suggestion (visitor, approved=false)
 - `PATCH /api/tasks/:id/approve` and `PATCH /api/projects/:id/approve` — admin approves suggestion
+- `POST /api/reports` creates report (anyone, with auto-captured screenshot as base64)
+- `GET /api/reports` lists reports (admin only, with `?resolved=true/false` filter)
+- `GET /api/reports/:id` returns single report with screenshot data (admin only)
+- `PATCH /api/reports/:id` resolves or adds notes (admin only)
 - `GET /api/export` downloads ZIP of all tables as CSVs (admin only)
 - `POST /api/media` accepts multipart form upload (photo or voice)
 - `GET /api/media/:id/file` serves the uploaded file (checks flat + nested + misc paths)
@@ -102,6 +108,7 @@ Scripts must load in the order listed in index.html:
 - **Rate limiting**: 100 req/min general, 20/min writes, 10/min uploads
 - **Input sanitization**: HTML tags stripped from task/project/shopping item names and author names server-side; rich text sanitized via sanitize-html
 - **URL validation**: only http/https links allowed in shopping items
+- **Report validation**: screenshot must be `data:image/*` format, description/name stripped of HTML tags, UUID validation on :id params
 
 ## Running
 ```bash

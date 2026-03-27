@@ -69,6 +69,7 @@ app.use('/api', apiLimiter);
 app.delete('/api/comments/:id', writeLimiter);
 app.delete('/api/media/:id', writeLimiter);
 app.delete('/api/shopping/:id', writeLimiter);
+app.delete('/api/reports/:id', writeLimiter);
 
 // Session (for admin login)
 app.use(session({
