@@ -8,12 +8,13 @@ const {
   VALID_STATUSES, VALID_JOIN_TYPES, VALID_TIERS,
 } = require('../lib/validate');
 const { broadcast, getMutationId } = require('../lib/sse');
+const { logAction } = require('../lib/audit');
 
 const router = Router();
 
 // List projects (optional ?groupId= filter, ?status= filter)
 router.get('/', asyncHandler(async (req, res) => {
-  const where = {};
+  const where = { deletedAt: null };
   if (req.query.groupId) {
     if (!isValidUuid(req.query.groupId)) return res.status(400).json({ error: 'Invalid groupId format' });
     where.groupId = req.query.groupId;
@@ -29,7 +30,7 @@ router.get('/', asyncHandler(async (req, res) => {
     include: {
       group: { select: { id: true, name: true } },
       _count: { select: { tasks: true } },
-      tasks: { where: { approved: true }, select: { status: true } }
+      tasks: { where: { approved: true, deletedAt: null }, select: { status: true } }
     }
   });
 
@@ -51,7 +52,7 @@ router.get('/:id', validateId, asyncHandler(async (req, res) => {
     where: { id: req.params.id },
     include: {
       group: { select: { id: true, name: true, mattermostChannel: true } },
-      tasks: { orderBy: { order: 'asc' } }
+      tasks: { where: { deletedAt: null }, orderBy: { order: 'asc' } }
     }
   });
   if (!project) return res.status(404).json({ error: 'Project not found' });
@@ -94,6 +95,7 @@ router.post('/', asyncHandler(async (req, res) => {
     include: { group: { select: { id: true, name: true } } }
   });
   res.status(201).json(project);
+  logAction(req, 'project:created', 'project', project.id, { name: project.name });
   broadcast('project:created', { project }, getMutationId(req));
 }));
 
@@ -139,6 +141,7 @@ router.patch('/:id/approve', validateId, requireAdmin, asyncHandler(async (req, 
       include: { group: { select: { id: true, name: true } } }
     });
     res.json(project);
+    logAction(req, 'project:approved', 'project', project.id, { name: project.name });
     broadcast('project:approved', { project }, getMutationId(req));
   } catch (err) {
     if (err.code === 'P2025') return res.status(404).json({ error: 'Project not found' });
@@ -146,10 +149,11 @@ router.patch('/:id/approve', validateId, requireAdmin, asyncHandler(async (req, 
   }
 }));
 
-// Delete project (admin) — also used to decline suggestions
+// Soft-delete project (admin) — also used to decline suggestions
 router.delete('/:id', validateId, requireAdmin, asyncHandler(async (req, res) => {
-  await prisma.project.delete({ where: { id: req.params.id } });
+  await prisma.project.update({ where: { id: req.params.id }, data: { deletedAt: new Date() } });
   res.json({ ok: true });
+  logAction(req, 'project:deleted', 'project', req.params.id);
   broadcast('project:deleted', { projectId: req.params.id }, getMutationId(req));
 }));
 

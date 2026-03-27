@@ -13,6 +13,7 @@ model Group {
   description String?
   order             Int       @default(0)
   mattermostChannel String?
+  deletedAt         DateTime?
   createdAt         DateTime  @default(now())
   updatedAt         DateTime  @updatedAt
   projects          Project[]
@@ -30,6 +31,7 @@ model Project {
   status        String   @default("active") // active, completed, archived
   approved      Boolean  @default(true)
   suggestedBy   String?
+  deletedAt     DateTime?
   createdAt   DateTime @default(now())
   updatedAt   DateTime @updatedAt
   tasks         Task[]
@@ -50,6 +52,7 @@ model Task {
   order       Int       @default(0)
   approved    Boolean   @default(true)
   suggestedBy String?
+  deletedAt   DateTime?
   createdAt   DateTime  @default(now())
   updatedAt   DateTime  @updatedAt
 
@@ -112,6 +115,19 @@ model Media {
   createdAt    DateTime @default(now())
 
   @@index([parentType, parentId])
+}
+
+model AuditLog {
+  id        String   @id @default(uuid())
+  action    String   // e.g. "project:deleted", "task:approved", "comment:deleted"
+  actor     String   // admin email or "system"
+  targetType String? // e.g. "project", "task", "group"
+  targetId  String?
+  details   String?  // JSON string with extra context
+  createdAt DateTime @default(now())
+
+  @@index([action, createdAt])
+  @@index([actor, createdAt])
 }
 
 model Report {

@@ -5,6 +5,7 @@ const cookieParser = require('cookie-parser');
 const compression = require('compression');
 const rateLimit = require('express-rate-limit');
 const helmet = require('helmet');
+const morgan = require('morgan');
 const crypto = require('crypto');
 const path = require('path');
 const fs = require('fs');
@@ -19,7 +20,15 @@ app.use(compression());
 // Trust reverse proxy (Railway, Nginx, etc.) for correct IP in rate limiting
 app.set('trust proxy', 1);
 
-// Security headers via helmet — NO unsafe-inline for scriptSrcAttr
+// Enable ETags for API responses (weak ETags — content-based caching)
+app.set('etag', 'weak');
+
+// Request logging — concise format, skip health checks
+app.use(morgan('short', {
+  skip: (req) => req.path === '/api/health' || req.path === '/api/events',
+}));
+
+// Security headers via helmet
 app.use(helmet({
   contentSecurityPolicy: {
     directives: {
@@ -31,11 +40,21 @@ app.use(helmet({
       frameSrc: ["https://accounts.google.com"],
       fontSrc: ["'self'"],
       mediaSrc: ["'self'", "blob:"],
+      reportUri: '/api/csp-report',
     }
   },
   crossOriginOpenerPolicy: { policy: 'same-origin-allow-popups' },
   crossOriginEmbedderPolicy: false,
 }));
+
+// Permissions-Policy: restrict browser features to only what's needed
+app.use((req, res, next) => {
+  res.setHeader('Permissions-Policy',
+    'camera=(), geolocation=(), payment=(), usb=(), magnetometer=(), gyroscope=(), accelerometer=(), ' +
+    'microphone=(self)'  // needed for voice note recording
+  );
+  next();
+});
 
 // Body parsing with tight limits
 app.use(express.json({ limit: '3mb' }));
@@ -83,7 +102,9 @@ app.delete('/api/shopping/:id', writeLimiter);
 app.delete('/api/reports/:id', writeLimiter);
 
 // Session with Postgres store (survives restarts, no memory leak)
+const isProduction = process.env.NODE_ENV === 'production';
 const sessionConfig = {
+  name: isProduction ? '__Host-sid' : 'sid',
   secret: SESSION_SECRET,
   resave: false,
   saveUninitialized: false,
@@ -91,18 +112,17 @@ const sessionConfig = {
     maxAge: 7 * 24 * 60 * 60 * 1000,
     httpOnly: true,
     sameSite: 'lax',
-    secure: process.env.NODE_ENV === 'production'
+    secure: isProduction,
+    path: '/',
   }
 };
 
-// Use Postgres session store if DATABASE_URL is available (production)
-// Falls back to MemoryStore in dev (acceptable for 3 admin sessions)
 if (process.env.DATABASE_URL) {
   sessionConfig.store = new PgSession({
     conString: process.env.DATABASE_URL,
     tableName: 'session',
     createTableIfMissing: true,
-    pruneSessionInterval: 60 * 15, // Clean expired sessions every 15 min
+    pruneSessionInterval: 60 * 15,
   });
 }
 
@@ -115,7 +135,7 @@ app.use(cookieParser());
 app.use((req, res, next) => {
   if (!req.cookies?.['csrf-token']) {
     const token = crypto.randomBytes(24).toString('hex');
-    res.cookie('csrf-token', token, { httpOnly: false, sameSite: 'strict', secure: !DEV_MODE });
+    res.cookie('csrf-token', token, { httpOnly: false, sameSite: 'strict', secure: isProduction });
   }
   if (['POST', 'PATCH', 'PUT', 'DELETE'].includes(req.method) && req.path.startsWith('/api/')) {
     const cookieToken = req.cookies?.['csrf-token'];
@@ -141,6 +161,7 @@ app.use((req, res, next) => {
 // Static files
 app.use(express.static(path.join(__dirname, 'public'), {
   maxAge: '1h',
+  etag: true,
   setHeaders(res, filePath) {
     if (filePath.endsWith('.html')) {
       res.setHeader('Cache-Control', 'no-cache');
@@ -156,6 +177,16 @@ app.use('/uploads', express.static(uploadsDir, { maxAge: '7d' }));
 // SSE endpoint
 app.get('/api/events', sseLimiter, (req, res) => {
   addClient(req, res);
+});
+
+// CSP violation reports (fire-and-forget logging)
+app.post('/api/csp-report', express.json({ type: 'application/csp-report' }), (req, res) => {
+  const report = req.body?.['csp-report'] || req.body;
+  if (report) {
+    console.warn('CSP violation:', report['blocked-uri'] || report.blockedURL || 'unknown',
+      'directive:', report['violated-directive'] || report.effectiveDirective || 'unknown');
+  }
+  res.status(204).end();
 });
 
 // Client config endpoint
@@ -221,3 +252,20 @@ const server = app.listen(PORT, () => {
 
 server.keepAliveTimeout = 120_000;
 server.headersTimeout = 125_000;
+
+// Graceful shutdown — stop accepting connections, drain existing ones, then exit
+function gracefulShutdown(signal) {
+  console.log(`${signal} received — shutting down gracefully...`);
+  server.close(() => {
+    console.log('HTTP server closed');
+    process.exit(0);
+  });
+  // Force exit after 10s if connections don't drain
+  setTimeout(() => {
+    console.error('Forced shutdown after 10s timeout');
+    process.exit(1);
+  }, 10_000);
+}
+
+process.on('SIGTERM', () => gracefulShutdown('SIGTERM'));
+process.on('SIGINT', () => gracefulShutdown('SIGINT'));

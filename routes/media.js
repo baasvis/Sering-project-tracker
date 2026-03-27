@@ -158,7 +158,7 @@ const batchHandler = asyncHandler(async (req, res) => {
     return res.status(400).json({ error: 'Invalid parentType' });
   }
 
-  const ids = parentIds.split(',').filter(id => isValidUuid(id)).slice(0, 100);
+  const ids = parentIds.split(',').filter(id => isValidUuid(id)).slice(0, 50);
   if (ids.length === 0) {
     return res.json({});
   }

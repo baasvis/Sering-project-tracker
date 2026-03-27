@@ -13,13 +13,16 @@
   <link rel="stylesheet" href="/css/shopping.css">
   <link rel="stylesheet" href="/css/admin.css">
   <link rel="stylesheet" href="/css/mobile.css">
-  <!-- Quill rich text editor -->
-  <link href="https://cdn.jsdelivr.net/npm/quill@2.0.3/dist/quill.snow.css" rel="stylesheet">
-  <script src="https://cdn.jsdelivr.net/npm/quill@2.0.3/dist/quill.js"></script>
-  <!-- Google Sign-In SDK for admin login -->
+  <!-- Quill rich text editor (SRI-protected) -->
+  <link href="https://cdn.jsdelivr.net/npm/quill@2.0.3/dist/quill.snow.css" rel="stylesheet"
+        integrity="sha384-ecIckRi4QlKYya/FQUbBUjS4qp65jF/J87Guw5uzTbO1C1Jfa/6kYmd6dXUF6D7i" crossorigin="anonymous">
+  <script src="https://cdn.jsdelivr.net/npm/quill@2.0.3/dist/quill.js"
+          integrity="sha384-utBUCeG4SYaCm4m7GQZYr8Hy8Fpy3V4KGjBZaf4WTKOcwhCYpt/0PfeEe3HNlwx8" crossorigin="anonymous"></script>
+  <!-- Google Sign-In SDK (no SRI — Google rotates this script) -->
   <script src="https://accounts.google.com/gsi/client" async defer></script>
-  <!-- Screenshot capture for problem reports -->
-  <script src="https://cdn.jsdelivr.net/npm/html2canvas@1.4.1/dist/html2canvas.min.js"></script>
+  <!-- Screenshot capture for problem reports (SRI-protected) -->
+  <script src="https://cdn.jsdelivr.net/npm/html2canvas@1.4.1/dist/html2canvas.min.js"
+          integrity="sha384-ZZ1pncU3bQe8y31yfZdMFdSpttDoPmOZg2wguVK9almUodir1PghgT0eY7Mrty8H" crossorigin="anonymous"></script>
 </head>
 <body>
   <!-- Name entry overlay (for non-admin visitors) -->

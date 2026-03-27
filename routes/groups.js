@@ -5,21 +5,23 @@ const { sanitize } = require('../lib/sanitize');
 const asyncHandler = require('../lib/async-handler');
 const { validateId, isValidUrl, stripTags } = require('../lib/validate');
 const { broadcast, getMutationId } = require('../lib/sse');
+const { logAction } = require('../lib/audit');
 
 const router = Router();
 
 // List all groups with project counts and task status counts
 router.get('/', asyncHandler(async (req, res) => {
   const groups = await prisma.group.findMany({
+    where: { deletedAt: null },
     orderBy: { order: 'asc' },
     include: {
       _count: { select: { projects: true } },
       projects: {
-        where: { status: 'active', approved: true },
+        where: { status: 'active', approved: true, deletedAt: null },
         select: {
           id: true, name: true, status: true, tier: true, joinType: true,
           _count: { select: { tasks: true } },
-          tasks: { where: { approved: true }, select: { status: true } }
+          tasks: { where: { approved: true, deletedAt: null }, select: { status: true } }
         }
       }
     }
@@ -49,7 +51,7 @@ router.get('/:id', validateId, asyncHandler(async (req, res) => {
         orderBy: { createdAt: 'desc' },
         include: {
           _count: { select: { tasks: true } },
-          tasks: { where: { approved: true }, select: { status: true } }
+          tasks: { where: { approved: true, deletedAt: null }, select: { status: true } }
         }
       }
     }
@@ -92,6 +94,7 @@ router.post('/', requireAdmin, asyncHandler(async (req, res) => {
     }
   });
   res.status(201).json(group);
+  logAction(req, 'group:created', 'group', group.id, { name: group.name });
   broadcast('group:created', { group }, getMutationId(req));
 }));
 
@@ -119,13 +122,14 @@ router.patch('/:id', validateId, requireAdmin, asyncHandler(async (req, res) => 
   broadcast('group:updated', { group }, getMutationId(req));
 }));
 
-// Delete group (admin, only if no projects)
+// Soft-delete group (admin, only if no active projects)
 router.delete('/:id', validateId, requireAdmin, asyncHandler(async (req, res) => {
-  const count = await prisma.project.count({ where: { groupId: req.params.id } });
+  const count = await prisma.project.count({ where: { groupId: req.params.id, deletedAt: null } });
   if (count > 0) return res.status(400).json({ error: 'Cannot delete group with projects' });
 
-  await prisma.group.delete({ where: { id: req.params.id } });
+  await prisma.group.update({ where: { id: req.params.id }, data: { deletedAt: new Date() } });
   res.json({ ok: true });
+  logAction(req, 'group:deleted', 'group', req.params.id);
   broadcast('group:deleted', { groupId: req.params.id }, getMutationId(req));
 }));
 

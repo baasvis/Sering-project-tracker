@@ -5,6 +5,7 @@ const asyncHandler = require('../lib/async-handler');
 const { deleteMediaFile } = require('../lib/media-utils');
 const { validateId, isValidUuid, stripTags, sanitizeName, VALID_TARGET_TYPES } = require('../lib/validate');
 const { broadcast, getMutationId } = require('../lib/sse');
+const { logAction } = require('../lib/audit');
 
 const router = Router();
 
@@ -133,6 +134,7 @@ router.delete('/:id', validateId, requireAdmin, asyncHandler(async (req, res) =>
   await prisma.media.deleteMany({ where: { parentType: 'comment', parentId: req.params.id } });
   await prisma.comment.delete({ where: { id: req.params.id } });
   res.json({ ok: true });
+  logAction(req, 'comment:deleted', 'comment', req.params.id, existing);
   if (existing) broadcast('comment:deleted', { commentId: req.params.id, targetType: existing.targetType, targetId: existing.targetId }, getMutationId(req));
 }));
 

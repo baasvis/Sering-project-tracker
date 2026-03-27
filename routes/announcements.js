@@ -5,6 +5,7 @@ const { sanitize } = require('../lib/sanitize');
 const asyncHandler = require('../lib/async-handler');
 const { validateId, stripTags } = require('../lib/validate');
 const { broadcast, getMutationId } = require('../lib/sse');
+const { logAction } = require('../lib/audit');
 
 const router = Router();
 
@@ -16,7 +17,6 @@ router.get('/', asyncHandler(async (req, res) => {
     take: limit
   });
 
-  // Batch-fetch media for all announcements in one query
   const ids = announcements.map(a => a.id);
   const media = ids.length > 0
     ? await prisma.media.findMany({
@@ -52,6 +52,7 @@ router.post('/', requireAdmin, asyncHandler(async (req, res) => {
     }
   });
   res.status(201).json(announcement);
+  logAction(req, 'announcement:created', 'announcement', announcement.id, { title: announcement.title });
   broadcast('announcement:created', { announcement }, getMutationId(req));
 }));
 
@@ -65,6 +66,7 @@ router.patch('/:id', validateId, requireAdmin, asyncHandler(async (req, res) => 
 
   const announcement = await prisma.announcement.update({ where: { id: req.params.id }, data });
   res.json(announcement);
+  logAction(req, 'announcement:updated', 'announcement', announcement.id);
   broadcast('announcement:updated', { announcement }, getMutationId(req));
 }));
 
@@ -72,6 +74,7 @@ router.patch('/:id', validateId, requireAdmin, asyncHandler(async (req, res) => 
 router.delete('/:id', validateId, requireAdmin, asyncHandler(async (req, res) => {
   await prisma.announcement.delete({ where: { id: req.params.id } });
   res.json({ ok: true });
+  logAction(req, 'announcement:deleted', 'announcement', req.params.id);
   broadcast('announcement:deleted', { announcementId: req.params.id }, getMutationId(req));
 }));
 

@@ -5,6 +5,7 @@ const { sanitize } = require('../lib/sanitize');
 const asyncHandler = require('../lib/async-handler');
 const { validateId, isValidUuid, stripTags, sanitizeName, VALID_TASK_STATUSES } = require('../lib/validate');
 const { broadcast, getMutationId } = require('../lib/sse');
+const { logAction } = require('../lib/audit');
 
 const router = Router();
 
@@ -15,7 +16,7 @@ router.get('/', asyncHandler(async (req, res) => {
   if (!isValidUuid(projectId)) return res.status(400).json({ error: 'Invalid projectId format' });
 
   const tasks = await prisma.task.findMany({
-    where: { projectId },
+    where: { projectId, deletedAt: null },
     orderBy: { order: 'asc' }
   });
   res.json(tasks);
@@ -102,6 +103,7 @@ router.patch('/:id/approve', validateId, requireAdmin, asyncHandler(async (req, 
       data: { approved: true }
     });
     res.json(task);
+    logAction(req, 'task:approved', 'task', task.id, { name: task.name });
     broadcast('task:approved', { task, projectId: task.projectId }, getMutationId(req));
   } catch (err) {
     if (err.code === 'P2025') return res.status(404).json({ error: 'Task not found' });
@@ -109,11 +111,12 @@ router.patch('/:id/approve', validateId, requireAdmin, asyncHandler(async (req, 
   }
 }));
 
-// Delete task (admin) — also used to decline suggestions
+// Soft-delete task (admin) — also used to decline suggestions
 router.delete('/:id', validateId, requireAdmin, asyncHandler(async (req, res) => {
   const existing = await prisma.task.findUnique({ where: { id: req.params.id }, select: { projectId: true } });
-  await prisma.task.delete({ where: { id: req.params.id } });
+  await prisma.task.update({ where: { id: req.params.id }, data: { deletedAt: new Date() } });
   res.json({ ok: true });
+  logAction(req, 'task:deleted', 'task', req.params.id);
   if (existing) broadcast('task:deleted', { taskId: req.params.id, projectId: existing.projectId }, getMutationId(req));
 }));
 
