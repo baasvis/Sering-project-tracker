@@ -249,6 +249,7 @@ Visible to everyone (between Projects and Admin in nav):
 Only accessible to signed-in admins:
 - **Manage groups**: Create, rename, reorder, delete groups
 - **Quick actions**: Links to create new project, post announcement
+- **Data export**: Download all data as a ZIP of CSVs (groups, projects, tasks, announcements, comments, shopping items, media)
 - **Admin list**: Which Google accounts have admin access
 
 ---
@@ -408,6 +409,9 @@ This app has ~6 screens with relatively simple interactions. The most complex pa
 - `POST /api/comments` — Create comment (anyone, requires `authorName`)
 - `DELETE /api/comments/:id` — Delete comment (admin only)
 
+### Export
+- `GET /api/export` — Download all tables as a ZIP of CSVs (admin only)
+
 ### Media
 - `POST /api/media` — Upload file (multipart form, with parentType + parentId)
 - `GET /api/media/:id` — Serve file
@@ -504,7 +508,11 @@ Inherited from De Sering's culture:
 
 Implemented protections for a public-facing app:
 
+- **Security headers** (helmet): CSP, HSTS, X-Frame-Options, X-Content-Type-Options, Referrer-Policy, hides X-Powered-By
+- **CSRF protection**: double-submit cookie pattern on all `/api/*` write operations; frontend sends `X-CSRF-Token` header
 - **Rate limiting** (express-rate-limit): 100 req/min general API, 20/min for write operations, 10/min for file uploads — all per IP
+- **Input sanitization**: HTML tags stripped server-side from shopping item names and author names; URL protocol validation (http/https only)
+- **UUID validation**: all route params and query params validated as UUID format before Prisma queries
 - **Comment spam protection**: min 2 / max 2000 chars, duplicate detection within 5-minute window, name validation (1-50 chars)
 - **Media upload restrictions**: requires identity (admin session or visitor name), photos max 5MB, voice notes max 2MB (~60 seconds), auto-stop recording at 60s, client-side size check before upload
 - **Global storage cap**: 100MB total uploads — prevents abuse as free storage. Returns 507 when full.

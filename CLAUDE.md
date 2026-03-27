@@ -25,9 +25,9 @@ routes/
   tasks.js             — Task CRUD within projects
   announcements.js     — Announcement CRUD (admin only), includes media inline
   comments.js          — Comment CRUD (anyone can post, admin can delete)
+  shopping.js          — Shopping list CRUD (items + costs per project)
   media.js             — File upload/serve/delete (photos + voice notes)
-  shopping.js          — Shopping list per project (items + costs)
-  export.js            — Admin CSV export (all tables as ZIP)
+  export.js            — Admin data export (ZIP of CSVs)
   health.js            — Health check endpoint
 public/
   index.html           — Shell HTML + name overlay
@@ -37,7 +37,7 @@ public/
     projects.css       — Project list + detail + tasks
     comments.css       — Comment threads
     media.css          — Media display, voice recorder, lightbox
-    shopping.css       — Shopping list table + budget
+    shopping.css       — Shopping list table + budget page
     admin.css          — Admin panel
     mobile.css         — Responsive overrides
   js/
@@ -64,7 +64,7 @@ Scripts must load in the order listed in index.html:
 ## Conventions
 - All frontend functions are global (no modules, no import/export)
 - State lives in the global `S` object (defined in state.js)
-- Each screen has a render function: `renderDashboard()`, `renderProjects()`, `renderAdmin()`
+- Each screen has a render function: `renderDashboard()`, `renderProjects()`, `renderBudget()`, `renderAdmin()`
 - `renderCurrentScreen()` dispatches to the active screen
 - Hash-based routing: `#dashboard`, `#projects`, `#budget`, `#admin`, `#project/{id}`
 - Two auth tiers: admin (Google Sign-In) and visitor (name in localStorage)
@@ -80,12 +80,23 @@ Scripts must load in the order listed in index.html:
 - `GET /api/projects/:id` returns project with full tasks array
 - `GET /api/announcements` returns announcements with inline media (batch-fetched)
 - `GET /api/comments?targetType=X&targetId=Y` returns comments with attached media
+- `GET /api/shopping?projectId=X` returns shopping items (approved only for visitors)
+- `GET /api/shopping/summary` returns all projects with shopping totals (budget page)
+- `POST /api/shopping` creates item (anyone can suggest, admin auto-approved)
+- `GET /api/export` downloads ZIP of all tables as CSVs (admin only)
 - `POST /api/media` accepts multipart form upload (photo or voice)
 - `GET /api/media/:id/file` serves the uploaded file (checks flat + nested + misc paths)
-- `GET /api/export` returns ZIP of CSV files (admin only)
 - Comments: anyone can create (requires authorName); only admin can delete
 - Tasks: validated status (todo/in_progress/done), optional assignee + deadline
 - Projects: validated status (active/completed/archived), optional tier + joinType
+- Shopping: items (name, link, price, qty) and costs (name, amount) per project
+
+## Security
+- **Helmet**: CSP, HSTS, X-Frame-Options, nosniff, referrer-policy
+- **CSRF**: double-submit cookie on all `/api/*` write operations (X-CSRF-Token header)
+- **Rate limiting**: 100 req/min general, 20/min writes, 10/min uploads
+- **Input sanitization**: HTML tags stripped from shopping item names/authors server-side; rich text sanitized via sanitize-html
+- **URL validation**: only http/https links allowed in shopping items
 
 ## Running
 ```bash
