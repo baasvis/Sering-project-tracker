@@ -21,28 +21,20 @@ function buildNav() {
     .map(s => `<a href="#${s.id}" data-screen="${s.id}" class="${S.screen === s.id ? 'active' : ''}">${s.label}</a>`)
     .join('');
 
-  // Attach click handlers
+  // Attach click handlers — just update hash; hashchange listener handles the render
   nav.querySelectorAll('a').forEach(a => {
     a.addEventListener('click', e => {
       e.preventDefault();
-      const screen = a.dataset.screen;
-      S.screen = screen;
-      S.currentProjectId = null;
       S.currentProject = null;
-      window.location.hash = screen;
-      renderCurrentScreen();
-      buildNav();
+      window.location.hash = a.dataset.screen;
     });
   });
 
   // Logo also goes to dashboard
   document.querySelector('.nav-logo').onclick = e => {
     e.preventDefault();
-    S.screen = 'dashboard';
-    S.currentProjectId = null;
+    S.currentProject = null;
     window.location.hash = 'dashboard';
-    renderCurrentScreen();
-    buildNav();
   };
 }
 
@@ -136,7 +128,7 @@ async function initApp() {
   renderCurrentScreen();
 }
 
-// Handle back/forward — debounced
+// Handle all navigation (clicks + back/forward) via hashchange — debounced to prevent rapid-click floods
 let _hashDebounce = null;
 window.addEventListener('hashchange', () => {
   clearTimeout(_hashDebounce);
@@ -144,7 +136,7 @@ window.addEventListener('hashchange', () => {
     handleRoute();
     buildNav();
     renderCurrentScreen();
-  }, 50);
+  }, 150);
 });
 
 // Boot

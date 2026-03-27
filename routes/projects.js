@@ -37,7 +37,18 @@ router.get('/', asyncHandler(async (req, res) => {
     return { ...rest, taskCounts: counts };
   });
 
-  res.json(result);
+  // Batch-fetch media for all projects in one query (avoids N+1 on frontend)
+  const projectIds = result.map(p => p.id);
+  const projectMedia = projectIds.length > 0
+    ? await prisma.media.findMany({ where: { parentType: 'project', parentId: { in: projectIds } } })
+    : [];
+  const mediaByProject = {};
+  for (const m of projectMedia) {
+    if (!mediaByProject[m.parentId]) mediaByProject[m.parentId] = [];
+    mediaByProject[m.parentId].push(m);
+  }
+
+  res.json(result.map(p => ({ ...p, media: mediaByProject[p.id] || [] })));
 }));
 
 // Get single project with tasks

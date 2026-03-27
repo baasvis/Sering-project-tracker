@@ -50,7 +50,22 @@ router.get('/', asyncHandler(async (req, res) => {
     })
   }));
 
-  res.json(result);
+  // Batch-fetch media for all active projects in one query (avoids N+1 on frontend)
+  const projectIds = result.flatMap(g => g.projects.map(p => p.id));
+  const projectMedia = projectIds.length > 0
+    ? await prisma.media.findMany({ where: { parentType: 'project', parentId: { in: projectIds } } })
+    : [];
+  const mediaByProject = {};
+  for (const m of projectMedia) {
+    if (!mediaByProject[m.parentId]) mediaByProject[m.parentId] = [];
+    mediaByProject[m.parentId].push(m);
+  }
+  const resultWithMedia = result.map(g => ({
+    ...g,
+    projects: g.projects.map(p => ({ ...p, media: mediaByProject[p.id] || [] }))
+  }));
+
+  res.json(resultWithMedia);
 }));
 
 // Get single group

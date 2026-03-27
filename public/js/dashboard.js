@@ -47,12 +47,11 @@ async function renderDashboard() {
         : S.groups.map(renderGroupSection).join('')}
     </div>`;
 
-  // Load all media in parallel (announcements have inline media from backend,
-  // but carousel needs separate loading for photo/voice split)
-  const projectIds = S.groups.flatMap(g => (g.projects || []).map(p => p.id));
+  // Render media from inline data (no extra API calls — all media batch-fetched by backend)
+  const projects = S.groups.flatMap(g => g.projects || []);
   await Promise.all([
     ...S.announcements.map(a => loadAnnouncementMedia(a)),
-    ...projectIds.map(id => loadProjectCardMedia(id))
+    ...projects.map(p => loadProjectCardMedia(p))
   ]);
 }
 
@@ -198,10 +197,10 @@ function renderProjectCard(project, group) {
   </div>`;
 }
 
-async function loadProjectCardMedia(projectId) {
+function loadProjectCardMedia(project) {
   try {
-    const media = await apiGet(`/api/media?parentType=project&parentId=${projectId}`);
-    const container = document.getElementById(`proj-media-${projectId}`);
+    const media = project.media || [];
+    const container = document.getElementById(`proj-media-${project.id}`);
     if (!container) return;
     const photos = media.filter(m => m.type === 'photo');
     if (photos.length > 0) {

@@ -36,10 +36,10 @@ app.use(helmet({
 app.use(express.json({ limit: '1mb' }));
 app.use(express.urlencoded({ extended: true }));
 
-// Rate limiting — general API: 100 requests per minute per IP
+// Rate limiting — general API: 200 requests per minute per IP (reads are batch-fetched; writes stay at 20)
 const apiLimiter = rateLimit({
   windowMs: 60 * 1000,
-  max: 100,
+  max: 200,
   standardHeaders: true,
   legacyHeaders: false,
   message: { error: 'Too many requests, please try again later' }

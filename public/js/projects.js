@@ -95,8 +95,8 @@ async function renderProjects() {
         }).join('')}
     </div>`;
 
-  // Load media for project cards (parallel)
-  Promise.all(filtered.map(p => loadProjectCardMedia(p.id)));
+  // Render media from inline data (no extra API calls — backend batch-fetches)
+  Promise.all(filtered.map(p => loadProjectCardMedia(p)));
 }
 
 // ---- Project detail ----
