@@ -47,4 +47,54 @@
   .comment-form-actions {
     align-self: flex-end;
   }
+
+  /* Shopping list responsive */
+  .shopping-header {
+    flex-direction: column;
+    align-items: flex-start;
+  }
+
+  .shopping-table-head {
+    display: none;
+  }
+
+  .shopping-row {
+    grid-template-columns: 1fr;
+    gap: 2px;
+    padding: var(--space-sm) var(--space-md);
+  }
+
+  .shopping-row .sh-name { order: 1; }
+  .shopping-row .sh-price::before { content: 'Price: '; color: var(--text-secondary); font-size: 0.75rem; }
+  .shopping-row .sh-qty::before { content: 'Qty: '; color: var(--text-secondary); font-size: 0.75rem; }
+  .shopping-row .sh-total::before { content: 'Total: '; color: var(--text-secondary); font-size: 0.75rem; }
+  .shopping-row .sh-price,
+  .shopping-row .sh-qty,
+  .shopping-row .sh-total {
+    text-align: left;
+    order: 2;
+  }
+  .shopping-row .sh-status { order: 3; text-align: left; }
+  .shopping-row .sh-actions { order: 4; justify-content: flex-start; }
+
+  .shopping-row:has(.sh-actions) {
+    grid-template-columns: 1fr;
+  }
+
+  /* Budget responsive */
+  .budget-project-info {
+    flex-wrap: wrap;
+  }
+
+  .budget-project-header {
+    padding: var(--space-md);
+  }
+
+  .budget-foldout {
+    padding: 0 var(--space-md) var(--space-md);
+  }
+
+  .budget-grand-total {
+    align-items: flex-start;
+  }
 }

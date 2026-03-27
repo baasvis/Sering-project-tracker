@@ -6,6 +6,7 @@
 const NAV_SCREENS = [
   { id: 'dashboard', label: 'Dashboard', icon: '~' },
   { id: 'projects',  label: 'Projects',  icon: '#' },
+  { id: 'budget',    label: 'Budget',    icon: '$' },
   { id: 'admin',     label: 'Admin',     icon: '*', adminOnly: true }
 ];
 

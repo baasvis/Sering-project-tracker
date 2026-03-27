@@ -220,8 +220,10 @@ Browse and explore:
 Single project view:
 - **Header**: Project name, group tag, description, media, progress bar
 - **Task list**: All tasks with status, optional assignee, optional deadline
+- **Shopping list**: Products (name, link, price, quantity) and extra costs (description, amount) with totals
 - **Comments section**: Thread of comments (text + media) from anyone
-- Admin controls: edit project, add/edit/delete tasks
+- Admin controls: edit project, add/edit/delete tasks, manage shopping items
+- Visitors can suggest shopping items (pending admin approval)
 
 ### Screen: Task Detail
 
@@ -230,6 +232,17 @@ Single task view (could be a modal or full page):
 - **Description**: Text + media
 - **Comments**: Thread of comments from anyone
 - Admin controls: edit task, change status
+
+### Screen: Budget
+
+Visible to everyone (between Projects and Admin in nav):
+- **Header**: "Budget" with grand total across all active projects
+- **Project rows**: Each shows project name, group tag, total cost, item count
+- **Fold-out**: Click a project row to expand and see its shopping items inline
+  - Same item list as project detail (products + costs)
+  - Admins can add/edit/delete items from this view
+  - Click again to collapse
+- Only projects with shopping items are shown
 
 ### Screen: Admin Panel
 
@@ -297,6 +310,24 @@ Only accessible to signed-in admins:
 | body | String? | Text content |
 | createdAt | DateTime | |
 
+### ShoppingItem
+| Field | Type | Notes |
+|-------|------|-------|
+| id | UUID | Primary key |
+| projectId | UUID | FK → Project (cascade delete) |
+| type | String | product / cost |
+| name | String | Item name or cost description |
+| link | String? | URL for products (http/https only) |
+| pricePerItem | Float? | Price per unit (products) |
+| quantity | Int? | Number of items (products, default 1) |
+| amount | Float? | Fixed amount (costs, e.g. labour) |
+| purchased | Boolean | Whether item has been obtained |
+| suggestedBy | String? | Visitor name if suggestion |
+| approved | Boolean | Admin must approve visitor suggestions |
+| order | Int | Display order within project |
+| createdAt | DateTime | |
+| updatedAt | DateTime | |
+
 ### Media
 | Field | Type | Notes |
 |-------|------|-------|
@@ -363,6 +394,14 @@ This app has ~6 screens with relatively simple interactions. The most complex pa
 - `POST /api/announcements` — Create announcement (admin)
 - `PATCH /api/announcements/:id` — Update announcement (admin)
 - `DELETE /api/announcements/:id` — Delete announcement (admin)
+
+### Shopping
+- `GET /api/shopping?projectId=xxx` — List items for a project (approved only for visitors, all for admins)
+- `GET /api/shopping/summary` — All projects with totals and items (for budget page)
+- `POST /api/shopping` — Create item (anyone can suggest, admin auto-approved)
+- `PATCH /api/shopping/:id` — Update item (admin)
+- `PATCH /api/shopping/:id/approve` — Approve suggestion (admin)
+- `DELETE /api/shopping/:id` — Delete item (admin)
 
 ### Comments
 - `GET /api/comments?targetType=project&targetId=xxx` — List comments for a target

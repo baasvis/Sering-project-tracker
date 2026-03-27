@@ -29,7 +29,8 @@ model Project {
   status        String   @default("active") // active, completed, archived
   createdAt   DateTime @default(now())
   updatedAt   DateTime @updatedAt
-  tasks       Task[]
+  tasks         Task[]
+  shoppingItems ShoppingItem[]
 }
 
 model Task {
@@ -65,6 +66,26 @@ model Comment {
   createdAt  DateTime @default(now())
 
   @@index([targetType, targetId])
+}
+
+model ShoppingItem {
+  id           String   @id @default(uuid())
+  projectId    String
+  project      Project  @relation(fields: [projectId], references: [id], onDelete: Cascade)
+  type         String   @default("product") // product, cost
+  name         String
+  link         String?
+  pricePerItem Float?
+  quantity     Int?     @default(1)
+  amount       Float?
+  purchased    Boolean  @default(false)
+  suggestedBy  String?
+  approved     Boolean  @default(false)
+  order        Int      @default(0)
+  createdAt    DateTime @default(now())
+  updatedAt    DateTime @updatedAt
+
+  @@index([projectId])
 }
 
 model Media {

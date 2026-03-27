@@ -69,6 +69,10 @@ app.use('/auth', require('./routes/auth'));
 app.use('/api/groups', require('./routes/groups'));
 app.use('/api/projects', require('./routes/projects'));
 app.use('/api/tasks', require('./routes/tasks'));
+// Shopping: stricter write limit (spam protection for suggestions)
+const shoppingRouter = require('./routes/shopping');
+app.post('/api/shopping', writeLimiter);
+app.use('/api/shopping', shoppingRouter);
 app.use('/api/announcements', require('./routes/announcements'));
 
 // Comments: stricter write limit (spam protection)

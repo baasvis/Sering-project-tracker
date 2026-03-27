@@ -1,0 +1,348 @@
+/* ========================================
+   Shopping List & Budget Page
+   ======================================== */
+
+/* ---- Shopping List Section ---- */
+
+.shopping-list {
+  border: 1px solid #e0ddd8;
+  border-radius: var(--radius-md);
+  background: var(--bg-card);
+  padding: var(--space-lg);
+}
+
+.shopping-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-bottom: var(--space-md);
+  gap: var(--space-md);
+}
+
+.shopping-header-left {
+  display: flex;
+  align-items: center;
+  gap: var(--space-md);
+}
+
+.shopping-header-left h2 {
+  margin: 0;
+  font-size: var(--font-size-subtitle);
+}
+
+.shopping-total {
+  font-size: var(--font-size-subtitle);
+  font-weight: 700;
+  color: var(--sering-olive);
+}
+
+.shopping-actions {
+  display: flex;
+  gap: var(--space-sm);
+}
+
+/* ---- Products Table ---- */
+
+.shopping-table {
+  margin-bottom: var(--space-md);
+}
+
+.shopping-table-head {
+  display: grid;
+  grid-template-columns: 1fr 90px 60px 90px 60px;
+  gap: var(--space-sm);
+  padding: var(--space-sm) var(--space-md);
+  font-size: 0.75rem;
+  font-weight: 500;
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+  color: var(--text-secondary);
+  border-bottom: 1px solid #e0ddd8;
+}
+
+/* Admin header/rows with actions column */
+.shopping-table-head.has-actions,
+.shopping-row.has-actions {
+  grid-template-columns: 1fr 90px 60px 90px 60px 60px;
+}
+
+.shopping-row {
+  display: grid;
+  grid-template-columns: 1fr 90px 60px 90px 60px;
+  gap: var(--space-sm);
+  padding: var(--space-sm) var(--space-md);
+  align-items: center;
+  border-bottom: 1px solid #f0ede8;
+  transition: background 0.15s;
+}
+
+.shopping-row:hover {
+  background: var(--sering-off-white);
+}
+
+.shopping-row.purchased {
+  opacity: 0.6;
+}
+
+.shopping-row.purchased .sh-name {
+  text-decoration: line-through;
+}
+
+.sh-name {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  min-width: 0;
+}
+
+.shopping-row .sh-name a {
+  color: var(--accent);
+  text-decoration: none;
+  word-break: break-all;
+}
+
+.shopping-row .sh-name a:hover {
+  text-decoration: underline;
+}
+
+.sh-price, .sh-qty, .sh-total {
+  text-align: right;
+  font-variant-numeric: tabular-nums;
+}
+
+.sh-status {
+  text-align: center;
+}
+
+.sh-actions {
+  display: flex;
+  gap: 2px;
+  justify-content: flex-end;
+}
+
+.shopping-check {
+  width: 32px;
+  height: 32px;
+  border: 2px solid #ccc;
+  border-radius: 4px;
+  background: white;
+  cursor: pointer;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 14px;
+  padding: 0;
+  transition: all 0.15s;
+}
+
+.shopping-check.checked {
+  background: var(--sering-olive);
+  border-color: var(--sering-olive);
+  color: white;
+}
+
+/* ---- Extra Costs ---- */
+
+.shopping-costs {
+  margin-bottom: var(--space-md);
+}
+
+.shopping-costs h3 {
+  font-size: 0.875rem;
+  font-weight: 500;
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+  color: var(--text-secondary);
+  margin: var(--space-md) 0 var(--space-sm);
+}
+
+.shopping-cost-row {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  padding: var(--space-sm) var(--space-md);
+  border-bottom: 1px solid #f0ede8;
+  gap: var(--space-sm);
+}
+
+.shopping-cost-row:hover {
+  background: var(--sering-off-white);
+}
+
+.shopping-cost-row .sh-name {
+  flex: 1;
+}
+
+.shopping-cost-row .sh-total {
+  font-weight: 600;
+  font-variant-numeric: tabular-nums;
+  min-width: 90px;
+  text-align: right;
+}
+
+.shopping-cost-row .sh-actions {
+  margin-left: var(--space-sm);
+}
+
+/* ---- Grand Total ---- */
+
+.shopping-grand-total {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  padding: var(--space-md);
+  font-weight: 700;
+  font-size: 1.1rem;
+  border-top: 2px solid var(--sering-black);
+  margin-top: var(--space-sm);
+}
+
+/* ---- Pending Suggestions ---- */
+
+.shopping-pending {
+  margin-top: var(--space-lg);
+  padding-top: var(--space-md);
+  border-top: 1px dashed #ccc;
+}
+
+.shopping-pending h3 {
+  font-size: 0.875rem;
+  font-weight: 500;
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+  color: var(--text-secondary);
+  margin: 0 0 var(--space-sm);
+}
+
+.shopping-pending-row {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  padding: var(--space-sm) var(--space-md);
+  background: #fff9e6;
+  border-radius: var(--radius-sm);
+  margin-bottom: var(--space-xs);
+  gap: var(--space-md);
+}
+
+.shopping-pending-name {
+  font-weight: 500;
+}
+
+.shopping-pending-actions {
+  display: flex;
+  gap: var(--space-xs);
+  flex-shrink: 0;
+}
+
+/* ---- Icon Buttons ---- */
+
+.btn-icon {
+  width: 36px;
+  height: 36px;
+  border: none;
+  background: transparent;
+  cursor: pointer;
+  border-radius: var(--radius-sm);
+  font-size: 14px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  transition: background 0.15s;
+}
+
+.btn-icon:hover {
+  background: #f0ede8;
+}
+
+.btn-icon-danger:hover {
+  background: #fde8e8;
+  color: var(--sering-red);
+}
+
+/* ========================================
+   Budget Page
+   ======================================== */
+
+.budget-page {
+  max-width: 900px;
+  margin: 0 auto;
+}
+
+.budget-grand-total {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-end;
+  gap: 2px;
+}
+
+.budget-grand-total-value {
+  font-size: 1.75rem;
+  font-weight: 700;
+  color: var(--sering-olive);
+}
+
+.budget-projects {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-sm);
+}
+
+.budget-project {
+  border: 1px solid #e0ddd8;
+  border-radius: var(--radius-md);
+  background: var(--bg-card);
+  overflow: hidden;
+}
+
+.budget-project-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  padding: var(--space-md) var(--space-lg);
+  cursor: pointer;
+  transition: background 0.15s;
+}
+
+.budget-project-header:hover {
+  background: var(--sering-off-white);
+}
+
+.budget-project-info {
+  display: flex;
+  align-items: center;
+  gap: var(--space-sm);
+  min-width: 0;
+  overflow: hidden;
+}
+
+.budget-project-name {
+  font-weight: 600;
+  font-size: 1.05rem;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.budget-project-total {
+  display: flex;
+  align-items: center;
+  gap: var(--space-md);
+  font-weight: 700;
+  font-size: 1.1rem;
+  font-variant-numeric: tabular-nums;
+  flex-shrink: 0;
+}
+
+.budget-chevron {
+  font-size: 0.75rem;
+  color: var(--text-secondary);
+}
+
+.budget-foldout {
+  padding: 0 var(--space-lg) var(--space-lg);
+}
+
+.budget-foldout .shopping-list {
+  border: none;
+  padding: 0;
+}

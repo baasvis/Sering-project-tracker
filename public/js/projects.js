@@ -169,6 +169,8 @@ async function renderProjectDetail() {
           : tasks.map(renderTaskItem).join('')}
       </div>
 
+      <div id="shopping-container-${p.id}" class="mt-lg"></div>
+
       <div id="project-comments"></div>
     </div>`;
 
@@ -181,6 +183,9 @@ async function renderProjectDetail() {
         (S.isAdmin ? renderMediaUploadButtons('project', p.id) : '');
     }
   } catch (e) { /* ignore */ }
+
+  // Load shopping list
+  loadShoppingSection(p.id, `shopping-container-${p.id}`);
 
   // Load comments
   const commentsContainer = document.getElementById('project-comments');

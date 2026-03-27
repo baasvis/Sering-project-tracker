@@ -40,6 +40,7 @@ function renderCurrentScreen() {
   switch (S.screen) {
     case 'dashboard': return renderDashboard();
     case 'projects': return renderProjects();
+    case 'budget': return renderBudget();
     case 'admin': return renderAdmin();
     default: return renderDashboard();
   }
