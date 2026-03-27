@@ -195,7 +195,25 @@ function renderTierButtons() {
 
 function selectTier(tier) {
   S.selectedTier = S.selectedTier === tier ? null : tier;
-  renderCurrentScreen();
+
+  // Try targeted re-render for the current screen (no full reload)
+  if (S.screen === 'projects' && !S.currentProjectId && document.getElementById('projects-cards')) {
+    rerenderProjectFilters();
+  } else if (S.screen === 'dashboard' && document.getElementById('dashboard-projects-overview')) {
+    rerenderDashboardProjects();
+  } else {
+    renderCurrentScreen();
+  }
+}
+
+// Update tier button active states in-place (no re-render needed)
+function updateTierButtonStates() {
+  document.querySelectorAll('.tier-btn').forEach(btn => {
+    const tierKey = btn.getAttribute('onclick')?.match(/selectTier\('(\w+)'\)/)?.[1];
+    if (tierKey) {
+      btn.classList.toggle('active', S.selectedTier === tierKey);
+    }
+  });
 }
 
 // Filter projects array by selected tier
