@@ -4,6 +4,16 @@ const { requireAdmin } = require('./auth');
 
 const router = Router();
 
+// Strip HTML tags from user input (defense-in-depth against stored XSS)
+function stripTags(str) {
+  return String(str).replace(/<[^>]*>/g, '');
+}
+
+// Validate UUID format
+function isValidUuid(str) {
+  return /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(str);
+}
+
 // Validate URL is http/https only (prevents javascript: XSS)
 function isValidUrl(url) {
   try {
@@ -26,6 +36,7 @@ function validateNumber(val, min, max) {
 router.get('/', async (req, res) => {
   const { projectId } = req.query;
   if (!projectId) return res.status(400).json({ error: 'projectId query param required' });
+  if (!isValidUuid(projectId)) return res.status(400).json({ error: 'Invalid projectId format' });
 
   const where = { projectId };
   // Non-admins only see approved items
@@ -85,9 +96,11 @@ router.get('/summary', async (req, res) => {
 router.post('/', async (req, res) => {
   const { projectId, type, name, link, pricePerItem, quantity, amount, authorName } = req.body;
   if (!projectId || !name) return res.status(400).json({ error: 'projectId and name are required' });
+  if (!isValidUuid(projectId)) return res.status(400).json({ error: 'Invalid projectId format' });
   if (!['product', 'cost'].includes(type)) return res.status(400).json({ error: 'type must be product or cost' });
 
-  const trimmedName = String(name).trim();
+  // Strip HTML tags and validate length
+  const trimmedName = stripTags(String(name).trim());
   if (trimmedName.length < 1 || trimmedName.length > 200) {
     return res.status(400).json({ error: 'Name must be 1-200 characters' });
   }
@@ -105,12 +118,17 @@ router.post('/', async (req, res) => {
     return res.status(400).json({ error: 'authorName is required for suggestions' });
   }
 
+  let sanitizedAuthor = null;
   if (!isAdmin && authorName) {
-    const trimmedAuthor = String(authorName).trim();
-    if (trimmedAuthor.length < 1 || trimmedAuthor.length > 50) {
+    sanitizedAuthor = stripTags(String(authorName).trim());
+    if (sanitizedAuthor.length < 1 || sanitizedAuthor.length > 50) {
       return res.status(400).json({ error: 'Author name must be 1-50 characters' });
     }
   }
+
+  // Verify project exists
+  const project = await prisma.project.findUnique({ where: { id: projectId }, select: { id: true } });
+  if (!project) return res.status(404).json({ error: 'Project not found' });
 
   const maxOrder = await prisma.shoppingItem.aggregate({
     where: { projectId },
@@ -126,7 +144,7 @@ router.post('/', async (req, res) => {
     quantity: Math.max(1, Math.min(10000, parseInt(quantity) || 1)),
     amount: validateNumber(amount, 0, 1000000),
     approved: isAdmin,
-    suggestedBy: isAdmin ? null : String(authorName).trim(),
+    suggestedBy: sanitizedAuthor,
     order: (maxOrder._max.order || 0) + 1
   };
 
@@ -136,11 +154,13 @@ router.post('/', async (req, res) => {
 
 // Update shopping item (admin)
 router.patch('/:id', requireAdmin, async (req, res) => {
+  if (!isValidUuid(req.params.id)) return res.status(400).json({ error: 'Invalid item ID format' });
+
   const { name, link, pricePerItem, quantity, amount, purchased, order } = req.body;
   const data = {};
 
   if (name !== undefined) {
-    const trimmed = String(name).trim();
+    const trimmed = stripTags(String(name).trim());
     if (trimmed.length < 1 || trimmed.length > 200) {
       return res.status(400).json({ error: 'Name must be 1-200 characters' });
     }
@@ -159,23 +179,42 @@ router.patch('/:id', requireAdmin, async (req, res) => {
   if (purchased !== undefined) data.purchased = !!purchased;
   if (order !== undefined) data.order = parseInt(order) || 0;
 
-  const item = await prisma.shoppingItem.update({ where: { id: req.params.id }, data });
-  res.json(item);
+  try {
+    const item = await prisma.shoppingItem.update({ where: { id: req.params.id }, data });
+    res.json(item);
+  } catch (err) {
+    if (err.code === 'P2025') return res.status(404).json({ error: 'Item not found' });
+    throw err;
+  }
 });
 
 // Approve suggestion (admin)
 router.patch('/:id/approve', requireAdmin, async (req, res) => {
-  const item = await prisma.shoppingItem.update({
-    where: { id: req.params.id },
-    data: { approved: true }
-  });
-  res.json(item);
+  if (!isValidUuid(req.params.id)) return res.status(400).json({ error: 'Invalid item ID format' });
+
+  try {
+    const item = await prisma.shoppingItem.update({
+      where: { id: req.params.id },
+      data: { approved: true }
+    });
+    res.json(item);
+  } catch (err) {
+    if (err.code === 'P2025') return res.status(404).json({ error: 'Item not found' });
+    throw err;
+  }
 });
 
 // Delete shopping item (admin)
 router.delete('/:id', requireAdmin, async (req, res) => {
-  await prisma.shoppingItem.delete({ where: { id: req.params.id } });
-  res.json({ ok: true });
+  if (!isValidUuid(req.params.id)) return res.status(400).json({ error: 'Invalid item ID format' });
+
+  try {
+    await prisma.shoppingItem.delete({ where: { id: req.params.id } });
+    res.json({ ok: true });
+  } catch (err) {
+    if (err.code === 'P2025') return res.status(404).json({ error: 'Item not found' });
+    throw err;
+  }
 });
 
 module.exports = router;
