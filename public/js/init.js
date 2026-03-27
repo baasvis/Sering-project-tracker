@@ -17,25 +17,20 @@ function buildNav() {
     .map(s => `<a href="#${s.id}" data-screen="${s.id}" class="${S.screen === s.id ? 'active' : ''}">${s.label}</a>`)
     .join('');
 
+  // Attach click handlers — update hash only (hashchange listener handles render)
   nav.querySelectorAll('a').forEach(a => {
     a.addEventListener('click', e => {
       e.preventDefault();
-      S.screen = a.dataset.screen;
       S.currentProjectId = null;
       S.currentProject = null;
       window.location.hash = a.dataset.screen;
-      renderCurrentScreen();
-      buildNav();
     });
   });
 
   document.querySelector('.nav-logo').onclick = e => {
     e.preventDefault();
-    S.screen = 'dashboard';
     S.currentProjectId = null;
     window.location.hash = 'dashboard';
-    renderCurrentScreen();
-    buildNav();
   };
 }
 

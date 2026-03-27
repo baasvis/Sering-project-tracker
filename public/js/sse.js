@@ -4,6 +4,66 @@
 
 let _eventSource = null;
 let _reconnectCount = 0;
+let _renderDebounceTimer = null;
+
+// Debounced renderCurrentScreen — coalesces rapid SSE events into a single render
+function _debouncedRender() {
+  if (_renderDebounceTimer) return;
+  _renderDebounceTimer = setTimeout(() => {
+    _renderDebounceTimer = null;
+    renderCurrentScreen();
+  }, 300);
+}
+
+// Refresh groups data and do targeted re-render (no loading spinner)
+let _refreshGroupsTimer = null;
+async function _refreshGroupsAndRerender() {
+  // Debounce: multiple events in quick succession → single fetch
+  if (_refreshGroupsTimer) return;
+  _refreshGroupsTimer = setTimeout(async () => {
+    _refreshGroupsTimer = null;
+    try {
+      S.groups = await apiGet('/api/groups');
+      if (S.screen === 'dashboard') {
+        rerenderDashboardProjects();
+      } else if (S.screen === 'projects' && !S.currentProjectId) {
+        // Update cached projects and re-render filters/cards
+        _allProjectsCached = S.groups.flatMap(g => (g.projects || []).filter(p => p.approved !== false));
+        rerenderProjectFilters();
+      }
+    } catch (e) {
+      // Silent — don't disrupt the user
+    }
+  }, 300);
+}
+
+// Silently refresh data for the current screen without showing a loading spinner
+async function _silentRefresh() {
+  try {
+    if (S.screen === 'dashboard') {
+      const [announcements, groups] = await Promise.all([
+        apiGet('/api/announcements'),
+        apiGet('/api/groups')
+      ]);
+      S.announcements = announcements;
+      S.groups = groups;
+      rerenderDashboardProjects();
+    } else if (S.screen === 'projects' && S.currentProjectId) {
+      const project = await apiGet(`/api/projects/${S.currentProjectId}`);
+      S.currentProject = project;
+      rerenderTaskList();
+    } else if (S.screen === 'projects') {
+      S.groups = await apiGet('/api/groups');
+      rerenderProjectFilters();
+    } else if (S.screen === 'budget') {
+      renderBudget();
+    } else if (S.screen === 'admin') {
+      renderAdmin();
+    }
+  } catch (e) {
+    // Silent refresh failed — don't disrupt the user
+  }
+}
 
 function connectSSE() {
   if (_eventSource) return;
@@ -12,8 +72,8 @@ function connectSSE() {
 
   _eventSource.onopen = () => {
     if (S._sseConnected) {
-      // Reconnection — re-fetch current screen to catch missed events
-      renderCurrentScreen();
+      // Reconnection — silently refresh data without blanking the page
+      _silentRefresh();
     }
     S._sseConnected = true;
     _reconnectCount = 0;
@@ -96,7 +156,8 @@ function handleTaskMutation(data) {
     }
     rerenderTaskList();
   } else if (S.screen === 'dashboard' || S.screen === 'projects') {
-    renderCurrentScreen();
+    // Task counts changed — refresh groups silently and re-render cards
+    _refreshGroupsAndRerender();
   }
 }
 
@@ -105,7 +166,7 @@ function handleTaskDeleted(data) {
     S.currentProject.tasks = (S.currentProject.tasks || []).filter(t => t.id !== data.taskId);
     rerenderTaskList();
   } else if (S.screen === 'dashboard' || S.screen === 'projects') {
-    renderCurrentScreen();
+    _refreshGroupsAndRerender();
   }
 }
 
@@ -118,7 +179,7 @@ function handleProjectMutation(data) {
     Object.assign(S.currentProject, rest);
     renderProjectDetail();
   } else if (S.screen === 'dashboard' || S.screen === 'projects') {
-    renderCurrentScreen();
+    _refreshGroupsAndRerender();
   }
 }
 
@@ -130,7 +191,7 @@ function handleProjectDeleted(data) {
     renderProjects();
     toast('This project was deleted', 'info');
   } else if (S.screen === 'dashboard' || S.screen === 'projects') {
-    renderCurrentScreen();
+    _refreshGroupsAndRerender();
   }
 }
 
@@ -173,11 +234,15 @@ function _reloadCommentsIfVisible(targetType, targetId) {
 }
 
 function handleAnnouncementMutation() {
-  if (S.screen === 'dashboard') renderCurrentScreen();
+  if (S.screen === 'dashboard') {
+    _debouncedRender();
+  }
 }
 
 function handleGroupMutation() {
-  if (S.screen === 'dashboard' || S.screen === 'projects' || S.screen === 'admin') {
-    renderCurrentScreen();
+  if (S.screen === 'admin') {
+    _debouncedRender();
+  } else if (S.screen === 'dashboard' || S.screen === 'projects') {
+    _refreshGroupsAndRerender();
   }
 }
