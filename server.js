@@ -1,6 +1,7 @@
 const express = require('express');
 const session = require('express-session');
 const cookieParser = require('cookie-parser');
+const compression = require('compression');
 const rateLimit = require('express-rate-limit');
 const helmet = require('helmet');
 const crypto = require('crypto');
@@ -9,6 +10,9 @@ const fs = require('fs');
 const { PORT, SESSION_SECRET, GOOGLE_CLIENT_ID, DEV_MODE } = require('./lib/config');
 
 const app = express();
+
+// Compress all responses (gzip/brotli) — significant savings on JSON + HTML
+app.use(compression());
 
 // Trust reverse proxy (Railway, Nginx, etc.) for correct IP in rate limiting
 app.set('trust proxy', 1);
@@ -121,12 +125,21 @@ const uploadsDir = path.join(__dirname, 'uploads');
 if (!fs.existsSync(uploadsDir)) fs.mkdirSync(uploadsDir, { recursive: true });
 app.use('/uploads', express.static(uploadsDir, { maxAge: '7d' }));
 
-// Inject config into a client-accessible endpoint
+// Inject config into a client-accessible endpoint (long cache — never changes at runtime)
 app.get('/api/config', (req, res) => {
+  res.set('Cache-Control', 'public, max-age=3600');
   res.json({
     googleClientId: GOOGLE_CLIENT_ID,
     devMode: DEV_MODE
   });
+});
+
+// Cache-Control for read-heavy API GETs (short-lived, prevents stampede with 300 users)
+app.use('/api', (req, res, next) => {
+  if (req.method === 'GET') {
+    res.set('Cache-Control', 'public, max-age=30, stale-while-revalidate=60');
+  }
+  next();
 });
 
 // Routes
@@ -145,9 +158,11 @@ const commentsRouter = require('./routes/comments');
 app.post('/api/comments', writeLimiter);
 app.use('/api/comments', commentsRouter);
 
-// Media: strict upload limit
+// Media: strict upload limit + batch endpoint for N+1 avoidance
 const mediaRouter = require('./routes/media');
 app.post('/api/media', uploadLimiter);
+// Mount batch route at app level (Express 5 sub-router path matching workaround)
+app.get('/api/media/batch', mediaRouter.batchHandler);
 app.use('/api/media', mediaRouter);
 
 // Reports: write limit for submissions

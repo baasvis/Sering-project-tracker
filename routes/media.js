@@ -144,6 +144,37 @@ router.get('/', asyncHandler(async (req, res) => {
   res.json(media);
 }));
 
+// Batch-fetch media for multiple parents (avoids N+1 on dashboard)
+// Exported as router.batchHandler for app-level mounting (Express 5 compatibility)
+const batchHandler = asyncHandler(async (req, res) => {
+  const { parentType, parentIds } = req.query;
+  if (!parentType || !parentIds) {
+    return res.status(400).json({ error: 'parentType and parentIds required' });
+  }
+  if (!VALID_PARENT_TYPES.includes(parentType)) {
+    return res.status(400).json({ error: 'Invalid parentType' });
+  }
+
+  const ids = parentIds.split(',').filter(id => isValidUuid(id)).slice(0, 100);
+  if (ids.length === 0) {
+    return res.json({});
+  }
+
+  const media = await prisma.media.findMany({
+    where: { parentType, parentId: { in: ids } },
+    orderBy: { createdAt: 'asc' }
+  });
+
+  // Group by parentId
+  const grouped = {};
+  for (const m of media) {
+    if (!grouped[m.parentId]) grouped[m.parentId] = [];
+    grouped[m.parentId].push(m);
+  }
+  res.json(grouped);
+});
+router.batchHandler = batchHandler;
+
 // Serve a media file
 router.get('/:id/file', validateId, asyncHandler(async (req, res) => {
   const media = await prisma.media.findUnique({ where: { id: req.params.id } });

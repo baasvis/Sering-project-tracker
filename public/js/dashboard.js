@@ -49,12 +49,11 @@ async function renderDashboard() {
         : S.groups.map(renderGroupSection).join('')}
     </div>`;
 
-  // Load all media in parallel (announcements have inline media from backend,
-  // but carousel needs separate loading for photo/voice split)
+  // Load announcement media (inline from backend) + batch-fetch all project media in one call
   const projectIds = S.groups.flatMap(g => (g.projects || []).map(p => p.id));
   await Promise.all([
     ...S.announcements.map(a => loadAnnouncementMedia(a)),
-    ...projectIds.map(id => loadProjectCardMedia(id))
+    loadAllProjectCardMedia(projectIds)
   ]);
 }
 
@@ -200,18 +199,23 @@ function renderProjectCard(project, group) {
   </div>`;
 }
 
-async function loadProjectCardMedia(projectId) {
+// Batch-fetch media for all project cards in one API call (avoids N+1)
+async function loadAllProjectCardMedia(projectIds) {
+  if (projectIds.length === 0) return;
   try {
-    const media = await apiGet(`/api/media?parentType=project&parentId=${projectId}`);
-    const container = document.getElementById(`proj-media-${projectId}`);
-    if (!container) return;
-    const photos = media.filter(m => m.type === 'photo');
-    if (photos.length > 0) {
-      container.innerHTML = `<div class="media-grid project-card-photos">${photos.map(m =>
-        `<img src="/api/media/${m.id}/file" class="media-thumb"
-              onclick="event.stopPropagation(); openLightbox('/api/media/${m.id}/file')"
-              alt="${esc(m.originalName)}">`
-      ).join('')}</div>`;
+    const mediaByProject = await apiGet(`/api/media/batch?parentType=project&parentIds=${projectIds.join(',')}`);
+    for (const projectId of projectIds) {
+      const media = mediaByProject[projectId] || [];
+      const container = document.getElementById(`proj-media-${projectId}`);
+      if (!container) continue;
+      const photos = media.filter(m => m.type === 'photo');
+      if (photos.length > 0) {
+        container.innerHTML = `<div class="media-grid project-card-photos">${photos.map(m =>
+          `<img src="/api/media/${m.id}/file" class="media-thumb"
+                onclick="event.stopPropagation(); openLightbox('/api/media/${m.id}/file')"
+                alt="${esc(m.originalName)}">`
+        ).join('')}</div>`;
+      }
     }
   } catch (e) { /* ignore */ }
 }
