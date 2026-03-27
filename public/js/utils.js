@@ -2,6 +2,12 @@
    Utils — API helpers, toast, HTML escape
    ======================================== */
 
+// Read CSRF token from cookie
+function getCsrfToken() {
+  const match = document.cookie.match(/(?:^|;\s*)csrf-token=([^;]*)/);
+  return match ? match[1] : '';
+}
+
 async function apiGet(url) {
   const res = await fetch(url);
   if (!res.ok) {
@@ -14,7 +20,7 @@ async function apiGet(url) {
 async function apiPost(url, body) {
   const res = await fetch(url, {
     method: 'POST',
-    headers: { 'Content-Type': 'application/json' },
+    headers: { 'Content-Type': 'application/json', 'X-CSRF-Token': getCsrfToken() },
     body: JSON.stringify(body)
   });
   if (!res.ok) {
@@ -27,7 +33,7 @@ async function apiPost(url, body) {
 async function apiPatch(url, body) {
   const res = await fetch(url, {
     method: 'PATCH',
-    headers: { 'Content-Type': 'application/json' },
+    headers: { 'Content-Type': 'application/json', 'X-CSRF-Token': getCsrfToken() },
     body: JSON.stringify(body)
   });
   if (!res.ok) {
@@ -38,7 +44,7 @@ async function apiPatch(url, body) {
 }
 
 async function apiDelete(url) {
-  const res = await fetch(url, { method: 'DELETE' });
+  const res = await fetch(url, { method: 'DELETE', headers: { 'X-CSRF-Token': getCsrfToken() } });
   if (!res.ok) {
     const err = await res.json().catch(() => ({ error: res.statusText }));
     throw new Error(err.error || 'Request failed');
@@ -47,7 +53,7 @@ async function apiDelete(url) {
 }
 
 async function apiUpload(url, formData) {
-  const res = await fetch(url, { method: 'POST', body: formData });
+  const res = await fetch(url, { method: 'POST', body: formData, headers: { 'X-CSRF-Token': getCsrfToken() } });
   if (!res.ok) {
     const err = await res.json().catch(() => ({ error: res.statusText }));
     throw new Error(err.error || 'Upload failed');

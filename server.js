@@ -1,6 +1,9 @@
 const express = require('express');
 const session = require('express-session');
+const cookieParser = require('cookie-parser');
 const rateLimit = require('express-rate-limit');
+const helmet = require('helmet');
+const crypto = require('crypto');
 const path = require('path');
 const fs = require('fs');
 const { PORT, SESSION_SECRET, GOOGLE_CLIENT_ID, DEV_MODE } = require('./lib/config');
@@ -9,6 +12,23 @@ const app = express();
 
 // Trust reverse proxy (Railway, Nginx, etc.) for correct IP in rate limiting
 app.set('trust proxy', 1);
+
+// Security headers via helmet
+app.use(helmet({
+  contentSecurityPolicy: {
+    directives: {
+      defaultSrc: ["'self'"],
+      scriptSrc: ["'self'", "https://accounts.google.com", "https://apis.google.com", "https://cdn.jsdelivr.net"],
+      styleSrc: ["'self'", "'unsafe-inline'", "https://accounts.google.com", "https://cdn.jsdelivr.net"],
+      imgSrc: ["'self'", "data:", "blob:"],
+      connectSrc: ["'self'"],
+      frameSrc: ["https://accounts.google.com"],
+      fontSrc: ["'self'"],
+      mediaSrc: ["'self'", "blob:"],
+    }
+  },
+  crossOriginEmbedderPolicy: false, // needed for Google Sign-In
+}));
 
 // Body parsing
 app.use(express.json({ limit: '1mb' }));
@@ -50,6 +70,28 @@ app.use(session({
   saveUninitialized: false,
   cookie: { maxAge: 7 * 24 * 60 * 60 * 1000 } // 7 days
 }));
+
+// Cookie parser (needed for CSRF double-submit)
+app.use(cookieParser());
+
+// CSRF protection: double-submit cookie pattern
+// Set a CSRF token cookie on every request; require it as a header on writes
+app.use((req, res, next) => {
+  // Set token cookie if not present
+  if (!req.cookies?.['csrf-token']) {
+    const token = crypto.randomBytes(24).toString('hex');
+    res.cookie('csrf-token', token, { httpOnly: false, sameSite: 'strict', secure: !DEV_MODE });
+  }
+  // Verify on mutating requests to /api/*
+  if (['POST', 'PATCH', 'PUT', 'DELETE'].includes(req.method) && req.path.startsWith('/api/')) {
+    const cookieToken = req.cookies?.['csrf-token'];
+    const headerToken = req.headers['x-csrf-token'];
+    if (!cookieToken || !headerToken || cookieToken !== headerToken) {
+      return res.status(403).json({ error: 'Invalid or missing CSRF token' });
+    }
+  }
+  next();
+});
 
 // Static files (cache CSS/JS for 1 hour, HTML short-lived)
 app.use(express.static(path.join(__dirname, 'public'), {
