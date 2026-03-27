@@ -3,22 +3,16 @@ const prisma = require('../lib/db');
 const { requireAdmin } = require('./auth');
 const { sanitize } = require('../lib/sanitize');
 const asyncHandler = require('../lib/async-handler');
-const { validateId, isValidUuid } = require('../lib/validate');
+const { validateId, isValidUuid, stripTags, sanitizeName, VALID_TASK_STATUSES } = require('../lib/validate');
 const { broadcast, getMutationId } = require('../lib/sse');
 
 const router = Router();
-
-const VALID_TASK_STATUSES = ['todo', 'in_progress', 'done'];
-
-// Strip HTML tags from user input
-function stripTags(str) {
-  return String(str).replace(/<[^>]*>/g, '');
-}
 
 // List tasks for a project
 router.get('/', asyncHandler(async (req, res) => {
   const { projectId } = req.query;
   if (!projectId) return res.status(400).json({ error: 'projectId query param required' });
+  if (!isValidUuid(projectId)) return res.status(400).json({ error: 'Invalid projectId format' });
 
   const tasks = await prisma.task.findMany({
     where: { projectId },
@@ -45,33 +39,19 @@ router.post('/', asyncHandler(async (req, res) => {
 
   const isAdmin = !!req.session?.admin;
 
-  // Non-admins must provide a name
-  if (!isAdmin && !authorName) {
-    return res.status(400).json({ error: 'authorName is required for suggestions' });
+  let suggestedBy = null;
+  if (!isAdmin) {
+    suggestedBy = sanitizeName(authorName);
+    if (!suggestedBy) return res.status(400).json({ error: 'authorName is required for suggestions (1-50 chars)' });
   }
 
-  let sanitizedAuthor = null;
-  if (!isAdmin && authorName) {
-    sanitizedAuthor = stripTags(String(authorName).trim());
-    if (sanitizedAuthor.length < 1 || sanitizedAuthor.length > 50) {
-      return res.status(400).json({ error: 'Author name must be 1-50 characters' });
-    }
-  }
-
-  // Validate project exists
   const project = await prisma.project.findUnique({ where: { id: projectId }, select: { id: true } });
   if (!project) return res.status(404).json({ error: 'Project not found' });
 
-  const maxOrder = await prisma.task.aggregate({
-    where: { projectId },
-    _max: { order: true }
-  });
+  const trimmedName = stripTags(String(name)).slice(0, 200);
+  if (trimmedName.length < 1) return res.status(400).json({ error: 'Task name must be 1-200 characters' });
 
-  // Sanitize and validate task name
-  const trimmedName = stripTags(String(name).trim());
-  if (trimmedName.length < 1 || trimmedName.length > 200) {
-    return res.status(400).json({ error: 'Task name must be 1-200 characters' });
-  }
+  const maxOrder = await prisma.task.aggregate({ where: { projectId }, _max: { order: true } });
 
   const task = await prisma.task.create({
     data: {
@@ -82,7 +62,7 @@ router.post('/', asyncHandler(async (req, res) => {
       deadline: (isAdmin && deadline) ? new Date(deadline) : null,
       order: (maxOrder._max.order || 0) + 1,
       approved: isAdmin,
-      suggestedBy: sanitizedAuthor
+      suggestedBy
     }
   });
   res.status(201).json(task);
@@ -98,10 +78,14 @@ router.patch('/:id', validateId, requireAdmin, asyncHandler(async (req, res) => 
   }
 
   const data = {};
-  if (name !== undefined) data.name = name;
+  if (name !== undefined) {
+    const trimmed = stripTags(String(name)).slice(0, 200);
+    if (trimmed.length < 1) return res.status(400).json({ error: 'Task name must be 1-200 characters' });
+    data.name = trimmed;
+  }
   if (description !== undefined) data.description = sanitize(description);
   if (status !== undefined) data.status = status;
-  if (assignee !== undefined) data.assignee = assignee;
+  if (assignee !== undefined) data.assignee = assignee ? stripTags(String(assignee)).slice(0, 100) : null;
   if (deadline !== undefined) data.deadline = deadline ? new Date(deadline) : null;
   if (order !== undefined) data.order = order;
 

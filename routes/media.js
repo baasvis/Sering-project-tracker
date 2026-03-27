@@ -48,10 +48,13 @@ const upload = multer({
 // Total storage cap: prevent abuse (100MB)
 const STORAGE_CAP_BYTES = 100 * 1024 * 1024;
 
-// Cache total storage used to avoid full table scan on every upload
+// Atomic storage counter — initialized from DB on first use, then maintained in-memory.
+// Avoids full table scan on every upload. Race-safe: even if two concurrent uploads
+// both read the same initial value, the counter only drifts by one file size — acceptable
+// since the DB is the source of truth and we re-sync periodically.
 let cachedStorageUsed = null;
 let storageCacheTime = 0;
-const STORAGE_CACHE_TTL = 60 * 1000; // 1 minute
+const STORAGE_CACHE_TTL = 5 * 60 * 1000; // 5 minutes
 
 async function getTotalStorageUsed() {
   const now = Date.now();
@@ -214,8 +217,10 @@ router.delete('/:id', validateId, requireAdmin, asyncHandler(async (req, res) =>
 
   deleteMediaFile(media);
 
-  // Invalidate storage cache on delete
-  cachedStorageUsed = null;
+  // Decrement storage counter (atomic counter approach — no full DB scan)
+  if (cachedStorageUsed !== null) {
+    cachedStorageUsed = Math.max(0, cachedStorageUsed - media.sizeBytes);
+  }
 
   await prisma.media.delete({ where: { id: req.params.id } });
   res.json({ ok: true });

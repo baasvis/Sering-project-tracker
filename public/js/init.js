@@ -7,35 +7,28 @@ function buildNav() {
   const nav = document.getElementById('nav-links');
   const screens = NAV_SCREENS.filter(s => !s.adminOnly || S.isAdmin);
 
-  // Optimization: only update active class if links already built
   const existing = nav.querySelectorAll('a[data-screen]');
   if (existing.length === screens.length) {
-    existing.forEach(a => {
-      a.classList.toggle('active', a.dataset.screen === S.screen);
-    });
+    existing.forEach(a => a.classList.toggle('active', a.dataset.screen === S.screen));
     return;
   }
 
-  // Full rebuild (only on first load or admin state change)
   nav.innerHTML = screens
     .map(s => `<a href="#${s.id}" data-screen="${s.id}" class="${S.screen === s.id ? 'active' : ''}">${s.label}</a>`)
     .join('');
 
-  // Attach click handlers
   nav.querySelectorAll('a').forEach(a => {
     a.addEventListener('click', e => {
       e.preventDefault();
-      const screen = a.dataset.screen;
-      S.screen = screen;
+      S.screen = a.dataset.screen;
       S.currentProjectId = null;
       S.currentProject = null;
-      window.location.hash = screen;
+      window.location.hash = a.dataset.screen;
       renderCurrentScreen();
       buildNav();
     });
   });
 
-  // Logo also goes to dashboard
   document.querySelector('.nav-logo').onclick = e => {
     e.preventDefault();
     S.screen = 'dashboard';
@@ -48,7 +41,6 @@ function buildNav() {
 
 // Render current screen
 function renderCurrentScreen() {
-  // Clean up Quill instances from previous screen
   cleanupQuillInstances();
 
   switch (S.screen) {
@@ -74,71 +66,51 @@ function handleRoute() {
   }
 }
 
-// Close modals on Escape — also clean up Quill instances
+// Close all modals on Escape + clean up Quill instances
 document.addEventListener('keydown', e => {
   if (e.key === 'Escape') {
-    const backdrop = document.querySelector('.modal-backdrop');
-    if (backdrop) {
+    const backdrops = document.querySelectorAll('.modal-backdrop');
+    if (backdrops.length > 0) {
       cleanupQuillInstances();
-      backdrop.remove();
+      backdrops.forEach(b => b.remove());
     }
     document.querySelector('.lightbox')?.remove();
   }
 });
 
-// Show loading state while screen renders
-function showLoading() {
-  const app = document.getElementById('app');
-  app.innerHTML = '<div class="loading-spinner">Loading...</div>';
-}
-
 // App init
 async function initApp() {
-  // Load config
   try {
     const config = await fetch('/api/config').then(r => r.json());
     S.devMode = config.devMode;
     S.googleClientId = config.googleClientId;
-  } catch (e) {
+  } catch {
     S.devMode = true;
   }
 
-  // Initialize Google Sign-In SDK with timeout
   if (S.googleClientId) {
     let attempts = 0;
-    const maxAttempts = 50; // 10 seconds max
     const waitForGoogle = () => {
       if (window.google && google.accounts) {
         google.accounts.id.initialize({
           client_id: S.googleClientId,
           callback: handleGoogleCredential
         });
-      } else if (++attempts < maxAttempts) {
+      } else if (++attempts < 50) {
         setTimeout(waitForGoogle, 200);
-      } else {
-        console.warn('Google Sign-In SDK failed to load after 10s');
       }
     };
     waitForGoogle();
   }
 
-  // Check auth
   await checkAuth();
 
-  // Show name overlay if no name and not admin
-  if (!S.isAdmin) {
-    setupNameOverlay();
-  }
+  if (!S.isAdmin) setupNameOverlay();
 
-  // Route
   handleRoute();
   buildNav();
   renderCurrentScreen();
-
-  // Connect SSE for real-time updates
   connectSSE();
-
-  // Floating report button
   initReportButton();
 }
 

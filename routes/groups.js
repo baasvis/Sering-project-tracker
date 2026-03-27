@@ -3,20 +3,10 @@ const prisma = require('../lib/db');
 const { requireAdmin } = require('./auth');
 const { sanitize } = require('../lib/sanitize');
 const asyncHandler = require('../lib/async-handler');
-const { validateId } = require('../lib/validate');
+const { validateId, isValidUrl, stripTags } = require('../lib/validate');
 const { broadcast, getMutationId } = require('../lib/sse');
 
 const router = Router();
-
-function validUrl(val) {
-  if (!val) return true;
-  try {
-    const parsed = new URL(val);
-    return ['http:', 'https:'].includes(parsed.protocol);
-  } catch {
-    return false;
-  }
-}
 
 // List all groups with project counts and task status counts
 router.get('/', asyncHandler(async (req, res) => {
@@ -27,11 +17,7 @@ router.get('/', asyncHandler(async (req, res) => {
       projects: {
         where: { status: 'active', approved: true },
         select: {
-          id: true,
-          name: true,
-          status: true,
-          tier: true,
-          joinType: true,
+          id: true, name: true, status: true, tier: true, joinType: true,
           _count: { select: { tasks: true } },
           tasks: { where: { approved: true }, select: { status: true } }
         }
@@ -39,7 +25,6 @@ router.get('/', asyncHandler(async (req, res) => {
     }
   });
 
-  // Transform: replace tasks array with status counts to cut payload size
   const result = groups.map(g => ({
     ...g,
     projects: g.projects.map(p => {
@@ -71,7 +56,6 @@ router.get('/:id', validateId, asyncHandler(async (req, res) => {
   });
   if (!group) return res.status(404).json({ error: 'Group not found' });
 
-  // Transform tasks to counts
   const result = {
     ...group,
     projects: group.projects.map(p => {
@@ -92,11 +76,20 @@ router.post('/', requireAdmin, asyncHandler(async (req, res) => {
   const { name, description } = req.body;
   const mattermostChannel = req.body.mattermostChannel?.trim() || null;
   if (!name) return res.status(400).json({ error: 'Name is required' });
-  if (!validUrl(mattermostChannel)) return res.status(400).json({ error: 'mattermostChannel must be a valid URL' });
+
+  const trimmedName = stripTags(String(name)).slice(0, 200);
+  if (trimmedName.length < 1) return res.status(400).json({ error: 'Name must be 1-200 characters' });
+
+  if (!isValidUrl(mattermostChannel)) return res.status(400).json({ error: 'mattermostChannel must be a valid URL' });
 
   const maxOrder = await prisma.group.aggregate({ _max: { order: true } });
   const group = await prisma.group.create({
-    data: { name, description: sanitize(description), mattermostChannel, order: (maxOrder._max.order || 0) + 1 }
+    data: {
+      name: trimmedName,
+      description: sanitize(description),
+      mattermostChannel,
+      order: (maxOrder._max.order || 0) + 1
+    }
   });
   res.status(201).json(group);
   broadcast('group:created', { group }, getMutationId(req));
@@ -105,10 +98,18 @@ router.post('/', requireAdmin, asyncHandler(async (req, res) => {
 // Update group (admin)
 router.patch('/:id', validateId, requireAdmin, asyncHandler(async (req, res) => {
   const { name, description, order } = req.body;
-  const mattermostChannel = req.body.mattermostChannel !== undefined ? (req.body.mattermostChannel?.trim() || null) : undefined;
-  if (!validUrl(mattermostChannel)) return res.status(400).json({ error: 'mattermostChannel must be a valid URL' });
+  const mattermostChannel = req.body.mattermostChannel !== undefined
+    ? (req.body.mattermostChannel?.trim() || null)
+    : undefined;
+
+  if (!isValidUrl(mattermostChannel)) return res.status(400).json({ error: 'mattermostChannel must be a valid URL' });
+
   const data = {};
-  if (name !== undefined) data.name = name;
+  if (name !== undefined) {
+    const trimmed = stripTags(String(name)).slice(0, 200);
+    if (trimmed.length < 1) return res.status(400).json({ error: 'Name must be 1-200 characters' });
+    data.name = trimmed;
+  }
   if (description !== undefined) data.description = sanitize(description);
   if (order !== undefined) data.order = order;
   if (mattermostChannel !== undefined) data.mattermostChannel = mattermostChannel;

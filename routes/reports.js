@@ -2,20 +2,9 @@ const { Router } = require('express');
 const prisma = require('../lib/db');
 const { requireAdmin } = require('./auth');
 const asyncHandler = require('../lib/async-handler');
-const { validateId } = require('../lib/validate');
+const { validateId, stripTags, sanitizeName } = require('../lib/validate');
 
 const router = Router();
-
-// Validate :id param on all routes that use it
-router.param('id', (req, res, next, id) => {
-  validateId(req, res, next);
-});
-
-// Strip HTML tags from plain text input
-function stripTags(str) {
-  if (!str) return '';
-  return str.replace(/<[^>]*>/g, '').trim();
-}
 
 // Create report (anyone can submit)
 router.post('/', asyncHandler(async (req, res) => {
@@ -24,24 +13,18 @@ router.post('/', asyncHandler(async (req, res) => {
     return res.status(400).json({ error: 'Description and name are required' });
   }
 
-  // Validate reporter name
-  const cleanName = stripTags(String(reporterName)).slice(0, 100);
-  if (!cleanName || cleanName.length < 1) {
-    return res.status(400).json({ error: 'Valid name is required' });
-  }
+  const cleanName = sanitizeName(reporterName, { maxLen: 100 });
+  if (!cleanName) return res.status(400).json({ error: 'Valid name is required' });
 
-  // Validate description
   const cleanDesc = stripTags(String(description)).slice(0, 2000);
   if (!cleanDesc || cleanDesc.length < 2) {
     return res.status(400).json({ error: 'Description must be at least 2 characters' });
   }
 
-  // Validate screenshot is a data URL if provided
   if (screenshotData) {
     if (typeof screenshotData !== 'string' || !screenshotData.startsWith('data:image/')) {
       return res.status(400).json({ error: 'Invalid screenshot format' });
     }
-    // Limit screenshot size (~2MB base64 ≈ ~1.5MB image)
     if (screenshotData.length > 2 * 1024 * 1024) {
       return res.status(400).json({ error: 'Screenshot too large' });
     }
@@ -52,11 +35,10 @@ router.post('/', asyncHandler(async (req, res) => {
       description: cleanDesc,
       screenshotData: screenshotData || null,
       reporterName: cleanName,
-      currentPage: currentPage ? String(currentPage).slice(0, 200) : null
+      currentPage: currentPage ? stripTags(String(currentPage)).slice(0, 200) : null
     }
   });
 
-  // Don't send back screenshotData in response (bandwidth)
   res.status(201).json({ ...report, screenshotData: undefined });
 }));
 
@@ -72,7 +54,6 @@ router.get('/', requireAdmin, asyncHandler(async (req, res) => {
     take: 50
   });
 
-  // Strip screenshot data from list view to keep response small
   const result = reports.map(r => ({
     ...r,
     hasScreenshot: !!r.screenshotData,
@@ -83,14 +64,14 @@ router.get('/', requireAdmin, asyncHandler(async (req, res) => {
 }));
 
 // Get single report with screenshot (admin only)
-router.get('/:id', requireAdmin, asyncHandler(async (req, res) => {
+router.get('/:id', validateId, requireAdmin, asyncHandler(async (req, res) => {
   const report = await prisma.report.findUnique({ where: { id: req.params.id } });
   if (!report) return res.status(404).json({ error: 'Report not found' });
   res.json(report);
 }));
 
 // Update report (admin — resolve, add notes)
-router.patch('/:id', requireAdmin, asyncHandler(async (req, res) => {
+router.patch('/:id', validateId, requireAdmin, asyncHandler(async (req, res) => {
   const { resolved, adminNotes } = req.body;
   const data = {};
   if (resolved !== undefined) data.resolved = !!resolved;
@@ -101,7 +82,7 @@ router.patch('/:id', requireAdmin, asyncHandler(async (req, res) => {
 }));
 
 // Delete report (admin)
-router.delete('/:id', requireAdmin, asyncHandler(async (req, res) => {
+router.delete('/:id', validateId, requireAdmin, asyncHandler(async (req, res) => {
   await prisma.report.delete({ where: { id: req.params.id } });
   res.json({ ok: true });
 }));

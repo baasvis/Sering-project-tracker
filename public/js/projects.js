@@ -3,7 +3,18 @@
    ======================================== */
 
 // Cache for passing objects to modals without JSON.stringify in onclick
+// Capped at 500 entries to prevent unbounded memory growth
 window._taskCache = {};
+const TASK_CACHE_MAX = 500;
+
+function cacheTask(task) {
+  // Evict oldest entries if cache is full
+  const keys = Object.keys(window._taskCache);
+  if (keys.length >= TASK_CACHE_MAX) {
+    for (let i = 0; i < 100; i++) delete window._taskCache[keys[i]];
+  }
+  cacheTask(task);
+}
 
 // Cached projects for filter-only re-renders (avoids re-fetching)
 let _allProjectsCached = [];
@@ -315,7 +326,7 @@ function rerenderTaskList() {
 
 function renderTaskItem(task) {
   // Cache task for modal access
-  window._taskCache[task.id] = task;
+  cacheTask(task);
 
   const isPending = task.approved === false;
 
@@ -399,7 +410,7 @@ async function showTaskDetail(taskId) {
   }
 
   // Cache for edit modal
-  window._taskCache[taskId] = task;
+  cacheTask(task);
 
   // Load media
   let media = [];

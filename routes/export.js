@@ -2,6 +2,7 @@ const { Router } = require('express');
 const archiver = require('archiver');
 const prisma = require('../lib/db');
 const { requireAdmin } = require('./auth');
+const asyncHandler = require('../lib/async-handler');
 
 const router = Router();
 
@@ -29,7 +30,7 @@ function toCSV(rows) {
 }
 
 // GET /api/export — download all tables as a ZIP of CSVs (admin only)
-router.get('/', requireAdmin, async (req, res) => {
+router.get('/', requireAdmin, asyncHandler(async (req, res) => {
   const date = new Date().toISOString().slice(0, 10);
 
   // Fetch all tables in parallel
@@ -59,6 +60,6 @@ router.get('/', requireAdmin, async (req, res) => {
   archive.append(toCSV(media),         { name: 'media.csv' });
 
   await archive.finalize();
-});
+}));
 
 module.exports = router;

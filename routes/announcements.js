@@ -3,7 +3,7 @@ const prisma = require('../lib/db');
 const { requireAdmin } = require('./auth');
 const { sanitize } = require('../lib/sanitize');
 const asyncHandler = require('../lib/async-handler');
-const { validateId } = require('../lib/validate');
+const { validateId, stripTags } = require('../lib/validate');
 const { broadcast, getMutationId } = require('../lib/sse');
 
 const router = Router();
@@ -45,7 +45,7 @@ router.post('/', requireAdmin, asyncHandler(async (req, res) => {
 
   const announcement = await prisma.announcement.create({
     data: {
-      title: String(title).slice(0, 500),
+      title: stripTags(String(title)).slice(0, 500),
       body: sanitize(body),
       authorEmail: req.session.email,
       pinned: !!pinned
@@ -59,7 +59,7 @@ router.post('/', requireAdmin, asyncHandler(async (req, res) => {
 router.patch('/:id', validateId, requireAdmin, asyncHandler(async (req, res) => {
   const { title, body, pinned } = req.body;
   const data = {};
-  if (title !== undefined) data.title = String(title).slice(0, 500);
+  if (title !== undefined) data.title = stripTags(String(title)).slice(0, 500);
   if (body !== undefined) data.body = sanitize(body);
   if (pinned !== undefined) data.pinned = !!pinned;
 

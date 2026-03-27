@@ -22,7 +22,8 @@ async function apiFetch(method, url, body) {
     const mutationId = Date.now() + '-' + Math.random().toString(36).slice(2, 8);
     headers['X-Mutation-ID'] = mutationId;
     S._pendingMutationIds.add(mutationId);
-    setTimeout(() => S._pendingMutationIds.delete(mutationId), 10000);
+    // Clean up after 30s (generous timeout for slow networks)
+    setTimeout(() => S._pendingMutationIds.delete(mutationId), 30_000);
   }
   opts.headers = headers;
   const res = await fetch(url, opts);
@@ -40,7 +41,11 @@ function apiPatch(url, body) { return apiFetch('PATCH', url, body); }
 function apiDelete(url) { return apiFetch('DELETE', url); }
 
 async function apiUpload(url, formData) {
-  const res = await fetch(url, { method: 'POST', body: formData, headers: { 'X-CSRF-Token': getCsrfToken() } });
+  const res = await fetch(url, {
+    method: 'POST',
+    body: formData,
+    headers: { 'X-CSRF-Token': getCsrfToken() }
+  });
   if (!res.ok) {
     const err = await res.json().catch(() => ({ error: res.statusText }));
     throw new Error(err.error || 'Upload failed');
@@ -55,7 +60,7 @@ function toast(message, type = 'info') {
   el.className = `toast toast-${type}`;
   el.textContent = message;
   container.appendChild(el);
-  setTimeout(() => { el.remove(); }, 3000);
+  setTimeout(() => el.remove(), 3000);
 }
 
 // HTML escape
@@ -79,9 +84,7 @@ function timeAgo(dateStr) {
 // Format date for display
 function formatDate(dateStr) {
   if (!dateStr) return '';
-  return new Date(dateStr).toLocaleDateString('en-GB', {
-    day: 'numeric', month: 'short', year: 'numeric'
-  });
+  return new Date(dateStr).toLocaleDateString('en-GB', { day: 'numeric', month: 'short', year: 'numeric' });
 }
 
 // Check if deadline is overdue
@@ -92,12 +95,22 @@ function isOverdue(dateStr) {
 
 // ---- Rich text editor (Quill) ----
 
-// Active Quill instances (keyed by container ID)
 const _quillInstances = {};
 
-// Clean up all Quill instances (call on screen change / modal close)
+// Properly destroy Quill instances to prevent memory leaks
 function cleanupQuillInstances() {
-  for (const key of Object.keys(_quillInstances)) {
+  for (const [key, quill] of Object.entries(_quillInstances)) {
+    try {
+      quill.disable();
+      quill.setContents([]);
+      const container = quill.container;
+      if (container) {
+        // Remove Quill's toolbar and editor DOM
+        const toolbar = container.previousElementSibling;
+        if (toolbar && toolbar.classList.contains('ql-toolbar')) toolbar.remove();
+        container.innerHTML = '';
+      }
+    } catch { /* already cleaned up */ }
     delete _quillInstances[key];
   }
 }
@@ -107,8 +120,11 @@ function createRichEditor(containerId, initialHTML) {
   const container = document.getElementById(containerId);
   if (!container) return null;
 
-  // Clean up existing instance if any
+  // Destroy existing instance if any
   if (_quillInstances[containerId]) {
+    try {
+      _quillInstances[containerId].disable();
+    } catch { /* ignore */ }
     delete _quillInstances[containerId];
   }
 
@@ -135,7 +151,7 @@ function createRichEditor(containerId, initialHTML) {
   return quill;
 }
 
-// Get HTML content from a Quill editor, normalized to standard HTML
+// Get HTML content from a Quill editor
 function getRichEditorHTML(containerId) {
   const quill = _quillInstances[containerId];
   if (!quill) return '';
@@ -201,7 +217,6 @@ function renderTierButtons() {
 function selectTier(tier) {
   S.selectedTier = S.selectedTier === tier ? null : tier;
 
-  // Try targeted re-render for the current screen (no full reload)
   if (S.screen === 'projects' && !S.currentProjectId && document.getElementById('projects-cards')) {
     rerenderProjectFilters();
   } else if (S.screen === 'dashboard' && document.getElementById('dashboard-projects-overview')) {
@@ -211,29 +226,22 @@ function selectTier(tier) {
   }
 }
 
-// Update tier button active states in-place (no re-render needed)
 function updateTierButtonStates() {
   document.querySelectorAll('.tier-btn').forEach(btn => {
     const tierKey = btn.getAttribute('onclick')?.match(/selectTier\('(\w+)'\)/)?.[1];
-    if (tierKey) {
-      btn.classList.toggle('active', S.selectedTier === tierKey);
-    }
+    if (tierKey) btn.classList.toggle('active', S.selectedTier === tierKey);
   });
 }
 
-// Filter projects array by selected tier
 function filterProjectsByTier(projects) {
   if (!S.selectedTier) return projects;
   return projects.filter(p => p.tier === S.selectedTier);
 }
 
-// Sort projects by tier: MVP → Medium → Next Level → no tier
 const TIER_ORDER = { mvp: 0, medium: 1, next_level: 2 };
 function sortProjectsByTier(projects) {
   return projects.slice().sort((a, b) => {
-    const oa = TIER_ORDER[a.tier] ?? 3;
-    const ob = TIER_ORDER[b.tier] ?? 3;
-    return oa - ob;
+    return (TIER_ORDER[a.tier] ?? 3) - (TIER_ORDER[b.tier] ?? 3);
   });
 }
 
@@ -248,7 +256,7 @@ function extractPreviewText(html, maxLength) {
   return text.slice(0, maxLength).replace(/\s+\S*$/, '') + '\u2026';
 }
 
-// Loading spinner — show while fetching screen data
+// Loading spinner
 function showLoading() {
   document.getElementById('app').innerHTML = '<div class="loading-spinner"></div>';
 }

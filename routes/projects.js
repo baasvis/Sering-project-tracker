@@ -3,25 +3,25 @@ const prisma = require('../lib/db');
 const { requireAdmin } = require('./auth');
 const { sanitize } = require('../lib/sanitize');
 const asyncHandler = require('../lib/async-handler');
-const { validateId, isValidUuid } = require('../lib/validate');
+const {
+  validateId, isValidUuid, stripTags, sanitizeName,
+  VALID_STATUSES, VALID_JOIN_TYPES, VALID_TIERS,
+} = require('../lib/validate');
 const { broadcast, getMutationId } = require('../lib/sse');
 
 const router = Router();
 
-const VALID_PROJECT_STATUSES = ['active', 'completed', 'archived'];
-const VALID_JOIN_TYPES = ['open', 'contact', 'closed'];
-const VALID_TIERS = ['mvp', 'medium', 'next_level'];
-
-// Strip HTML tags from user input
-function stripTags(str) {
-  return String(str).replace(/<[^>]*>/g, '');
-}
-
 // List projects (optional ?groupId= filter, ?status= filter)
 router.get('/', asyncHandler(async (req, res) => {
   const where = {};
-  if (req.query.groupId) where.groupId = req.query.groupId;
-  if (req.query.status) where.status = req.query.status;
+  if (req.query.groupId) {
+    if (!isValidUuid(req.query.groupId)) return res.status(400).json({ error: 'Invalid groupId format' });
+    where.groupId = req.query.groupId;
+  }
+  if (req.query.status) {
+    if (!VALID_STATUSES.includes(req.query.status)) return res.status(400).json({ error: 'Invalid status filter' });
+    where.status = req.query.status;
+  }
 
   const projects = await prisma.project.findMany({
     where,
@@ -33,7 +33,6 @@ router.get('/', asyncHandler(async (req, res) => {
     }
   });
 
-  // Transform: replace tasks array with status counts (approved tasks only)
   const result = projects.map(p => {
     const counts = { todo: 0, in_progress: 0, done: 0 };
     for (const t of p.tasks) {
@@ -69,39 +68,28 @@ router.post('/', asyncHandler(async (req, res) => {
 
   const isAdmin = !!req.session?.admin;
 
-  // Non-admins must provide a name
-  if (!isAdmin && !authorName) {
-    return res.status(400).json({ error: 'authorName is required for suggestions' });
+  let suggestedBy = null;
+  if (!isAdmin) {
+    suggestedBy = sanitizeName(authorName);
+    if (!suggestedBy) return res.status(400).json({ error: 'authorName is required for suggestions (1-50 chars)' });
   }
 
-  let sanitizedAuthor = null;
-  if (!isAdmin && authorName) {
-    sanitizedAuthor = stripTags(String(authorName).trim());
-    if (sanitizedAuthor.length < 1 || sanitizedAuthor.length > 50) {
-      return res.status(400).json({ error: 'Author name must be 1-50 characters' });
-    }
-  }
-
-  // Validate group exists
   const group = await prisma.group.findUnique({ where: { id: groupId }, select: { id: true } });
   if (!group) return res.status(404).json({ error: 'Group not found' });
 
-  // Sanitize and validate project name
-  const trimmedName = stripTags(String(name).trim());
-  if (trimmedName.length < 1 || trimmedName.length > 200) {
-    return res.status(400).json({ error: 'Project name must be 1-200 characters' });
-  }
+  const trimmedName = stripTags(String(name)).slice(0, 200);
+  if (trimmedName.length < 1) return res.status(400).json({ error: 'Project name must be 1-200 characters' });
 
   const project = await prisma.project.create({
     data: {
       groupId,
       name: trimmedName,
       description: isAdmin ? sanitize(description) : null,
-      contactPerson: isAdmin ? (contactPerson || null) : null,
+      contactPerson: isAdmin ? (contactPerson ? stripTags(String(contactPerson)).slice(0, 100) : null) : null,
       tier: isAdmin ? (tier || null) : null,
       joinType: isAdmin ? (joinType || null) : null,
       approved: isAdmin,
-      suggestedBy: sanitizedAuthor
+      suggestedBy
     },
     include: { group: { select: { id: true, name: true } } }
   });
@@ -113,17 +101,21 @@ router.post('/', asyncHandler(async (req, res) => {
 router.patch('/:id', validateId, requireAdmin, asyncHandler(async (req, res) => {
   const { name, description, contactPerson, status, groupId, tier, joinType } = req.body;
 
-  if (status !== undefined && !VALID_PROJECT_STATUSES.includes(status)) {
-    return res.status(400).json({ error: `Invalid status. Must be one of: ${VALID_PROJECT_STATUSES.join(', ')}` });
+  if (status !== undefined && !VALID_STATUSES.includes(status)) {
+    return res.status(400).json({ error: `Invalid status. Must be one of: ${VALID_STATUSES.join(', ')}` });
   }
   if (joinType && !VALID_JOIN_TYPES.includes(joinType)) return res.status(400).json({ error: 'Invalid joinType' });
   if (tier && !VALID_TIERS.includes(tier)) return res.status(400).json({ error: 'Invalid tier' });
   if (groupId && !isValidUuid(groupId)) return res.status(400).json({ error: 'Invalid groupId format' });
 
   const data = {};
-  if (name !== undefined) data.name = name;
+  if (name !== undefined) {
+    const trimmed = stripTags(String(name)).slice(0, 200);
+    if (trimmed.length < 1) return res.status(400).json({ error: 'Project name must be 1-200 characters' });
+    data.name = trimmed;
+  }
   if (description !== undefined) data.description = sanitize(description);
-  if (contactPerson !== undefined) data.contactPerson = contactPerson;
+  if (contactPerson !== undefined) data.contactPerson = contactPerson ? stripTags(String(contactPerson)).slice(0, 100) : null;
   if (tier !== undefined) data.tier = tier || null;
   if (status !== undefined) data.status = status;
   if (groupId !== undefined) data.groupId = groupId;

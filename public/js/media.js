@@ -89,14 +89,24 @@ async function uploadPhoto(input, parentType, parentId) {
   }
 }
 
-// Voice recording
+// Voice recording — single recorder instance, properly cleaned up
 let activeRecorder = null;
 let recordingChunks = [];
+let recordingTimeout = null;
+
+function stopActiveRecorder() {
+  if (recordingTimeout) { clearTimeout(recordingTimeout); recordingTimeout = null; }
+  if (activeRecorder && activeRecorder.state === 'recording') {
+    activeRecorder.stop();
+  }
+  activeRecorder = null;
+}
 
 function toggleVoiceRecorder(btn, parentType, parentId) {
   if (activeRecorder && activeRecorder.state === 'recording') {
     activeRecorder.stop();
     btn.textContent = '🎤 Voice';
+    btn.classList.remove('recording');
     return;
   }
 
@@ -106,6 +116,9 @@ function toggleVoiceRecorder(btn, parentType, parentId) {
   }
 
   navigator.mediaDevices.getUserMedia({ audio: true }).then(stream => {
+    // Clean up any previous recorder
+    stopActiveRecorder();
+
     const recorder = new MediaRecorder(stream);
     activeRecorder = recorder;
     recordingChunks = [];
@@ -114,12 +127,18 @@ function toggleVoiceRecorder(btn, parentType, parentId) {
 
     recorder.onstop = async () => {
       stream.getTracks().forEach(t => t.stop());
+      btn.textContent = '🎤 Voice';
+      btn.classList.remove('recording');
+
       const blob = new Blob(recordingChunks, { type: 'audio/webm' });
+      recordingChunks = [];
+
       if (blob.size > 2 * 1024 * 1024) {
         toast('Voice note too long (max ~60 seconds)', 'error');
         activeRecorder = null;
         return;
       }
+
       const formData = new FormData();
       formData.append('file', blob, 'voice-note.webm');
       formData.append('parentType', parentType);
@@ -129,7 +148,6 @@ function toggleVoiceRecorder(btn, parentType, parentId) {
       try {
         const newMedia = await apiUpload('/api/media', formData);
         toast('Voice note uploaded', 'success');
-        // Append to nearest media grid instead of full re-render
         const uploadArea = btn.closest('.media-upload-area');
         if (uploadArea) {
           let grid = uploadArea.previousElementSibling;
@@ -154,13 +172,10 @@ function toggleVoiceRecorder(btn, parentType, parentId) {
     btn.textContent = '⏹ Stop';
     btn.classList.add('recording');
 
-    // Auto-stop after 60 seconds (keeps voice notes under 2MB limit)
-    setTimeout(() => {
-      if (recorder.state === 'recording') {
-        recorder.stop();
-        btn.textContent = '🎤 Voice';
-      }
-    }, 60000);
+    // Auto-stop after 60 seconds
+    recordingTimeout = setTimeout(() => {
+      if (recorder.state === 'recording') recorder.stop();
+    }, 60_000);
   }).catch(() => {
     toast('Microphone access denied', 'error');
   });

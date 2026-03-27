@@ -12,7 +12,7 @@ const { addClient, getClientCount } = require('./lib/sse');
 
 const app = express();
 
-// Compress all responses (gzip/brotli) — significant savings on JSON + HTML
+// Compress all responses (gzip/brotli)
 app.use(compression());
 
 // Trust reverse proxy (Railway, Nginx, etc.) for correct IP in rate limiting
@@ -30,47 +30,58 @@ app.use(helmet({
       frameSrc: ["https://accounts.google.com"],
       fontSrc: ["'self'"],
       mediaSrc: ["'self'", "blob:"],
-      scriptSrcAttr: ["'unsafe-inline'"], // app uses onclick handlers extensively
+      scriptSrcAttr: ["'unsafe-inline'"],
     }
   },
   crossOriginOpenerPolicy: { policy: 'same-origin-allow-popups' },
-  crossOriginEmbedderPolicy: false, // needed for Google Sign-In
+  crossOriginEmbedderPolicy: false,
 }));
 
-// Body parsing
+// Body parsing with tight limits
 app.use(express.json({ limit: '3mb' }));
-app.use(express.urlencoded({ extended: true }));
+app.use(express.urlencoded({ extended: true, limit: '1mb' }));
 
-// Rate limiting — general API: 100 requests per minute per IP
+// ---- Rate limiting ----
+
+// General API: 100 requests per minute per IP
 const apiLimiter = rateLimit({
-  windowMs: 60 * 1000,
+  windowMs: 60_000,
   max: 100,
   standardHeaders: true,
   legacyHeaders: false,
   message: { error: 'Too many requests, please try again later' }
 });
 
-// Stricter limit for write operations: 20 per minute per IP
+// Write operations: 20 per minute per IP
 const writeLimiter = rateLimit({
-  windowMs: 60 * 1000,
+  windowMs: 60_000,
   max: 20,
   standardHeaders: true,
   legacyHeaders: false,
   message: { error: 'Too many requests, please slow down' }
 });
 
-// Strict limit for file uploads: 10 per minute per IP
+// File uploads: 10 per minute per IP
 const uploadLimiter = rateLimit({
-  windowMs: 60 * 1000,
+  windowMs: 60_000,
   max: 10,
   standardHeaders: true,
   legacyHeaders: false,
   message: { error: 'Too many uploads, please wait a minute' }
 });
 
+// SSE: 5 new connections per minute per IP (reconnection protection)
+const sseLimiter = rateLimit({
+  windowMs: 60_000,
+  max: 5,
+  standardHeaders: true,
+  legacyHeaders: false,
+  message: { error: 'Too many SSE connections, please wait' }
+});
+
 app.use('/api', apiLimiter);
 
-// Write limiter also covers DELETE (prevent mass deletion)
+// Write limiter on all mutation endpoints
 app.delete('/api/comments/:id', writeLimiter);
 app.delete('/api/media/:id', writeLimiter);
 app.delete('/api/shopping/:id', writeLimiter);
@@ -93,14 +104,11 @@ app.use(session({
 app.use(cookieParser());
 
 // CSRF protection: double-submit cookie pattern
-// Set a CSRF token cookie on every request; require it as a header on writes
 app.use((req, res, next) => {
-  // Set token cookie if not present
   if (!req.cookies?.['csrf-token']) {
     const token = crypto.randomBytes(24).toString('hex');
     res.cookie('csrf-token', token, { httpOnly: false, sameSite: 'strict', secure: !DEV_MODE });
   }
-  // Verify on mutating requests to /api/*
   if (['POST', 'PATCH', 'PUT', 'DELETE'].includes(req.method) && req.path.startsWith('/api/')) {
     const cookieToken = req.cookies?.['csrf-token'];
     const headerToken = req.headers['x-csrf-token'];
@@ -108,6 +116,17 @@ app.use((req, res, next) => {
       return res.status(403).json({ error: 'Invalid or missing CSRF token' });
     }
   }
+  next();
+});
+
+// Request timeout: kill requests that take too long (30s for normal, 120s for exports)
+app.use((req, res, next) => {
+  const timeout = req.path === '/api/export' ? 120_000 : 30_000;
+  req.setTimeout(timeout, () => {
+    if (!res.headersSent) {
+      res.status(408).json({ error: 'Request timeout' });
+    }
+  });
   next();
 });
 
@@ -126,28 +145,18 @@ const uploadsDir = path.join(__dirname, 'uploads');
 if (!fs.existsSync(uploadsDir)) fs.mkdirSync(uploadsDir, { recursive: true });
 app.use('/uploads', express.static(uploadsDir, { maxAge: '7d' }));
 
-// SSE endpoint — rate-limited handshake (5 new connections/min per IP), then long-lived
-const sseLimiter = rateLimit({
-  windowMs: 60 * 1000,
-  max: 5,
-  standardHeaders: true,
-  legacyHeaders: false,
-  message: { error: 'Too many SSE connections, please wait' }
-});
+// SSE endpoint
 app.get('/api/events', sseLimiter, (req, res) => {
   addClient(req, res);
 });
 
-// Inject config into a client-accessible endpoint (long cache — never changes at runtime)
+// Client config endpoint (long cache — doesn't change at runtime)
 app.get('/api/config', (req, res) => {
   res.set('Cache-Control', 'public, max-age=3600');
-  res.json({
-    googleClientId: GOOGLE_CLIENT_ID,
-    devMode: DEV_MODE
-  });
+  res.json({ googleClientId: GOOGLE_CLIENT_ID, devMode: DEV_MODE });
 });
 
-// Cache-Control for read-heavy API GETs (short-lived, prevents stampede with 300 users)
+// Cache-Control for read-heavy API GETs (prevents stampede with 300 users)
 app.use('/api', (req, res, next) => {
   if (req.method === 'GET') {
     res.set('Cache-Control', 'public, max-age=30, stale-while-revalidate=60');
@@ -155,30 +164,28 @@ app.use('/api', (req, res, next) => {
   next();
 });
 
-// Routes
+// ---- Routes ----
+
 app.use('/auth', require('./routes/auth'));
 app.use('/api/groups', require('./routes/groups'));
 app.use('/api/projects', require('./routes/projects'));
 app.use('/api/tasks', require('./routes/tasks'));
-// Shopping: stricter write limit (spam protection for suggestions)
+
 const shoppingRouter = require('./routes/shopping');
 app.post('/api/shopping', writeLimiter);
 app.use('/api/shopping', shoppingRouter);
+
 app.use('/api/announcements', require('./routes/announcements'));
 
-// Comments: stricter write limit (spam protection)
 const commentsRouter = require('./routes/comments');
 app.post('/api/comments', writeLimiter);
 app.use('/api/comments', commentsRouter);
 
-// Media: strict upload limit + batch endpoint for N+1 avoidance
 const mediaRouter = require('./routes/media');
 app.post('/api/media', uploadLimiter);
-// Mount batch route at app level (Express 5 sub-router path matching workaround)
 app.get('/api/media/batch', mediaRouter.batchHandler);
 app.use('/api/media', mediaRouter);
 
-// Reports: write limit for submissions
 const reportsRouter = require('./routes/reports');
 app.post('/api/reports', writeLimiter);
 app.use('/api/reports', reportsRouter);
@@ -194,10 +201,16 @@ app.get('/{*path}', (req, res) => {
 // Global error handler
 app.use((err, req, res, next) => {
   console.error('Unhandled error:', err);
-  res.status(500).json({ error: 'Internal server error' });
+  if (!res.headersSent) {
+    res.status(500).json({ error: 'Internal server error' });
+  }
 });
 
-app.listen(PORT, () => {
+const server = app.listen(PORT, () => {
   console.log(`Sering Project Tracker running on http://localhost:${PORT}`);
   if (DEV_MODE) console.log('DEV MODE: No Google auth required. Use /auth/dev-login to become admin.');
 });
+
+// Configure server timeouts for long-lived connections (SSE)
+server.keepAliveTimeout = 120_000;
+server.headersTimeout = 125_000;
