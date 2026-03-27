@@ -3,6 +3,7 @@
    ======================================== */
 
 let _eventSource = null;
+let _reconnectCount = 0;
 
 function connectSSE() {
   if (_eventSource) return;
@@ -15,10 +16,19 @@ function connectSSE() {
       renderCurrentScreen();
     }
     S._sseConnected = true;
+    _reconnectCount = 0;
   };
 
   _eventSource.onerror = () => {
-    // EventSource auto-reconnects; nothing to do here
+    _reconnectCount++;
+    // After 10 consecutive failures, close and stop reconnecting
+    // (EventSource auto-reconnects, but we cap runaway reconnection)
+    if (_reconnectCount > 10) {
+      _eventSource.close();
+      _eventSource = null;
+      S._sseConnected = false;
+      console.warn('SSE: too many reconnect failures, giving up. Reload to reconnect.');
+    }
   };
 
   // Register all event handlers
@@ -51,20 +61,20 @@ function connectSSE() {
 // ---- Event handlers ----
 
 const SSE_HANDLERS = {
-  'task:created':   handleTaskMutation,
-  'task:updated':   handleTaskMutation,
-  'task:approved':  handleTaskMutation,
-  'task:deleted':   handleTaskDeleted,
-  'project:created':  handleProjectMutation,
-  'project:updated':  handleProjectMutation,
-  'project:approved': handleProjectMutation,
-  'project:deleted':  handleProjectDeleted,
+  'task:created':    handleTaskMutation,
+  'task:updated':    handleTaskMutation,
+  'task:approved':   handleTaskMutation,
+  'task:deleted':    handleTaskDeleted,
+  'project:created':   handleProjectMutation,
+  'project:updated':   handleProjectMutation,
+  'project:approved':  handleProjectMutation,
+  'project:deleted':   handleProjectDeleted,
   'shopping:created':  handleShoppingMutation,
   'shopping:updated':  handleShoppingMutation,
   'shopping:approved': handleShoppingMutation,
   'shopping:deleted':  handleShoppingMutation,
-  'comment:created':  handleCommentCreated,
-  'comment:deleted':  handleCommentDeleted,
+  'comment:created':   handleCommentCreated,
+  'comment:deleted':   handleCommentDeleted,
   'announcement:created':  handleAnnouncementMutation,
   'announcement:updated':  handleAnnouncementMutation,
   'announcement:deleted':  handleAnnouncementMutation,
@@ -73,13 +83,10 @@ const SSE_HANDLERS = {
   'group:deleted':  handleGroupMutation,
 };
 
-// -- Task handlers --
-
 function handleTaskMutation(data) {
   const task = data.task;
   if (!task) return;
 
-  // If viewing the project that owns this task, update local state
   if (S.currentProject && S.currentProjectId === task.projectId) {
     const idx = S.currentProject.tasks.findIndex(t => t.id === task.id);
     if (idx !== -1) {
@@ -89,7 +96,6 @@ function handleTaskMutation(data) {
     }
     rerenderTaskList();
   } else if (S.screen === 'dashboard' || S.screen === 'projects') {
-    // Task counts changed — re-render list view
     renderCurrentScreen();
   }
 }
@@ -103,17 +109,13 @@ function handleTaskDeleted(data) {
   }
 }
 
-// -- Project handlers --
-
 function handleProjectMutation(data) {
   const project = data.project;
   if (!project) return;
 
   if (S.currentProjectId === project.id && S.currentProject) {
-    // Viewing this project — update fields (but keep tasks array)
     const { tasks, ...rest } = project;
     Object.assign(S.currentProject, rest);
-    // Re-render the full detail to reflect name/description/tier changes
     renderProjectDetail();
   } else if (S.screen === 'dashboard' || S.screen === 'projects') {
     renderCurrentScreen();
@@ -122,7 +124,6 @@ function handleProjectMutation(data) {
 
 function handleProjectDeleted(data) {
   if (S.currentProjectId === data.projectId) {
-    // Currently viewing the deleted project — go back
     S.currentProjectId = null;
     S.currentProject = null;
     window.location.hash = 'projects';
@@ -132,8 +133,6 @@ function handleProjectDeleted(data) {
     renderCurrentScreen();
   }
 }
-
-// -- Shopping handlers --
 
 function handleShoppingMutation(data) {
   const projectId = data.item?.projectId || data.projectId;
@@ -146,8 +145,6 @@ function handleShoppingMutation(data) {
   }
 }
 
-// -- Comment handlers --
-
 function handleCommentCreated(data) {
   const comment = data.comment;
   if (!comment) return;
@@ -155,39 +152,29 @@ function handleCommentCreated(data) {
 }
 
 function handleCommentDeleted(data) {
-  // Try to remove from DOM directly
   if (data.commentId) {
     const el = document.querySelector(`.comment[data-id="${data.commentId}"]`);
     if (el) { el.remove(); return; }
   }
-  // Fallback: reload if we're on the right target
   if (data.targetType && data.targetId) {
     _reloadCommentsIfVisible(data.targetType, data.targetId);
   }
 }
 
 function _reloadCommentsIfVisible(targetType, targetId) {
-  // Project-level comments
   if (targetType === 'project' && S.currentProjectId === targetId) {
     const container = document.getElementById('project-comments');
     if (container) renderComments('project', targetId, container);
   }
-  // Task-level comments (inside task detail modal)
   if (targetType === 'task') {
     const container = document.getElementById(`task-comments-${targetId}`);
     if (container) renderComments('task', targetId, container);
   }
 }
 
-// -- Announcement handlers --
-
 function handleAnnouncementMutation() {
-  if (S.screen === 'dashboard') {
-    renderCurrentScreen();
-  }
+  if (S.screen === 'dashboard') renderCurrentScreen();
 }
-
-// -- Group handlers --
 
 function handleGroupMutation() {
   if (S.screen === 'dashboard' || S.screen === 'projects' || S.screen === 'admin') {
