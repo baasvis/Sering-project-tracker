@@ -83,7 +83,12 @@ async function applyEnums() {
 
     console.log('[migrate] Enum migration complete!');
   } catch (err) {
-    console.error('[migrate] Migration failed:', err.message);
+    console.error('[migrate] Migration failed.');
+    console.error('[migrate] Error name:', err.name);
+    console.error('[migrate] Error message:', err.message || '(empty)');
+    console.error('[migrate] Error code:', err.code || '(none)');
+    console.error('[migrate] Error meta:', JSON.stringify(err.meta || {}));
+    console.error('[migrate] Full error:', JSON.stringify(err, Object.getOwnPropertyNames(err)));
     process.exit(1);
   } finally {
     await prisma.$disconnect();
