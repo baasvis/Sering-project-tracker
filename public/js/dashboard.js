@@ -77,7 +77,7 @@ async function loadAnnouncementMedia(a) {
       carousel.classList.remove('empty');
       carousel.innerHTML = html`
         <div class="carousel-track" id="ann-track-${annId}">
-          ${raw(photos.map(p => html`<img src="/api/media/${p.id}/file" alt="${p.originalName}" data-action="openLightbox" data-url="/api/media/${p.id}/file">`).join(''))}
+          ${raw(photos.map(p => html`<img src="/api/media/${p.id}/file" alt="${p.originalName}" data-action="openLightbox" data-src="/api/media/${p.id}/file">`).join(''))}
         </div>
         ${raw(photos.length > 1 ? html`
           <button class="carousel-btn prev" data-action="slideCarousel" data-stop data-ann-id="${annId}" data-direction="-1">${raw('&#8249;')}</button>
@@ -294,7 +294,7 @@ async function loadAllProjectCardMedia(projectIds) {
       if (photos.length > 0) {
         container.innerHTML = html`<div class="media-grid project-card-photos">${raw(photos.map(m =>
           html`<img src="/api/media/${m.id}/file" class="media-thumb"
-                data-action="openLightbox" data-stop data-url="/api/media/${m.id}/file"
+                data-action="openLightbox" data-stop data-src="/api/media/${m.id}/file"
                 alt="${m.originalName}">`
         ).join(''))}</div>`;
       }
@@ -382,7 +382,6 @@ onAction('toggleProjectCard', (el) => toggleProjectCard(el.dataset.projectId));
 onAction('navigateToProject', (el) => navigateToProject(el.dataset.projectId));
 onAction('slideCarousel', (el) => slideCarousel(el.dataset.annId, parseInt(el.dataset.direction)));
 onAction('goToSlide', (el) => goToSlide(el.dataset.annId, parseInt(el.dataset.index)));
-onAction('openLightbox', (el) => openLightbox(el.dataset.url));
 onAction('deleteMedia', (el) => deleteMedia(el.dataset.mediaId));
 onAction('closeModal', (el) => el.closest('.modal-backdrop').remove());
 onAction('saveAnnouncement', (el) => saveAnnouncement(el.dataset.id || null));
