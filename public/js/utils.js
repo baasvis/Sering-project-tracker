@@ -1,14 +1,61 @@
 /* ========================================
-   Utils — API helpers, toast, HTML escape
+   Utils — html`` tagged template, API helpers, toast, helpers
    ======================================== */
 
-// Read CSRF token from cookie
+// ─── XSS-safe HTML tagged template ─────────────────────────────────────────
+// All innerHTML assignments should use html`...` — interpolated values are
+// auto-escaped. Use raw() to opt out for server-sanitized HTML (e.g. Quill).
+
+function esc(str) {
+  if (!str) return '';
+  const d = document.createElement('div');
+  d.textContent = str;
+  return d.innerHTML;
+}
+
+// Marker for pre-sanitized HTML that should NOT be escaped
+function raw(str) {
+  const r = new String(str || '');
+  r.__raw = true;
+  return r;
+}
+
+// Tagged template literal: html`<div>${unsafe}</div>` auto-escapes ${} values
+function html(strings, ...values) {
+  let result = '';
+  for (let i = 0; i < strings.length; i++) {
+    result += strings[i];
+    if (i < values.length) {
+      const val = values[i];
+      if (val && val.__raw) {
+        result += String(val); // pre-sanitized, pass through
+      } else if (Array.isArray(val)) {
+        result += val.join(''); // arrays assumed to be pre-built html fragments
+      } else {
+        result += esc(val == null ? '' : String(val));
+      }
+    }
+  }
+  return result;
+}
+
+// ─── Cryptographic mutation ID ──────────────────────────────────────────────
+
+function generateMutationId() {
+  const buf = new Uint8Array(12);
+  crypto.getRandomValues(buf);
+  return Array.from(buf, b => b.toString(16).padStart(2, '0')).join('');
+}
+
+// ─── CSRF ───────────────────────────────────────────────────────────────────
+
 function getCsrfToken() {
   const match = document.cookie.match(/(?:^|;\s*)csrf-token=([^;]*)/);
   return match ? match[1] : '';
 }
 
-// Core API function — all HTTP methods go through here
+// ─── API helpers ────────────────────────────────────────────────────────────
+
 async function apiFetch(method, url, body) {
   const opts = { method };
   const headers = {};
@@ -18,11 +65,9 @@ async function apiFetch(method, url, body) {
   }
   if (['POST', 'PATCH', 'PUT', 'DELETE'].includes(method)) {
     headers['X-CSRF-Token'] = getCsrfToken();
-    // Mutation ID for SSE self-dedup
-    const mutationId = Date.now() + '-' + Math.random().toString(36).slice(2, 8);
+    const mutationId = generateMutationId();
     headers['X-Mutation-ID'] = mutationId;
     S._pendingMutationIds.add(mutationId);
-    // Clean up after 30s (generous timeout for slow networks)
     setTimeout(() => S._pendingMutationIds.delete(mutationId), 30_000);
   }
   opts.headers = headers;
@@ -34,7 +79,6 @@ async function apiFetch(method, url, body) {
   return res.json();
 }
 
-// Convenience wrappers
 function apiGet(url) { return apiFetch('GET', url); }
 function apiPost(url, body) { return apiFetch('POST', url, body); }
 function apiPatch(url, body) { return apiFetch('PATCH', url, body); }
@@ -53,7 +97,8 @@ async function apiUpload(url, formData) {
   return res.json();
 }
 
-// Toast notifications
+// ─── Toast notifications ────────────────────────────────────────────────────
+
 function toast(message, type = 'info') {
   const container = document.getElementById('toast-container');
   const el = document.createElement('div');
@@ -63,15 +108,8 @@ function toast(message, type = 'info') {
   setTimeout(() => el.remove(), 3000);
 }
 
-// HTML escape
-function esc(str) {
-  if (!str) return '';
-  const d = document.createElement('div');
-  d.textContent = str;
-  return d.innerHTML;
-}
+// ─── Date/time helpers ──────────────────────────────────────────────────────
 
-// Format relative time
 function timeAgo(dateStr) {
   const seconds = Math.floor((Date.now() - new Date(dateStr)) / 1000);
   if (seconds < 60) return 'just now';
@@ -81,23 +119,20 @@ function timeAgo(dateStr) {
   return new Date(dateStr).toLocaleDateString('en-GB', { day: 'numeric', month: 'short' });
 }
 
-// Format date for display
 function formatDate(dateStr) {
   if (!dateStr) return '';
   return new Date(dateStr).toLocaleDateString('en-GB', { day: 'numeric', month: 'short', year: 'numeric' });
 }
 
-// Check if deadline is overdue
 function isOverdue(dateStr) {
   if (!dateStr) return false;
   return new Date(dateStr) < new Date(new Date().toDateString());
 }
 
-// ---- Rich text editor (Quill) ----
+// ─── Rich text editor (Quill) ───────────────────────────────────────────────
 
 const _quillInstances = {};
 
-// Properly destroy Quill instances to prevent memory leaks
 function cleanupQuillInstances() {
   for (const [key, quill] of Object.entries(_quillInstances)) {
     try {
@@ -105,7 +140,6 @@ function cleanupQuillInstances() {
       quill.setContents([]);
       const container = quill.container;
       if (container) {
-        // Remove Quill's toolbar and editor DOM
         const toolbar = container.previousElementSibling;
         if (toolbar && toolbar.classList.contains('ql-toolbar')) toolbar.remove();
         container.innerHTML = '';
@@ -115,16 +149,12 @@ function cleanupQuillInstances() {
   }
 }
 
-// Create a Quill editor inside a container element
 function createRichEditor(containerId, initialHTML) {
   const container = document.getElementById(containerId);
   if (!container) return null;
 
-  // Destroy existing instance if any
   if (_quillInstances[containerId]) {
-    try {
-      _quillInstances[containerId].disable();
-    } catch { /* ignore */ }
+    try { _quillInstances[containerId].disable(); } catch { /* ignore */ }
     delete _quillInstances[containerId];
   }
 
@@ -151,19 +181,17 @@ function createRichEditor(containerId, initialHTML) {
   return quill;
 }
 
-// Get HTML content from a Quill editor
 function getRichEditorHTML(containerId) {
   const quill = _quillInstances[containerId];
   if (!quill) return '';
-  const html = quill.root.innerHTML;
-  if (html === '<p><br></p>' || html === '<p></p>') return '';
-  return normalizeQuillHTML(html);
+  const h = quill.root.innerHTML;
+  if (h === '<p><br></p>' || h === '<p></p>') return '';
+  return normalizeQuillHTML(h);
 }
 
-// Convert Quill's internal list markup to standard <ul>/<ol> + <li>
-function normalizeQuillHTML(html) {
+function normalizeQuillHTML(h) {
   const div = document.createElement('div');
-  div.innerHTML = html;
+  div.innerHTML = h;
 
   div.querySelectorAll('.ql-ui').forEach(el => el.remove());
 
@@ -193,24 +221,24 @@ function normalizeQuillHTML(html) {
   return div.innerHTML;
 }
 
-// Render HTML description safely (only tags allowed by server sanitization)
-function renderDescription(html) {
-  if (!html) return '';
-  return `<div class="rich-content">${html}</div>`;
+// Render server-sanitized HTML description (wrap with raw() to skip escaping)
+function renderDescription(descHtml) {
+  if (!descHtml) return '';
+  return html`<div class="rich-content">${raw(descHtml)}</div>`;
 }
 
-// ---- Tier filter buttons (shared between dashboard + projects) ----
+// ─── Tier filter buttons ────────────────────────────────────────────────────
 
 function renderTierButtons() {
-  return `<div class="tier-buttons">
-    ${Object.entries(PROJECT_TIERS).map(([key, tier]) => `
+  return html`<div class="tier-buttons">
+    ${raw(Object.entries(PROJECT_TIERS).map(([key, tier]) => html`
       <button class="tier-btn ${S.selectedTier === key ? 'active' : ''}"
-              style="--tier-color: ${tier.color}; --tier-bg: ${tier.bg}"
+              style="--tier-color: ${raw(tier.color)}; --tier-bg: ${raw(tier.bg)}"
               data-action="selectTier" data-tier="${key}">
-        <span class="tier-btn-label">${esc(tier.label)}</span>
-        <span class="tier-btn-desc">${esc(tier.description)}</span>
+        <span class="tier-btn-label">${tier.label}</span>
+        <span class="tier-btn-desc">${tier.description}</span>
       </button>
-    `).join('')}
+    `).join(''))}
   </div>`;
 }
 
@@ -247,23 +275,22 @@ function sortProjectsByTier(projects) {
   });
 }
 
-// Extract preview text from HTML content (first paragraph, truncated)
-function extractPreviewText(html, maxLength) {
-  if (!html) return '';
+function extractPreviewText(descHtml, maxLength) {
+  if (!descHtml) return '';
   maxLength = maxLength || 150;
-  const doc = new DOMParser().parseFromString(html, 'text/html');
+  const doc = new DOMParser().parseFromString(descHtml, 'text/html');
   const firstP = doc.querySelector('p');
   const text = (firstP ? firstP.textContent : doc.body.textContent).trim();
   if (text.length <= maxLength) return text;
   return text.slice(0, maxLength).replace(/\s+\S*$/, '') + '\u2026';
 }
 
-// Loading spinner
+// ─── Loading + dedup ────────────────────────────────────────────────────────
+
 function showLoading() {
   document.getElementById('app').innerHTML = '<div class="loading-spinner"></div>';
 }
 
-// Request deduplication guard
 const _pendingRequests = {};
 function withDedup(key, fn) {
   if (_pendingRequests[key]) return;

@@ -1,5 +1,5 @@
 /* ========================================
-   State — Global app state + constants
+   State — Global app state + constants + reactive subscriptions
    ======================================== */
 
 const NAV_SCREENS = [
@@ -34,8 +34,14 @@ const JOIN_TYPES = {
   closed:  { label: 'No help needed', color: 'var(--text-secondary)',   bg: 'var(--border)' }
 };
 
-// Global app state — single source of truth for the UI
-const S = {
+// ─── Reactive state ─────────────────────────────────────────────────────────
+// S.subscribe(key, callback) — subscribe to changes on a specific key.
+// When S[key] is set to a new value, all subscribers are notified.
+// SSE handlers should ONLY update S — subscribers handle re-rendering.
+
+const _subscribers = {};
+
+const _stateData = {
   screen: 'dashboard',
   isAdmin: false,
   adminEmail: null,
@@ -62,4 +68,47 @@ const S = {
   // SSE state
   _pendingMutationIds: new Set(),
   _sseConnected: false,
+};
+
+const S = new Proxy(_stateData, {
+  set(target, key, value) {
+    const old = target[key];
+    target[key] = value;
+    // Notify subscribers if value changed (skip internal keys starting with _)
+    if (old !== value && _subscribers[key]) {
+      for (const cb of _subscribers[key]) {
+        try { cb(value, old, key); } catch (e) { console.error('Subscriber error:', key, e); }
+      }
+    }
+    return true;
+  }
+});
+
+// Subscribe to state changes on a key. Returns unsubscribe function.
+S.subscribe = function(key, callback) {
+  if (!_subscribers[key]) _subscribers[key] = [];
+  _subscribers[key].push(callback);
+  return function unsubscribe() {
+    const idx = _subscribers[key].indexOf(callback);
+    if (idx >= 0) _subscribers[key].splice(idx, 1);
+  };
+};
+
+// Batch-update multiple keys without triggering subscribers until all are set.
+// Usage: S.batch({ groups: [...], projects: [...] })
+S.batch = function(updates) {
+  const changed = [];
+  for (const [key, value] of Object.entries(updates)) {
+    const old = _stateData[key];
+    _stateData[key] = value;
+    if (old !== value && _subscribers[key]) {
+      changed.push({ key, value, old });
+    }
+  }
+  // Fire all subscribers after all values are set
+  for (const { key, value, old } of changed) {
+    for (const cb of _subscribers[key]) {
+      try { cb(value, old, key); } catch (e) { console.error('Subscriber error:', key, e); }
+    }
+  }
 };
