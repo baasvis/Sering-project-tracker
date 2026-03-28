@@ -69,6 +69,8 @@ model Group {
   createdAt         DateTime  @default(now())
   updatedAt         DateTime  @updatedAt
   projects          Project[]
+
+  @@index([deletedAt])
 }
 
 model Project {
@@ -109,6 +111,7 @@ model Task {
   updatedAt   DateTime    @updatedAt
 
   @@index([projectId, status])
+  @@index([projectId, deadline])
 }
 
 model Announcement {
@@ -131,7 +134,7 @@ model Comment {
   body       String?
   createdAt  DateTime          @default(now())
 
-  @@index([targetType, targetId])
+  @@index([targetType, targetId, createdAt])
   @@index([authorName, createdAt])
 }
 

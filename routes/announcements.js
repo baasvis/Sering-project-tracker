@@ -6,6 +6,7 @@ const asyncHandler = require('../lib/async-handler');
 const { validateId } = require('../lib/validate');
 const { broadcast, getMutationId } = require('../lib/sse');
 const { logAction } = require('../lib/audit');
+const { deleteMediaFile } = require('../lib/media-utils');
 const { sendError, handleZodError } = require('../lib/errors');
 const { announcementCreate, announcementUpdate } = require('../lib/schemas');
 const { PAGINATION_DEFAULT_LIMIT, PAGINATION_MAX_LIMIT } = require('../lib/config');
@@ -98,14 +99,26 @@ router.patch('/:id', validateId, requireAdmin, asyncHandler(async (req, res) => 
   broadcast('announcement:updated', { announcement }, getMutationId(req));
 }));
 
-// Delete announcement (admin) — hard delete
+// Delete announcement (admin) — hard delete + cleanup associated media
 router.delete('/:id', validateId, requireAdmin, asyncHandler(async (req, res) => {
+  // Find and clean up associated media files before deleting
+  const media = await prisma.media.findMany({
+    where: { parentType: 'announcement', parentId: req.params.id }
+  });
+
   try {
-    await prisma.announcement.delete({ where: { id: req.params.id } });
+    await prisma.$transaction([
+      prisma.media.deleteMany({ where: { parentType: 'announcement', parentId: req.params.id } }),
+      prisma.announcement.delete({ where: { id: req.params.id } }),
+    ]);
   } catch (err) {
     if (err.code === 'P2025') return sendError(res, 'NOT_FOUND', 'Announcement not found');
     throw err;
   }
+
+  // Clean up files on disk after successful DB delete
+  for (const m of media) deleteMediaFile(m);
+
   res.json({ ok: true });
   logAction(req, 'announcement:deleted', 'announcement', req.params.id);
   broadcast('announcement:deleted', { announcementId: req.params.id }, getMutationId(req));

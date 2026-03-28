@@ -88,26 +88,36 @@ router.post('/', upload.single('file'), asyncHandler(async (req, res) => {
     return sendError(res, 'VALIDATION_ERROR', 'Voice notes must be under 2MB (about 60 seconds)');
   }
 
-  // Check total storage used
-  const totalUsed = await getTotalStorageUsed();
-  if (totalUsed + req.file.size > MAX_STORAGE_BYTES) {
-    cleanupFile(req.file);
-    return res.status(507).json({ error: 'Storage limit reached. Contact an admin.', code: 'INTERNAL_ERROR' });
-  }
-
   const type = req.file.mimetype.startsWith('image/') ? 'photo' : 'voice';
 
-  const media = await prisma.media.create({
-    data: {
-      parentType: parsed.parentType,
-      parentId: parsed.parentId,
-      type,
-      filename: req.file.filename,
-      originalName: req.file.originalname,
-      mimeType: req.file.mimetype,
-      sizeBytes: req.file.size
+  // Atomic storage cap check + insert inside a serializable transaction
+  let media;
+  try {
+    media = await prisma.$transaction(async (tx) => {
+      const result = await tx.media.aggregate({ _sum: { sizeBytes: true } });
+      const totalUsed = result._sum.sizeBytes || 0;
+      if (totalUsed + req.file.size > MAX_STORAGE_BYTES) {
+        throw new Error('STORAGE_LIMIT');
+      }
+      return tx.media.create({
+        data: {
+          parentType: parsed.parentType,
+          parentId: parsed.parentId,
+          type,
+          filename: req.file.filename,
+          originalName: req.file.originalname,
+          mimeType: req.file.mimetype,
+          sizeBytes: req.file.size
+        }
+      });
+    }, { isolationLevel: 'Serializable' });
+  } catch (err) {
+    if (err.message === 'STORAGE_LIMIT') {
+      cleanupFile(req.file);
+      return res.status(507).json({ error: 'Storage limit reached. Contact an admin.', code: 'INTERNAL_ERROR' });
     }
-  });
+    throw err;
+  }
 
   if (cachedStorageUsed !== null) cachedStorageUsed += req.file.size;
 

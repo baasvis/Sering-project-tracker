@@ -74,19 +74,21 @@ router.post('/', asyncHandler(async (req, res) => {
   const project = await prisma.project.findUnique({ where: { id: data.projectId }, select: { id: true } });
   if (!project) return sendError(res, 'NOT_FOUND', 'Project not found');
 
-  const maxOrder = await prisma.task.aggregate({ where: { projectId: data.projectId }, _max: { order: true } });
-
-  const task = await prisma.task.create({
-    data: {
-      projectId: data.projectId,
-      name: data.name,
-      description: isAdmin && data.description ? sanitize(data.description) : null,
-      assignee: isAdmin ? (data.assignee || null) : null,
-      deadline: isAdmin ? (data.deadline || null) : null,
-      order: (maxOrder._max.order || 0) + 1,
-      approved: isAdmin,
-      suggestedBy,
-    }
+  // Atomic order assignment inside a transaction to prevent duplicates
+  const task = await prisma.$transaction(async (tx) => {
+    const maxOrder = await tx.task.aggregate({ where: { projectId: data.projectId }, _max: { order: true } });
+    return tx.task.create({
+      data: {
+        projectId: data.projectId,
+        name: data.name,
+        description: isAdmin && data.description ? sanitize(data.description) : null,
+        assignee: isAdmin ? (data.assignee || null) : null,
+        deadline: isAdmin ? (data.deadline || null) : null,
+        order: (maxOrder._max.order || 0) + 1,
+        approved: isAdmin,
+        suggestedBy,
+      }
+    });
   });
   res.status(201).json(task);
   broadcast('task:created', { task, projectId: task.projectId }, getMutationId(req));

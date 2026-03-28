@@ -31,7 +31,6 @@ router.get('/', asyncHandler(async (req, res) => {
         select: {
           id: true, name: true, status: true, tier: true, joinType: true,
           _count: { select: { tasks: true } },
-          tasks: { where: { approved: true, deletedAt: null }, select: { status: true } }
         }
       }
     }
@@ -46,16 +45,27 @@ router.get('/', asyncHandler(async (req, res) => {
   const hasMore = groups.length > limit;
   if (hasMore) groups.pop();
 
+  // Batch-fetch task status counts for all projects in one query
+  const allProjectIds = groups.flatMap(g => g.projects.map(p => p.id));
+  const taskCountsByProject = {};
+  if (allProjectIds.length > 0) {
+    const statusCounts = await prisma.task.groupBy({
+      by: ['projectId', 'status'],
+      where: { projectId: { in: allProjectIds }, approved: true, deletedAt: null },
+      _count: true,
+    });
+    for (const row of statusCounts) {
+      if (!taskCountsByProject[row.projectId]) taskCountsByProject[row.projectId] = { todo: 0, in_progress: 0, done: 0 };
+      taskCountsByProject[row.projectId][row.status] = row._count;
+    }
+  }
+
   const data = groups.map(g => ({
     ...g,
-    projects: g.projects.map(p => {
-      const counts = { todo: 0, in_progress: 0, done: 0 };
-      for (const t of p.tasks) {
-        if (counts[t.status] !== undefined) counts[t.status]++;
-      }
-      const { tasks, ...rest } = p;
-      return { ...rest, taskCounts: counts };
-    })
+    projects: g.projects.map(p => ({
+      ...p,
+      taskCounts: taskCountsByProject[p.id] || { todo: 0, in_progress: 0, done: 0 },
+    }))
   }));
 
   const nextCursor = hasMore && data.length > 0 ? data[data.length - 1].id : null;
@@ -71,23 +81,33 @@ router.get('/:id', validateId, asyncHandler(async (req, res) => {
         orderBy: { createdAt: 'desc' },
         include: {
           _count: { select: { tasks: true } },
-          tasks: { where: { approved: true, deletedAt: null }, select: { status: true } }
         }
       }
     }
   });
   if (!group || group.deletedAt) return sendError(res, 'NOT_FOUND', 'Group not found');
 
+  // Batch-fetch task status counts
+  const projectIds = group.projects.map(p => p.id);
+  const taskCountsByProject = {};
+  if (projectIds.length > 0) {
+    const statusCounts = await prisma.task.groupBy({
+      by: ['projectId', 'status'],
+      where: { projectId: { in: projectIds }, approved: true, deletedAt: null },
+      _count: true,
+    });
+    for (const row of statusCounts) {
+      if (!taskCountsByProject[row.projectId]) taskCountsByProject[row.projectId] = { todo: 0, in_progress: 0, done: 0 };
+      taskCountsByProject[row.projectId][row.status] = row._count;
+    }
+  }
+
   const result = {
     ...group,
-    projects: group.projects.map(p => {
-      const counts = { todo: 0, in_progress: 0, done: 0 };
-      for (const t of p.tasks) {
-        if (counts[t.status] !== undefined) counts[t.status]++;
-      }
-      const { tasks, ...rest } = p;
-      return { ...rest, taskCounts: counts };
-    })
+    projects: group.projects.map(p => ({
+      ...p,
+      taskCounts: taskCountsByProject[p.id] || { todo: 0, in_progress: 0, done: 0 },
+    }))
   };
 
   res.json(result);
@@ -105,14 +125,17 @@ router.post('/', requireAdmin, asyncHandler(async (req, res) => {
 
   if (data.description) data.description = sanitize(data.description);
 
-  const maxOrder = await prisma.group.aggregate({ _max: { order: true } });
-  const group = await prisma.group.create({
-    data: {
-      name: data.name,
-      description: data.description || null,
-      mattermostChannel: data.mattermostChannel || null,
-      order: (maxOrder._max.order || 0) + 1
-    }
+  // Atomic order assignment inside a transaction to prevent duplicates
+  const group = await prisma.$transaction(async (tx) => {
+    const maxOrder = await tx.group.aggregate({ _max: { order: true } });
+    return tx.group.create({
+      data: {
+        name: data.name,
+        description: data.description || null,
+        mattermostChannel: data.mattermostChannel || null,
+        order: (maxOrder._max.order || 0) + 1
+      }
+    });
   });
   res.status(201).json(group);
   logAction(req, 'group:created', 'group', group.id, { name: group.name });

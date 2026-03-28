@@ -41,11 +41,16 @@ router.get('/', asyncHandler(async (req, res) => {
   res.json({ data: items, nextCursor, hasMore });
 }));
 
-// Budget summary: all projects with shopping totals
+// Budget summary: all active projects with approved shopping items
 router.get('/summary', asyncHandler(async (req, res) => {
+  // Only fetch projects that actually have approved shopping items
   const projects = await prisma.project.findMany({
-    where: { status: 'active' },
-    include: {
+    where: {
+      status: 'active',
+      shoppingItems: { some: { approved: true } }
+    },
+    select: {
+      id: true, name: true,
       group: { select: { name: true } },
       shoppingItems: {
         where: { approved: true },
@@ -60,22 +65,21 @@ router.get('/summary', asyncHandler(async (req, res) => {
     orderBy: { name: 'asc' }
   });
 
-  const summary = projects
-    .map(p => {
-      const products = p.shoppingItems.filter(i => i.type === 'product');
-      const costs = p.shoppingItems.filter(i => i.type === 'cost');
-      const productTotal = products.reduce((sum, i) => sum + (i.pricePerItem || 0) * (i.quantity || 1), 0);
-      const costTotal = costs.reduce((sum, i) => sum + (i.amount || 0), 0);
-      return {
-        id: p.id, name: p.name,
-        groupName: p.group?.name || '',
-        itemCount: p.shoppingItems.length,
-        productTotal, costTotal,
-        total: productTotal + costTotal,
-        items: p.shoppingItems
-      };
-    })
-    .filter(p => p.itemCount > 0);
+  const summary = projects.map(p => {
+    let productTotal = 0, costTotal = 0;
+    for (const i of p.shoppingItems) {
+      if (i.type === 'product') productTotal += (i.pricePerItem || 0) * (i.quantity || 1);
+      else if (i.type === 'cost') costTotal += (i.amount || 0);
+    }
+    return {
+      id: p.id, name: p.name,
+      groupName: p.group?.name || '',
+      itemCount: p.shoppingItems.length,
+      productTotal, costTotal,
+      total: productTotal + costTotal,
+      items: p.shoppingItems
+    };
+  });
 
   res.json(summary);
 }));
@@ -101,21 +105,23 @@ router.post('/', asyncHandler(async (req, res) => {
   const project = await prisma.project.findUnique({ where: { id: data.projectId }, select: { id: true } });
   if (!project) return sendError(res, 'NOT_FOUND', 'Project not found');
 
-  const maxOrder = await prisma.shoppingItem.aggregate({ where: { projectId: data.projectId }, _max: { order: true } });
-
-  const item = await prisma.shoppingItem.create({
-    data: {
-      projectId: data.projectId,
-      type: data.type,
-      name: data.name,
-      link: data.link || null,
-      pricePerItem: data.pricePerItem ?? null,
-      quantity: data.quantity,
-      amount: data.amount ?? null,
-      approved: isAdmin,
-      suggestedBy,
-      order: (maxOrder._max.order || 0) + 1,
-    }
+  // Atomic order assignment inside a transaction to prevent duplicates
+  const item = await prisma.$transaction(async (tx) => {
+    const maxOrder = await tx.shoppingItem.aggregate({ where: { projectId: data.projectId }, _max: { order: true } });
+    return tx.shoppingItem.create({
+      data: {
+        projectId: data.projectId,
+        type: data.type,
+        name: data.name,
+        link: data.link || null,
+        pricePerItem: data.pricePerItem ?? null,
+        quantity: data.quantity,
+        amount: data.amount ?? null,
+        approved: isAdmin,
+        suggestedBy,
+        order: (maxOrder._max.order || 0) + 1,
+      }
+    });
   });
   res.status(201).json(item);
   broadcast('shopping:created', { item, projectId: item.projectId }, getMutationId(req));

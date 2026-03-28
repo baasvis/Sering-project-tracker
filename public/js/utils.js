@@ -293,7 +293,8 @@ function showLoading() {
 
 const _pendingRequests = {};
 function withDedup(key, fn) {
-  if (_pendingRequests[key]) return;
-  _pendingRequests[key] = true;
-  return fn().finally(() => { delete _pendingRequests[key]; });
+  if (_pendingRequests[key]) return _pendingRequests[key];
+  const promise = fn().finally(() => { delete _pendingRequests[key]; });
+  _pendingRequests[key] = promise;
+  return promise;
 }

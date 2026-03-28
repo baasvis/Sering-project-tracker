@@ -13,7 +13,7 @@ function cacheTask(task) {
   if (keys.length >= TASK_CACHE_MAX) {
     for (let i = 0; i < 100; i++) delete window._taskCache[keys[i]];
   }
-  cacheTask(task);
+  window._taskCache[task.id] = task;
 }
 
 // Cached projects for filter-only re-renders (avoids re-fetching)

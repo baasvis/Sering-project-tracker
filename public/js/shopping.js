@@ -100,12 +100,12 @@ function renderShoppingSection(items, projectId, options = {}) {
         </span>` : '')}
       </div>`;
     }
-    out += `</div>`;
+    out += html`</div>`;
   }
 
   // Extra costs
   if (costs.length > 0) {
-    out += `<div class="shopping-costs">
+    out += html`<div class="shopping-costs">
       <h3>Extra Costs</h3>`;
     for (const item of costs) {
       out += html`<div class="shopping-cost-row">
@@ -117,7 +117,7 @@ function renderShoppingSection(items, projectId, options = {}) {
         </span>` : '')}
       </div>`;
     }
-    out += `</div>`;
+    out += html`</div>`;
   }
 
   // Grand total
@@ -149,7 +149,7 @@ function renderShoppingSection(items, projectId, options = {}) {
         </div>
       </div>`;
     }
-    out += `</div>`;
+    out += html`</div>`;
   }
 
   // Empty state
@@ -159,7 +159,7 @@ function renderShoppingSection(items, projectId, options = {}) {
     </div>`;
   }
 
-  out += `</div>`;
+  out += html`</div>`;
   return out;
 }
 

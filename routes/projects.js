@@ -40,7 +40,6 @@ router.get('/', asyncHandler(async (req, res) => {
     include: {
       group: { select: { id: true, name: true } },
       _count: { select: { tasks: true } },
-      tasks: { where: { approved: true, deletedAt: null }, select: { status: true } }
     }
   };
   if (cursor) {
@@ -53,14 +52,25 @@ router.get('/', asyncHandler(async (req, res) => {
   const hasMore = projects.length > limit;
   if (hasMore) projects.pop();
 
-  const data = projects.map(p => {
-    const counts = { todo: 0, in_progress: 0, done: 0 };
-    for (const t of p.tasks) {
-      if (counts[t.status] !== undefined) counts[t.status]++;
+  // Batch-fetch task status counts in one query
+  const projectIds = projects.map(p => p.id);
+  const taskCountsByProject = {};
+  if (projectIds.length > 0) {
+    const statusCounts = await prisma.task.groupBy({
+      by: ['projectId', 'status'],
+      where: { projectId: { in: projectIds }, approved: true, deletedAt: null },
+      _count: true,
+    });
+    for (const row of statusCounts) {
+      if (!taskCountsByProject[row.projectId]) taskCountsByProject[row.projectId] = { todo: 0, in_progress: 0, done: 0 };
+      taskCountsByProject[row.projectId][row.status] = row._count;
     }
-    const { tasks, ...rest } = p;
-    return { ...rest, taskCounts: counts };
-  });
+  }
+
+  const data = projects.map(p => ({
+    ...p,
+    taskCounts: taskCountsByProject[p.id] || { todo: 0, in_progress: 0, done: 0 },
+  }));
 
   const nextCursor = hasMore && data.length > 0 ? data[data.length - 1].id : null;
   res.json({ data, nextCursor, hasMore });
