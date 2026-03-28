@@ -12,7 +12,7 @@ This codebase is being rewritten phase-by-phase. The API contract and database m
 - [x] Phase 3a: Simple route rewrites (groups, announcements, comments, health)
 - [x] Phase 3b: Complex route rewrites (projects, tasks)
 - [x] Phase 3c: Remaining routes (media, shopping, reports, export)
-- [ ] Phase 4: Auth hardening
+- [x] Phase 4: Auth hardening
 - [ ] Phase 5a: Frontend core (state, utils, auth)
 - [ ] Phase 5b: Frontend screens (dashboard, projects)
 - [ ] Phase 5c: Frontend remaining (shopping, budget, admin, reports, sse, init)
@@ -232,8 +232,8 @@ The API contract stays the same. Same endpoints, same JSON shapes, same SSE even
 - [x] Rate limiting (general + writes + uploads + SSE + auth)
 - [x] Input sanitization (stripTags, sanitize-html)
 - [x] URL validation (http/https only)
-- [ ] Dev login blocked in production (Phase 4)
-- [ ] Session secret crash in production (Phase 2)
+- [x] Dev login blocked in production (Phase 4)
+- [x] Session secret crash in production (Phase 2)
 - [ ] html`` tagged template for XSS prevention (Phase 5a)
 - [ ] crypto.getRandomValues for mutation IDs (Phase 5a)
 - [ ] Atomic storage cap checks (Phase 3c)
