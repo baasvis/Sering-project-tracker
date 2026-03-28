@@ -1,137 +1,239 @@
-# CLAUDE.md — Sering Project Tracker
+# CLAUDE.md — Sering Project Tracker (Rewrite Guide)
 
-## Stack
-- Node.js/Express server, vanilla JS frontend (no build step, no bundler)
-- All frontend JS files loaded as `<script>` tags — functions are global
-- PostgreSQL database via Prisma ORM
-- Google Sign-In for admin auth (JWT verified via google-auth-library); visitors enter a name (no login)
-- Quill.js rich text editor for descriptions (loaded from CDN)
-- HTML sanitization via sanitize-html on the server
-- Server-Sent Events (SSE) for real-time updates across clients (no external dependencies)
-- Hosted on Railway (auto-deploy, Postgres plugin)
+## What This Project Is
+Project tracker for De Sering community kitchen. Small user base (< 100 users), admin + visitor roles, real-time updates via SSE. Hosted on Railway with PostgreSQL.
 
-## Project Structure
+## Rewrite Goals
+This codebase is being rewritten phase-by-phase. The API contract and database models stay the same, but the internals are being rebuilt for correctness, testability, and safety. Each phase below should be completed in order. Mark phases as DONE here as they're finished.
+
+### Phase Status
+- [ ] Phase 1: Schema hardening (enums, constraints, indexes, migration)
+- [ ] Phase 2: Shared backend infrastructure (validation, CRUD factory, config)
+- [ ] Phase 3a: Simple route rewrites (groups, announcements, comments, health)
+- [ ] Phase 3b: Complex route rewrites (projects, tasks)
+- [ ] Phase 3c: Remaining routes (media, shopping, reports, export)
+- [ ] Phase 4: Auth hardening
+- [ ] Phase 5a: Frontend core (state, utils, auth)
+- [ ] Phase 5b: Frontend screens (dashboard, projects)
+- [ ] Phase 5c: Frontend remaining (shopping, budget, admin, reports, sse, init)
+- [ ] Phase 6: Integration tests + hardening
+
+---
+
+## Stack (unchanged)
+- Node.js / Express 5, vanilla JS frontend (NO build step, NO bundler)
+- PostgreSQL via Prisma ORM
+- Google Sign-In for admin auth; visitors enter a name (no login)
+- Quill.js rich text editor (CDN)
+- sanitize-html on server
+- SSE for real-time (no socket.io, no external deps)
+- Railway hosting (auto-deploy, Postgres plugin)
+
+## Hard Rules — Do Not Break These
+- **No build step or bundler.** No webpack, vite, esbuild, rollup. Ever.
+- **No import/export in frontend files.** All frontend JS uses `<script>` tags, all functions are global.
+- **No new npm dependencies** without explicit approval. The dep list is intentionally small.
+- **Every Prisma schema change requires a migration.** Use `npx prisma migrate dev --name <descriptive_name>`.
+- **Never remove `asyncHandler()` wrapping** from route handlers.
+- **Never bypass `sanitize()`** for user-provided HTML content.
+- **Script load order in index.html must be preserved:** `state.js` -> `auth.js` -> `utils.js` -> `media.js` -> `comments.js` -> `dashboard.js` -> `projects.js` -> `shopping.js` -> `budget.js` -> `reports.js` -> `admin.js` -> `sse.js` -> `init.js`
+
+---
+
+## Architecture Patterns (NEW — follow these in all new/rewritten code)
+
+### Backend
+
+#### Validation: Use Zod
+- Add `zod` as a dependency (the ONE allowed new dep).
+- Define schemas in `lib/schemas.js` — one `create` and one `update` schema per entity.
+- Schemas must match Prisma enums exactly. Single source of truth.
+- All route handlers validate with `schema.parse(req.body)` inside a try/catch that returns 400 on ZodError.
+- Delete the old `lib/validate.js` once all routes are migrated.
+
+#### CRUD Factory: `lib/crud.js`
+- Create a factory function: `makeCrud({ model, createSchema, updateSchema, include?, broadcast? })`
+- Factory returns standard Express handlers: `list`, `getById`, `create`, `update`, `softDelete`, `approve`
+- Every `list` handler supports pagination: `?cursor=<id>&limit=50` (cursor-based, default 50, max 200).
+- Every `list` handler filters `deletedAt: null` by default.
+- Every mutation handler broadcasts SSE via `broadcast()` and logs via `logAction()`.
+- Routes that need custom logic (e.g., projects with task counts) extend the factory, not bypass it.
+
+#### Queries: Fix N+1 and Unbounded Fetches
+- Use Prisma `_count` for status aggregations — never fetch full child arrays just to count.
+- All list endpoints MUST be paginated. No exceptions.
+- Export endpoint must stream rows, not load all into memory.
+- Use transactions for multi-step mutations (approve + update, reorder, group delete with checks).
+
+#### Config: Centralize in `lib/config.js`
+- All magic numbers become named constants: `RATE_LIMIT_GENERAL`, `RATE_LIMIT_WRITES`, `MAX_IMAGE_SIZE_MB`, `SSE_HEARTBEAT_MS`, `MAX_SSE_CONNECTIONS`, etc.
+- `SESSION_SECRET` must **crash the process** in production if not set. No fallback.
+- `DEV_MODE` must check `NODE_ENV !== 'production'` AND `!GOOGLE_CLIENT_ID`. Both conditions required.
+
+#### Auth: Lock Down Dev Mode
+- `/auth/dev-login` must return 403 if `NODE_ENV === 'production'`, regardless of other config.
+- Add rate limiting to auth endpoints: 5 requests/minute.
+
+#### SSE: Fix Connection Issues
+- Add per-connection idle timeout (5 minutes with no heartbeat ACK = drop).
+- Replace in-memory comment cooldown map with a simple DB check (last comment by authorName in last N seconds).
+- Storage cap check: use atomic `UPDATE ... RETURNING` or a serializable transaction, not check-then-act.
+
+#### Error Responses: Consistent Shape
+```json
+{ "error": "Human readable message", "code": "VALIDATION_ERROR" }
 ```
-server.js              — Express app entry point, mounts routers
+Use codes: `VALIDATION_ERROR`, `NOT_FOUND`, `UNAUTHORIZED`, `FORBIDDEN`, `RATE_LIMITED`, `INTERNAL_ERROR`.
+
+### Frontend
+
+#### XSS Prevention: `html` Tagged Template
+- Define in `utils.js`: a tagged template literal `html` that auto-escapes interpolated values.
+- ALL innerHTML assignments must use `html\`...\`` — never raw template literals.
+- Raw HTML from Quill (already sanitized server-side) can use a `raw()` wrapper that opts out of escaping.
+- This is the #1 frontend safety improvement. Every screen file must use it.
+
+#### State: Reactive `S` Object
+- `state.js` adds a `S.subscribe(key, callback)` method.
+- When `S[key]` changes, all subscribers are notified.
+- Screen render functions subscribe to relevant keys instead of being called imperatively from 15 different places.
+- SSE handlers in `sse.js` ONLY update `S` — they never call render functions directly. Subscribers handle re-rendering.
+- This replaces the current spaghetti of `rerenderTaskList()`, `_refreshGroupsAndRerender()`, etc.
+
+#### Mutation IDs: Use Crypto
+- Replace `Date.now() + Math.random()` with `crypto.getRandomValues()` for mutation ID generation.
+
+#### DOM Updates: Targeted, Not Full Redraws
+- Each screen render function should render once on mount.
+- Subsequent updates use targeted DOM patches triggered by `S.subscribe()`.
+- Full re-render only on screen navigation change.
+
+### Database Schema Changes (Phase 1)
+
+#### Add Prisma Enums
+```prisma
+enum ProjectStatus { active completed archived }
+enum TaskStatus { todo in_progress done }
+enum ProjectTier { mvp medium next_level }
+enum JoinType { open contact closed }
+enum ShoppingItemType { product cost }
+enum MediaType { photo voice }
+enum CommentTargetType { group project task announcement }
+enum MediaParentType { task project announcement comment }
+```
+Replace all `String` type fields with these enums.
+
+#### Add Missing Indexes
+- `Task(projectId, status)` compound index
+- `ShoppingItem(projectId, approved)` compound index
+- `Media(parentType, parentId, createdAt)` compound index
+
+#### Keep the Same Model Names and Relations
+The API contract does not change. Frontend expects the same JSON shapes. Enum values serialize as strings in JSON automatically.
+
+---
+
+## Testing (NEW)
+
+### Setup
+- Add `vitest` + `supertest` as dev dependencies.
+- Add `"test": "vitest run"` and `"test:watch": "vitest"` to package.json scripts.
+- Test files go next to the source: `routes/tasks.test.js`, `lib/crud.test.js`, etc.
+
+### What to Test
+- Every Zod schema: valid input, invalid input, edge cases.
+- CRUD factory: list pagination, soft-delete filtering, SSE broadcast calls.
+- Auth: dev-login blocked in production, admin middleware rejects visitors.
+- Business logic: approval workflows, task status transitions, shopping approval.
+- Integration: supertest against real Express app with test database.
+
+### What NOT to Test
+- Prisma queries (trust the ORM).
+- CSS / visual rendering.
+- Third-party libraries (Quill, sanitize-html).
+
+---
+
+## Project Structure (Target)
+```
+server.js                 — Express app, middleware, route mounting
 lib/
-  config.js            — Configuration, env vars, admin email list
-  db.js                — Prisma client instance
-  sanitize.js          — HTML sanitization for rich text (allowlist-based)
-  async-handler.js     — Wraps async route handlers for error propagation
-  media-utils.js       — Shared file deletion utility
-  sse.js               — SSE broadcast hub (client tracking, heartbeat, broadcast)
+  config.js               — All env vars + named constants (centralized)
+  db.js                   — Prisma client instance
+  schemas.js              — Zod validation schemas (one per entity)
+  crud.js                 — CRUD factory (list/get/create/update/delete/approve)
+  sanitize.js             — HTML sanitization (sanitize-html allowlist)
+  async-handler.js        — Wraps async route handlers
+  media-utils.js          — File deletion utility
+  sse.js                  — SSE broadcast hub (connection management, heartbeat)
+  audit.js                — Audit logging (fire-and-forget to DB)
 routes/
-  auth.js              — Google Sign-In (admin), dev login, requireAdmin middleware
-  groups.js            — Group CRUD with task status counts
-  projects.js          — Project CRUD with group relations, tier, joinType
-  tasks.js             — Task CRUD within projects
-  announcements.js     — Announcement CRUD (admin only), includes media inline
-  comments.js          — Comment CRUD (anyone can post, admin can delete)
-  shopping.js          — Shopping list CRUD (items + costs per project)
-  media.js             — File upload/serve/delete (photos + voice notes)
-  reports.js           — Problem reports (anyone submits, admin manages)
-  export.js            — Admin data export (ZIP of CSVs)
-  health.js            — Health check endpoint
+  auth.js                 — Google Sign-In, dev login, requireAdmin middleware
+  groups.js               — Group CRUD (uses crud factory)
+  projects.js             — Project CRUD + task counts via _count
+  tasks.js                — Task CRUD within projects
+  announcements.js        — Announcement CRUD (admin only)
+  comments.js             — Comment CRUD (anyone posts, admin deletes)
+  shopping.js             — Shopping list CRUD (items + costs)
+  media.js                — File upload/serve/delete
+  reports.js              — Problem reports
+  export.js               — Streaming CSV export (admin only)
+  health.js               — Health check
+  *.test.js               — Co-located test files
 public/
-  index.html           — Shell HTML + name overlay
-  css/
-    base.css           — Variables, resets, layout, brand styles, Quill overrides
-    dashboard.css      — Dashboard + announcements + carousel
-    projects.css       — Project list + detail + tasks
-    comments.css       — Comment threads
-    media.css          — Media display, voice recorder, lightbox
-    shopping.css       — Shopping list table + budget page
-    admin.css          — Admin panel
-    mobile.css         — Responsive overrides
+  index.html              — Shell HTML + name overlay
+  css/                    — Same structure, no changes planned
   js/
-    state.js           — Constants (NAV_SCREENS, TASK_STATUSES, PROJECT_TIERS, JOIN_TYPES), global state S
-    auth.js            — Google Sign-In, dev login, name overlay
-    utils.js           — API helpers, toast, esc, timeAgo, Quill editor helpers, showLoading, withDedup, tier filter buttons, mutation ID generation
-    media.js           — Photo upload, voice recording, lightbox, media delete
-    comments.js        — Comment rendering + posting (with dedup)
-    dashboard.js       — Dashboard screen (announcements with carousel + project overview)
-    projects.js        — Project list, project detail, task list, modals, targeted re-renders
-    shopping.js        — Shopping list UI per project
-    budget.js          — Budget overview screen
-    reports.js         — Floating report button, screenshot capture modal
-    admin.js           — Admin panel (group management, reports, data export)
-    sse.js             — Real-time SSE event handlers (must load after all render functions)
-    init.js            — Navigation, routing, app bootstrap (MUST load last)
+    state.js              — Global S with subscribe() reactivity
+    auth.js               — Google Sign-In, dev login, name overlay
+    utils.js              — html`` tagged template, apiFetch, toast, helpers
+    media.js              — Photo upload, voice recording, lightbox
+    comments.js           — Comment rendering + posting
+    dashboard.js          — Dashboard screen
+    projects.js           — Project list + detail
+    shopping.js           — Shopping list UI
+    budget.js             — Budget overview
+    reports.js            — Report button + modal
+    admin.js              — Admin panel
+    sse.js                — SSE handlers (update S only, no direct DOM)
+    init.js               — Navigation, routing, bootstrap (LAST)
 prisma/
-  schema.prisma        — Database schema
-uploads/               — User-uploaded media files (gitignored)
+  schema.prisma           — Database schema with enums
+  migrations/             — Prisma migrations
 ```
-
-## Script Load Order
-Scripts must load in the order listed in index.html:
-`state.js` → `auth.js` → `utils.js` → `media.js` → `comments.js` → `dashboard.js` → `projects.js` → `shopping.js` → `budget.js` → `reports.js` → `admin.js` → `sse.js` → `init.js` (last)
-
-Note: `sse.js` must load after all screen render functions but before `init.js`, since SSE event handlers reference render functions like `rerenderTaskList()`, `renderCurrentScreen()`, etc.
-
-## Conventions
-- All frontend functions are global (no modules, no import/export)
-- State lives in the global `S` object (defined in state.js)
-- Each screen has a render function: `renderDashboard()`, `renderProjects()`, `renderBudget()`, `renderAdmin()`
-- `renderCurrentScreen()` dispatches to the active screen
-- Hash-based routing: `#dashboard`, `#projects`, `#budget`, `#admin`, `#project/{id}`
-- Two auth tiers: admin (Google Sign-In) and visitor (name in localStorage)
-- Admin-only actions use `requireAdmin` middleware server-side
-- All async route handlers wrapped in `asyncHandler()` for error propagation
-- Rich text descriptions sanitized server-side (sanitize-html allowlist)
-- CSS variables defined in base.css match De Sering brand guidelines
-- Request deduplication via `withDedup()` on mutation actions (save, delete)
-- Task status cycling uses optimistic UI: local state updated immediately, rollback on error
-- Suggest/approve workflow: visitors can suggest tasks and projects (approved=false); admins approve via PATCH /:id/approve; pending items shown greyed out to all users
-- All mutation routes broadcast SSE events via `broadcast(eventType, data, mutationId)` from `lib/sse.js`
-- Client-side self-dedup: `apiFetch()` generates a mutation ID (sent as `X-Mutation-ID` header); SSE handler skips events matching `S._pendingMutationIds`
-
-## Key Data Flow
-- `GET /api/groups` returns groups with nested approved active projects and `taskCounts` (approved tasks only)
-- `GET /api/projects/:id` returns project with full tasks array (including pending suggestions)
-- `GET /api/projects?status=active` returns all active projects including pending suggestions
-- `GET /api/announcements` returns announcements with inline media (batch-fetched)
-- `GET /api/comments?targetType=X&targetId=Y` returns comments with attached media
-- `GET /api/shopping?projectId=X` returns all shopping items including pending (visible to everyone)
-- `GET /api/shopping/summary` returns all projects with shopping totals (budget page)
-- `POST /api/shopping` creates item (anyone can suggest, admin auto-approved)
-- `POST /api/tasks` creates task (admin auto-approved) or suggestion (visitor, approved=false)
-- `POST /api/projects` creates project (admin auto-approved) or suggestion (visitor, approved=false)
-- `PATCH /api/tasks/:id/approve` and `PATCH /api/projects/:id/approve` — admin approves suggestion
-- `POST /api/reports` creates report (anyone, with auto-captured screenshot as base64)
-- `GET /api/reports` lists reports (admin only, with `?resolved=true/false` filter)
-- `GET /api/reports/:id` returns single report with screenshot data (admin only)
-- `PATCH /api/reports/:id` resolves or adds notes (admin only)
-- `GET /api/export` downloads ZIP of all tables as CSVs (admin only)
-- `POST /api/media` accepts multipart form upload (photo or voice)
-- `GET /api/media/:id/file` serves the uploaded file (checks flat + nested + misc paths)
-- Comments: anyone can create (requires authorName); only admin can delete
-- Tasks: validated status (todo/in_progress/done), optional assignee + deadline; name stripped of HTML tags, max 200 chars
-- Projects: validated status (active/completed/archived), optional tier + joinType; name stripped of HTML tags, max 200 chars
-- Shopping: items (name, link, price, qty) and costs (name, amount) per project
-- `GET /api/events` — SSE stream; all mutation routes broadcast `entity:action` events (e.g. `task:updated`, `comment:created`) with full entity data + optional `_mutationId` for self-dedup
-- SSE event handlers in `sse.js` update `S` state and call targeted re-renders (e.g. `rerenderTaskList()`) or full screen re-renders depending on context
-
-## Security
-- **Helmet**: CSP, HSTS, X-Frame-Options, nosniff, referrer-policy
-- **CSRF**: double-submit cookie on all `/api/*` write operations (X-CSRF-Token header)
-- **Rate limiting**: 100 req/min general, 20/min writes, 10/min uploads, 5/min SSE connections
-- **SSE**: max 500 concurrent connections; 30s heartbeat keeps connections alive through proxies
-- **Input sanitization**: HTML tags stripped from task/project/shopping item names and author names server-side; rich text sanitized via sanitize-html
-- **URL validation**: only http/https links allowed in shopping items
-- **Report validation**: screenshot must be `data:image/*` format, description/name stripped of HTML tags, UUID validation on :id params
 
 ## Running
 ```bash
 npm run dev           # port 3001 with --watch
 npm start             # production
+npm test              # vitest
+npm run test:watch    # vitest in watch mode
 ```
-Requires `DATABASE_URL` env var pointing to PostgreSQL.
-Without `GOOGLE_CLIENT_ID`, runs in dev mode (use /auth/dev-login).
 
-## Don't
-- Don't add a build step or bundler
-- Don't use import/export in frontend files
-- Don't change the Prisma schema without creating a migration
-- Don't break the script load order in index.html
-- Don't remove asyncHandler wrapping from route handlers
-- Don't bypass sanitize() for user-provided HTML content
+### Required Environment Variables
+| Variable | Required In | Purpose |
+|---|---|---|
+| `DATABASE_URL` | always | PostgreSQL connection string |
+| `GOOGLE_CLIENT_ID` | production | Google OAuth client ID |
+| `SESSION_SECRET` | production | Session cookie signing (must crash if missing) |
+| `ADMIN_EMAILS` | production | Comma-separated admin email list |
+
+### Dev Mode
+Without `GOOGLE_CLIENT_ID` AND with `NODE_ENV !== 'production'`, the app runs in dev mode. Use `/auth/dev-login` to get admin access.
+
+## Key Data Flow (unchanged)
+The API contract stays the same. Same endpoints, same JSON shapes, same SSE events. The only additions are:
+- Pagination params (`?cursor=<id>&limit=50`) on all list endpoints
+- Consistent error response shape (`{ error, code }`)
+
+## Security Checklist
+- [x] Helmet (CSP, HSTS, X-Frame-Options, nosniff)
+- [x] CSRF double-submit cookie
+- [x] Rate limiting (general + writes + uploads + SSE + auth)
+- [x] Input sanitization (stripTags, sanitize-html)
+- [x] URL validation (http/https only)
+- [ ] Dev login blocked in production (Phase 4)
+- [ ] Session secret crash in production (Phase 2)
+- [ ] html`` tagged template for XSS prevention (Phase 5a)
+- [ ] crypto.getRandomValues for mutation IDs (Phase 5a)
+- [ ] Atomic storage cap checks (Phase 3c)
