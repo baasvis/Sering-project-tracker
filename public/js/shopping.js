@@ -49,118 +49,118 @@ function renderShoppingSection(items, projectId, options = {}) {
   }
 
   const addButtons = S.isAdmin
-    ? `<div class="shopping-actions">
-        <button class="btn btn-primary btn-small" data-action="showShoppingItemModal" data-type="product" data-project-id="${esc(projectId)}">+ Item</button>
-        <button class="btn btn-secondary btn-small" data-action="showShoppingItemModal" data-type="cost" data-project-id="${esc(projectId)}">+ Cost</button>
+    ? html`<div class="shopping-actions">
+        <button class="btn btn-primary btn-small" data-action="showShoppingItemModal" data-type="product" data-project-id="${projectId}">+ Item</button>
+        <button class="btn btn-secondary btn-small" data-action="showShoppingItemModal" data-type="cost" data-project-id="${projectId}">+ Cost</button>
       </div>`
-    : `<div class="shopping-actions">
-        <button class="btn btn-secondary btn-small" data-action="showShoppingItemModal" data-type="product" data-project-id="${esc(projectId)}">Suggest Item</button>
-        <button class="btn btn-secondary btn-small" data-action="showShoppingItemModal" data-type="cost" data-project-id="${esc(projectId)}">Suggest Cost</button>
+    : html`<div class="shopping-actions">
+        <button class="btn btn-secondary btn-small" data-action="showShoppingItemModal" data-type="product" data-project-id="${projectId}">Suggest Item</button>
+        <button class="btn btn-secondary btn-small" data-action="showShoppingItemModal" data-type="cost" data-project-id="${projectId}">Suggest Cost</button>
       </div>`;
 
-  let html = `<div class="shopping-list" id="shopping-${esc(projectId)}">
+  let out = html`<div class="shopping-list" id="shopping-${projectId}">
     <div class="shopping-header">
       <div class="shopping-header-left">
         <h2>Shopping List</h2>
-        <span class="shopping-total">${formatEuro(totals.total)}</span>
+        <span class="shopping-total">${raw(formatEuro(totals.total))}</span>
       </div>
-      ${addButtons}
+      ${raw(addButtons)}
     </div>`;
 
   // Products table
   if (products.length > 0) {
-    html += `<div class="shopping-table">
+    out += html`<div class="shopping-table">
       <div class="shopping-table-head ${S.isAdmin ? 'has-actions' : ''}">
         <span class="sh-name">Item</span>
         <span class="sh-price">Price</span>
         <span class="sh-qty">Qty</span>
         <span class="sh-total">Total</span>
         <span class="sh-status">Got it</span>
-        ${S.isAdmin ? '<span class="sh-actions"></span>' : ''}
+        ${raw(S.isAdmin ? '<span class="sh-actions"></span>' : '')}
       </div>`;
     for (const item of products) {
       const itemTotal = (item.pricePerItem || 0) * (item.quantity || 1);
       const href = safeHref(item.link);
       const nameHtml = href
-        ? `<a href="${href}" target="_blank" rel="noopener noreferrer">${esc(item.name)}</a>`
+        ? html`<a href="${raw(href)}" target="_blank" rel="noopener noreferrer">${item.name}</a>`
         : esc(item.name);
-      html += `<div class="shopping-row ${item.purchased ? 'purchased' : ''} ${S.isAdmin ? 'has-actions' : ''}">
-        <span class="sh-name">${nameHtml}</span>
-        <span class="sh-price">${formatEuro(item.pricePerItem)}</span>
+      out += html`<div class="shopping-row ${item.purchased ? 'purchased' : ''} ${S.isAdmin ? 'has-actions' : ''}">
+        <span class="sh-name">${raw(nameHtml)}</span>
+        <span class="sh-price">${raw(formatEuro(item.pricePerItem))}</span>
         <span class="sh-qty">${item.quantity || 1}</span>
-        <span class="sh-total">${formatEuro(itemTotal)}</span>
+        <span class="sh-total">${raw(formatEuro(itemTotal))}</span>
         <span class="sh-status">
-          ${S.isAdmin
-            ? `<button class="shopping-check ${item.purchased ? 'checked' : ''}" aria-label="${item.purchased ? 'Mark as not purchased' : 'Mark as purchased'}" data-action="togglePurchased" data-stop data-id="${esc(item.id)}" data-purchased="${!item.purchased}">${item.purchased ? '&#10003;' : ''}</button>`
-            : `<span class="shopping-check ${item.purchased ? 'checked' : ''}">${item.purchased ? '&#10003;' : ''}</span>`}
+          ${raw(S.isAdmin
+            ? html`<button class="shopping-check ${item.purchased ? 'checked' : ''}" aria-label="${item.purchased ? 'Mark as not purchased' : 'Mark as purchased'}" data-action="togglePurchased" data-stop data-id="${item.id}" data-purchased="${!item.purchased}">${raw(item.purchased ? '&#10003;' : '')}</button>`
+            : html`<span class="shopping-check ${item.purchased ? 'checked' : ''}">${raw(item.purchased ? '&#10003;' : '')}</span>`)}
         </span>
-        ${S.isAdmin ? `<span class="sh-actions">
-          <button class="btn-icon" aria-label="Edit item" data-action="editShoppingItem" data-stop data-id="${esc(item.id)}" data-type="product" data-project-id="${esc(projectId)}">&#9998;</button>
-          <button class="btn-icon btn-icon-danger" aria-label="Delete item" data-action="deleteShoppingItem" data-stop data-id="${esc(item.id)}" data-project-id="${esc(projectId)}">&#10005;</button>
-        </span>` : ''}
+        ${raw(S.isAdmin ? html`<span class="sh-actions">
+          <button class="btn-icon" aria-label="Edit item" data-action="editShoppingItem" data-stop data-id="${item.id}" data-type="product" data-project-id="${projectId}">&#9998;</button>
+          <button class="btn-icon btn-icon-danger" aria-label="Delete item" data-action="deleteShoppingItem" data-stop data-id="${item.id}" data-project-id="${projectId}">&#10005;</button>
+        </span>` : '')}
       </div>`;
     }
-    html += `</div>`;
+    out += `</div>`;
   }
 
   // Extra costs
   if (costs.length > 0) {
-    html += `<div class="shopping-costs">
+    out += `<div class="shopping-costs">
       <h3>Extra Costs</h3>`;
     for (const item of costs) {
-      html += `<div class="shopping-cost-row">
-        <span class="sh-name">${esc(item.name)}</span>
-        <span class="sh-total">${formatEuro(item.amount)}</span>
-        ${S.isAdmin ? `<span class="sh-actions">
-          <button class="btn-icon" aria-label="Edit cost" data-action="editShoppingItem" data-stop data-id="${esc(item.id)}" data-type="cost" data-project-id="${esc(projectId)}">&#9998;</button>
-          <button class="btn-icon btn-icon-danger" aria-label="Delete cost" data-action="deleteShoppingItem" data-stop data-id="${esc(item.id)}" data-project-id="${esc(projectId)}">&#10005;</button>
-        </span>` : ''}
+      out += html`<div class="shopping-cost-row">
+        <span class="sh-name">${item.name}</span>
+        <span class="sh-total">${raw(formatEuro(item.amount))}</span>
+        ${raw(S.isAdmin ? html`<span class="sh-actions">
+          <button class="btn-icon" aria-label="Edit cost" data-action="editShoppingItem" data-stop data-id="${item.id}" data-type="cost" data-project-id="${projectId}">&#9998;</button>
+          <button class="btn-icon btn-icon-danger" aria-label="Delete cost" data-action="deleteShoppingItem" data-stop data-id="${item.id}" data-project-id="${projectId}">&#10005;</button>
+        </span>` : '')}
       </div>`;
     }
-    html += `</div>`;
+    out += `</div>`;
   }
 
   // Grand total
   if (products.length > 0 || costs.length > 0) {
-    html += `<div class="shopping-grand-total">
+    out += html`<div class="shopping-grand-total">
       <span>Total</span>
-      <span>${formatEuro(totals.total)}</span>
+      <span>${raw(formatEuro(totals.total))}</span>
     </div>`;
   }
 
   // Pending suggestions — visible to all, but admin gets approve/reject actions
   if (pending.length > 0) {
-    html += `<div class="shopping-pending">
+    out += html`<div class="shopping-pending">
       <h3>Pending Suggestions (${pending.length})</h3>`;
     for (const item of pending) {
       const desc = item.type === 'product'
-        ? `${esc(item.name)} — ${formatEuro(item.pricePerItem)} x ${item.quantity || 1}`
-        : `${esc(item.name)} — ${formatEuro(item.amount)}`;
-      html += `<div class="shopping-pending-row">
+        ? html`${item.name} — ${raw(formatEuro(item.pricePerItem))} x ${item.quantity || 1}`
+        : html`${item.name} — ${raw(formatEuro(item.amount))}`;
+      out += html`<div class="shopping-pending-row">
         <div>
-          <span class="shopping-pending-name">${desc}</span>
-          <span class="text-muted text-sm">suggested by ${esc(item.suggestedBy || 'someone')}</span>
+          <span class="shopping-pending-name">${raw(desc)}</span>
+          <span class="text-muted text-sm">suggested by ${item.suggestedBy || 'someone'}</span>
         </div>
         <div class="shopping-pending-actions">
-          ${S.isAdmin
-            ? `<button class="btn btn-small btn-primary" data-action="approveShoppingItem" data-id="${esc(item.id)}" data-project-id="${esc(projectId)}">Approve</button>
-               <button class="btn btn-small btn-danger" data-action="deleteShoppingItem" data-id="${esc(item.id)}" data-project-id="${esc(projectId)}">Reject</button>`
-            : `<span class="pending-badge">Pending approval</span>`}
+          ${raw(S.isAdmin
+            ? html`<button class="btn btn-small btn-primary" data-action="approveShoppingItem" data-id="${item.id}" data-project-id="${projectId}">Approve</button>
+               <button class="btn btn-small btn-danger" data-action="deleteShoppingItem" data-id="${item.id}" data-project-id="${projectId}">Reject</button>`
+            : `<span class="pending-badge">Pending approval</span>`)}
         </div>
       </div>`;
     }
-    html += `</div>`;
+    out += `</div>`;
   }
 
   // Empty state
   if (products.length === 0 && costs.length === 0 && pending.length === 0) {
-    html += `<div class="empty-state" style="padding:var(--space-lg) 0">
+    out += html`<div class="empty-state" style="padding:${raw('var(--space-lg)')} 0">
       <p class="text-muted">No items yet. ${S.isAdmin ? 'Add items to track costs.' : 'Suggest items for this project.'}</p>
     </div>`;
   }
 
-  html += `</div>`;
-  return html;
+  out += `</div>`;
+  return out;
 }
 
 // Load and render shopping section into a container
@@ -191,16 +191,16 @@ function showShoppingItemModal(type, projectId, existing) {
 
   const backdrop = document.createElement('div');
   backdrop.className = 'modal-backdrop';
-  backdrop.innerHTML = `<div class="modal">
+  backdrop.innerHTML = html`<div class="modal">
     <h2>${isEdit ? 'Edit' : (isAdmin ? 'Add' : 'Suggest')} ${isProduct ? 'Item' : 'Cost'}</h2>
     <div class="form-group">
       <label>${isProduct ? 'Item Name' : 'Cost Description'}</label>
-      <input type="text" id="shop-name" maxlength="200" value="${esc(existing?.name || '')}" placeholder="${isProduct ? 'e.g. Screws M6 x 50mm' : 'e.g. Labour, delivery fee'}">
+      <input type="text" id="shop-name" maxlength="200" value="${existing?.name || ''}" placeholder="${isProduct ? 'e.g. Screws M6 x 50mm' : 'e.g. Labour, delivery fee'}">
     </div>
-    ${isProduct ? `
+    ${raw(isProduct ? html`
     <div class="form-group">
       <label>Link (optional)</label>
-      <input type="url" id="shop-link" value="${esc(existing?.link || '')}" placeholder="https://...">
+      <input type="url" id="shop-link" value="${existing?.link || ''}" placeholder="https://...">
     </div>
     <div class="form-row">
       <div class="form-group">
@@ -211,14 +211,14 @@ function showShoppingItemModal(type, projectId, existing) {
         <label>Quantity</label>
         <input type="number" id="shop-qty" min="1" max="10000" value="${existing?.quantity ?? 1}">
       </div>
-    </div>` : `
+    </div>` : html`
     <div class="form-group">
       <label>Amount (€)</label>
       <input type="number" id="shop-amount" step="0.01" min="0" max="1000000" value="${existing?.amount ?? ''}">
-    </div>`}
+    </div>`)}
     <div class="modal-actions">
       <button class="btn btn-secondary" data-action="closeModal">Cancel</button>
-      <button class="btn btn-primary" data-action="saveShoppingItem" data-type="${esc(type)}" data-project-id="${esc(projectId)}" data-id="${isEdit ? esc(existing.id) : ''}">${isEdit ? 'Save' : (isAdmin ? 'Add' : 'Suggest')}</button>
+      <button class="btn btn-primary" data-action="saveShoppingItem" data-type="${type}" data-project-id="${projectId}" data-id="${isEdit ? existing.id : ''}">${isEdit ? 'Save' : (isAdmin ? 'Add' : 'Suggest')}</button>
     </div>
   </div>`;
   backdrop.addEventListener('click', e => { if (e.target === backdrop) backdrop.remove(); });

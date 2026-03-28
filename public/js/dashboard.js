@@ -17,11 +17,11 @@ async function renderDashboard() {
     S.announcements = announcements;
     S.groups = groups;
   } catch (err) {
-    app.innerHTML = `<p class="text-muted">Could not load data: ${esc(err.message)}</p>`;
+    app.innerHTML = html`<p class="text-muted">Could not load data: ${err.message}</p>`;
     return;
   }
 
-  app.innerHTML = `
+  app.innerHTML = html`
     <div class="dashboard-header">
       <h1>De Sering Projects</h1>
       <p>Where community grows through food.</p>
@@ -30,26 +30,26 @@ async function renderDashboard() {
     <div class="announcements-section">
       <div class="section-header">
         <h2>Announcements</h2>
-        ${S.isAdmin ? '<button class="btn btn-primary" data-action="showAnnouncementModal">+ New</button>' : ''}
+        ${raw(S.isAdmin ? '<button class="btn btn-primary" data-action="showAnnouncementModal">+ New</button>' : '')}
       </div>
       <div class="announcements-grid" id="announcements-list">
-        ${S.announcements.length === 0
+        ${raw(S.announcements.length === 0
           ? '<p class="text-muted">No announcements yet.</p>'
-          : S.announcements.map(renderAnnouncementCard).join('')}
+          : S.announcements.map(renderAnnouncementCard).join(''))}
       </div>
     </div>
 
-    ${renderTierButtons()}
+    ${raw(renderTierButtons())}
 
     <div class="projects-overview" id="dashboard-projects-overview">
       <div class="section-header">
         <h2>Active Projects</h2>
-        ${S.isAdmin ? '<button class="btn btn-primary" data-action="showProjectModal">+ New Project</button>' : ''}
+        ${raw(S.isAdmin ? '<button class="btn btn-primary" data-action="showProjectModal">+ New Project</button>' : '')}
       </div>
       <div id="dashboard-group-sections">
-        ${S.groups.length === 0
+        ${raw(S.groups.length === 0
           ? '<p class="text-muted">No projects yet.</p>'
-          : S.groups.map(renderGroupSection).join('')}
+          : S.groups.map(renderGroupSection).join(''))}
       </div>
     </div>`;
 
@@ -75,33 +75,33 @@ async function loadAnnouncementMedia(a) {
     // Populate carousel with photos
     if (carousel && photos.length > 0) {
       carousel.classList.remove('empty');
-      carousel.innerHTML = `
+      carousel.innerHTML = html`
         <div class="carousel-track" id="ann-track-${annId}">
-          ${photos.map(p => `<img src="/api/media/${p.id}/file" alt="${esc(p.originalName)}" data-action="openLightbox" data-url="/api/media/${p.id}/file">`).join('')}
+          ${raw(photos.map(p => html`<img src="/api/media/${p.id}/file" alt="${p.originalName}" data-action="openLightbox" data-url="/api/media/${p.id}/file">`).join(''))}
         </div>
-        ${photos.length > 1 ? `
-          <button class="carousel-btn prev" data-action="slideCarousel" data-stop data-ann-id="${annId}" data-direction="-1">&#8249;</button>
-          <button class="carousel-btn next" data-action="slideCarousel" data-stop data-ann-id="${annId}" data-direction="1">&#8250;</button>
+        ${raw(photos.length > 1 ? html`
+          <button class="carousel-btn prev" data-action="slideCarousel" data-stop data-ann-id="${annId}" data-direction="-1">${raw('&#8249;')}</button>
+          <button class="carousel-btn next" data-action="slideCarousel" data-stop data-ann-id="${annId}" data-direction="1">${raw('&#8250;')}</button>
           <div class="carousel-dots">
-            ${photos.map((_, i) => `<button class="carousel-dot${i === 0 ? ' active' : ''}" data-action="goToSlide" data-stop data-ann-id="${annId}" data-index="${i}"></button>`).join('')}
-          </div>` : ''}`;
+            ${raw(photos.map((_, i) => html`<button class="carousel-dot${raw(i === 0 ? ' active' : '')}" data-action="goToSlide" data-stop data-ann-id="${annId}" data-index="${i}"></button>`).join(''))}
+          </div>` : '')}`;
       carousel.dataset.slide = '0';
       carousel.dataset.total = photos.length;
     }
 
     // Voice notes + upload buttons below
     if (extras) {
-      let html = '';
-      if (voiceNotes.length > 0) html += renderMediaItems(voiceNotes);
+      let extrasHtml = '';
+      if (voiceNotes.length > 0) extrasHtml += renderMediaItems(voiceNotes);
       if (S.isAdmin) {
         if (photos.length > 0) {
-          html += `<div class="media-grid">${photos.map(p =>
-            `<div class="media-item"><img src="/api/media/${p.id}/file" class="media-thumb" style="width:40px;height:40px" alt="${esc(p.originalName)}"><button class="media-delete-btn" data-action="deleteMedia" data-stop data-media-id="${p.id}" title="Delete" style="display:flex">&#10005;</button></div>`
-          ).join('')}</div>`;
+          extrasHtml += html`<div class="media-grid">${raw(photos.map(p =>
+            html`<div class="media-item"><img src="/api/media/${p.id}/file" class="media-thumb" style="width:40px;height:40px" alt="${p.originalName}"><button class="media-delete-btn" data-action="deleteMedia" data-stop data-media-id="${p.id}" title="Delete" style="display:flex">${raw('&#10005;')}</button></div>`
+          ).join(''))}</div>`;
         }
-        html += renderMediaUploadButtons('announcement', annId);
+        extrasHtml += renderMediaUploadButtons('announcement', annId);
       }
-      if (html) extras.innerHTML = html;
+      if (extrasHtml) extras.innerHTML = extrasHtml;
     }
   } catch (e) {
     console.warn('Could not load announcement media:', e.message);
@@ -148,22 +148,22 @@ function renderAnnouncementCard(a) {
   const mediaHtml = renderMediaItems(a.media || []);
   const uploadHtml = S.isAdmin ? renderMediaUploadButtons('announcement', a.id) : '';
 
-  return `<div class="announcement-card${a.pinned ? ' pinned' : ''}" data-ann-id="${a.id}">
+  return html`<div class="announcement-card${raw(a.pinned ? ' pinned' : '')}" data-ann-id="${a.id}">
     <div class="announcement-carousel empty" id="ann-carousel-${a.id}"></div>
     <div class="announcement-content" data-action="toggleAnnouncement" data-id="${a.id}">
       <div class="announcement-meta">
-        ${a.pinned ? '<span class="tag tag-group">Pinned</span>' : ''}
-        <span>${timeAgo(a.createdAt)}</span>
+        ${raw(a.pinned ? '<span class="tag tag-group">Pinned</span>' : '')}
+        <span>${raw(timeAgo(a.createdAt))}</span>
       </div>
-      <h3>${esc(a.title)}</h3>
-      <p class="announcement-preview">${esc(extractPreviewText(a.body))}</p>
-      <div class="announcement-body">${renderDescription(a.body)}</div>
+      <h3>${a.title}</h3>
+      <p class="announcement-preview">${raw(esc(extractPreviewText(a.body)))}</p>
+      <div class="announcement-body">${raw(renderDescription(a.body))}</div>
       <div class="announcement-expand-hint">Click to read more</div>
     </div>
-    ${S.isAdmin ? `<div class="announcement-admin">
+    ${raw(S.isAdmin ? html`<div class="announcement-admin">
       <button class="comment-delete" data-action="editAnnouncement" data-id="${a.id}">edit</button>
       <button class="comment-delete" data-action="deleteAnnouncement" data-id="${a.id}">delete</button>
-    </div>` : ''}
+    </div>` : '')}
     <div class="announcement-extras" id="ann-extras-${a.id}"></div>
   </div>`;
 }
@@ -175,10 +175,9 @@ function rerenderDashboardProjects() {
   const container = document.getElementById('dashboard-group-sections');
   if (!container || !S.groups) return;
 
-  const html = S.groups.length === 0
-    ? '<p class="text-muted">No projects yet.</p>'
+  container.innerHTML = S.groups.length === 0
+    ? html`<p class="text-muted">No projects yet.</p>`
     : S.groups.map(renderGroupSection).join('');
-  container.innerHTML = html;
 
   // Reload project card media
   const projectIds = S.groups.flatMap(g =>
@@ -191,10 +190,10 @@ function renderGroupSection(group) {
   const activeProjects = sortProjectsByTier(filterProjectsByTier(group.projects || []));
   if (activeProjects.length === 0) return '';
 
-  return `<div class="group-section">
-    <div class="group-label">${esc(group.name)}</div>
+  return html`<div class="group-section">
+    <div class="group-label">${group.name}</div>
     <div class="project-cards">
-      ${activeProjects.map(p => renderProjectCard(p, group)).join('')}
+      ${raw(activeProjects.map(p => renderProjectCard(p, group)).join(''))}
     </div>
   </div>`;
 }
@@ -206,15 +205,15 @@ function renderProjectCard(project, group) {
   const pct = total > 0 ? Math.round((done / total) * 100) : 0;
   const isExpanded = S._expandedCardId === project.id;
 
-  return `<div class="project-card card-clickable ${isExpanded ? 'expanded' : ''}"
+  return html`<div class="project-card card-clickable ${raw(isExpanded ? 'expanded' : '')}"
                id="project-card-${project.id}"
                data-action="toggleProjectCard" data-project-id="${project.id}">
     <div class="project-card-header">
-      <h3>${esc(project.name)}</h3>
+      <h3>${project.name}</h3>
       <div class="project-card-tags">
-        ${project.tier && PROJECT_TIERS[project.tier] ? `<span class="tag tag-tier" style="background:${PROJECT_TIERS[project.tier].bg};color:${PROJECT_TIERS[project.tier].color}">${PROJECT_TIERS[project.tier].label}</span>` : ''}
-        ${project.joinType && JOIN_TYPES[project.joinType] ? `<span class="tag tag-join-${esc(project.joinType)}">${JOIN_TYPES[project.joinType].label}</span>` : ''}
-        <span class="tag tag-group">${esc(group.name)}</span>
+        ${raw(project.tier && PROJECT_TIERS[project.tier] ? html`<span class="tag tag-tier" style="background:${raw(PROJECT_TIERS[project.tier].bg)};color:${raw(PROJECT_TIERS[project.tier].color)}">${PROJECT_TIERS[project.tier].label}</span>` : '')}
+        ${raw(project.joinType && JOIN_TYPES[project.joinType] ? html`<span class="tag tag-join-${project.joinType}">${JOIN_TYPES[project.joinType].label}</span>` : '')}
+        <span class="tag tag-group">${group.name}</span>
       </div>
     </div>
     <div class="task-count">${done}/${total} tasks done</div>
@@ -254,12 +253,12 @@ async function toggleProjectCard(projectId) {
   // Check cache
   let project = S._expandedProjects[projectId];
   if (!project) {
-    contentEl.innerHTML = '<div class="loading-spinner" style="margin:var(--space-md) 0"></div>';
+    contentEl.innerHTML = html`<div class="loading-spinner" style="${raw('margin:var(--space-md) 0')}"></div>`;
     try {
       project = await apiGet('/api/projects/' + projectId);
       S._expandedProjects[projectId] = project;
     } catch (err) {
-      contentEl.innerHTML = '<p class="text-muted">Could not load details.</p>';
+      contentEl.innerHTML = html`<p class="text-muted">Could not load details.</p>`;
       return;
     }
   }
@@ -267,19 +266,19 @@ async function toggleProjectCard(projectId) {
   const tasks = (project.tasks || []).filter(t => t.approved !== false);
   const statusIcon = { done: '&#10003;', in_progress: '&#9679;', todo: '' };
 
-  contentEl.innerHTML =
-    (project.description ? '<div class="project-card-description">' + renderDescription(project.description) + '</div>' : '') +
-    (tasks.length > 0
-      ? '<div class="project-card-tasks"><h4>Tasks</h4>' +
-        tasks.map(t =>
-          '<div class="inline-task-item">' +
-            '<div class="task-status-dot ' + t.status + '">' + (statusIcon[t.status] || '') + '</div>' +
-            '<span class="' + (t.status === 'done' ? 'task-done' : '') + '">' + esc(t.name) + '</span>' +
-          '</div>'
-        ).join('') +
-        '</div>'
-      : '') +
-    '<button class="btn btn-secondary btn-small mt-sm" data-action="navigateToProject" data-stop data-project-id="' + projectId + '">View full details &rarr;</button>';
+  contentEl.innerHTML = html`
+    ${raw(project.description ? html`<div class="project-card-description">${raw(renderDescription(project.description))}</div>` : '')}
+    ${raw(tasks.length > 0
+      ? html`<div class="project-card-tasks"><h4>Tasks</h4>
+          ${raw(tasks.map(t =>
+            html`<div class="inline-task-item">
+              <div class="task-status-dot ${t.status}">${raw(statusIcon[t.status] || '')}</div>
+              <span class="${raw(t.status === 'done' ? 'task-done' : '')}">${t.name}</span>
+            </div>`
+          ).join(''))}
+        </div>`
+      : '')}
+    <button class="btn btn-secondary btn-small mt-sm" data-action="navigateToProject" data-stop data-project-id="${projectId}">View full details ${raw('&rarr;')}</button>`;
 }
 
 // Batch-fetch media for all project cards in one API call (avoids N+1)
@@ -293,11 +292,11 @@ async function loadAllProjectCardMedia(projectIds) {
       if (!container) continue;
       const photos = media.filter(m => m.type === 'photo');
       if (photos.length > 0) {
-        container.innerHTML = `<div class="media-grid project-card-photos">${photos.map(m =>
-          `<img src="/api/media/${m.id}/file" class="media-thumb"
+        container.innerHTML = html`<div class="media-grid project-card-photos">${raw(photos.map(m =>
+          html`<img src="/api/media/${m.id}/file" class="media-thumb"
                 data-action="openLightbox" data-stop data-url="/api/media/${m.id}/file"
-                alt="${esc(m.originalName)}">`
-        ).join('')}</div>`;
+                alt="${m.originalName}">`
+        ).join(''))}</div>`;
       }
     }
   } catch (e) { /* ignore */ }
@@ -308,18 +307,18 @@ function showAnnouncementModal(existing) {
   const isEdit = !!existing;
   const backdrop = document.createElement('div');
   backdrop.className = 'modal-backdrop';
-  backdrop.innerHTML = `<div class="modal">
+  backdrop.innerHTML = html`<div class="modal">
     <h2>${isEdit ? 'Edit' : 'New'} Announcement</h2>
     <div class="form-group">
       <label>Title</label>
-      <input type="text" id="ann-title" value="${esc(existing?.title || '')}">
+      <input type="text" id="ann-title" value="${existing?.title || ''}">
     </div>
     <div class="form-group">
       <label>Body</label>
       <div id="ann-body-editor"></div>
     </div>
     <div class="form-group">
-      <label><input type="checkbox" id="ann-pinned" ${existing?.pinned ? 'checked' : ''}> Pin to top</label>
+      <label><input type="checkbox" id="ann-pinned" ${raw(existing?.pinned ? 'checked' : '')}> Pin to top</label>
     </div>
     <div class="modal-actions">
       <button class="btn btn-secondary" data-action="closeModal">Cancel</button>

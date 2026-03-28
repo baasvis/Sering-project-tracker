@@ -20,11 +20,11 @@ async function renderAdmin() {
     S.groups = groups;
     reports = reportsData;
   } catch (err) {
-    app.innerHTML = `<p class="text-muted">Could not load admin data.</p>`;
+    app.innerHTML = html`<p class="text-muted">Could not load admin data.</p>`;
     return;
   }
 
-  app.innerHTML = `
+  app.innerHTML = html`
     <div class="admin-panel">
       <h1 class="mb-lg">Admin</h1>
 
@@ -34,15 +34,15 @@ async function renderAdmin() {
           <button class="btn btn-primary" data-action="showGroupModal">+ New Group</button>
         </div>
         <ul class="admin-list mt-md">
-          ${S.groups.length === 0
+          ${raw(S.groups.length === 0
             ? '<p class="text-muted">No groups yet. Create one to start organising projects.</p>'
             : S.groups.map(g => {
               window._groupCache = window._groupCache || {};
               window._groupCache[g.id] = g;
-              return `
+              return html`
               <li class="admin-list-item">
                 <div>
-                  <strong>${esc(g.name)}</strong>
+                  <strong>${g.name}</strong>
                   <span class="text-muted text-sm"> — ${g._count?.projects || 0} projects</span>
                 </div>
                 <div class="admin-actions">
@@ -50,7 +50,7 @@ async function renderAdmin() {
                   <button class="btn btn-danger btn-small" data-action="deleteGroup" data-id="${g.id}">Delete</button>
                 </div>
               </li>`;
-            }).join('')}
+            }).join(''))}
         </ul>
       </div>
 
@@ -64,29 +64,29 @@ async function renderAdmin() {
 
       <div class="admin-section">
         <div class="flex-between">
-          <h2>Reports ${reports.length > 0 ? `<span class="report-badge">${reports.length}</span>` : ''}</h2>
+          <h2>Reports ${raw(reports.length > 0 ? html`<span class="report-badge">${reports.length}</span>` : '')}</h2>
           <button class="btn btn-ghost btn-small" data-action="toggleResolvedReports">Show resolved</button>
         </div>
         <div id="admin-reports-list" class="mt-md">
-          ${reports.length === 0
+          ${raw(reports.length === 0
             ? '<p class="text-muted">No open reports.</p>'
             : reports.map(r => {
               window._reportCache = window._reportCache || {};
               window._reportCache[r.id] = r;
-              return `
+              return html`
               <div class="report-card">
                 <div class="report-card-header">
-                  <strong>${esc(r.reporterName)}</strong>
-                  <span class="text-muted text-xs">${timeAgo(r.createdAt)}${r.currentPage ? ' · ' + esc(r.currentPage) : ''}</span>
+                  <strong>${r.reporterName}</strong>
+                  <span class="text-muted text-xs">${raw(timeAgo(r.createdAt))}${raw(r.currentPage ? ' · ' + esc(r.currentPage) : '')}</span>
                 </div>
-                <p class="report-card-desc">${esc(r.description)}</p>
-                ${r.hasScreenshot ? `<button class="btn btn-ghost btn-small" data-action="viewReportScreenshot" data-id="${r.id}">View screenshot</button>` : ''}
+                <p class="report-card-desc">${r.description}</p>
+                ${raw(r.hasScreenshot ? html`<button class="btn btn-ghost btn-small" data-action="viewReportScreenshot" data-id="${r.id}">View screenshot</button>` : '')}
                 <div class="report-card-actions">
                   <button class="btn btn-primary btn-small" data-action="resolveReport" data-id="${r.id}">Resolve</button>
                   <button class="btn btn-danger btn-small" data-action="deleteReport" data-id="${r.id}">Delete</button>
                 </div>
               </div>`;
-            }).join('')}
+            }).join(''))}
         </div>
       </div>
 
@@ -103,11 +103,11 @@ function showGroupModal(existing) {
   const isEdit = !!existing;
   const backdrop = document.createElement('div');
   backdrop.className = 'modal-backdrop';
-  backdrop.innerHTML = `<div class="modal">
+  backdrop.innerHTML = html`<div class="modal">
     <h2>${isEdit ? 'Edit' : 'New'} Group</h2>
     <div class="form-group">
       <label>Name</label>
-      <input type="text" id="group-name" value="${esc(existing?.name || '')}" placeholder="e.g. Construction, Events, Expansion">
+      <input type="text" id="group-name" value="${existing?.name || ''}" placeholder="e.g. Construction, Events, Expansion">
     </div>
     <div class="form-group">
       <label>Description (optional)</label>
@@ -115,7 +115,7 @@ function showGroupModal(existing) {
     </div>
     <div class="form-group">
       <label>Mattermost channel URL (optional)</label>
-      <input type="text" id="group-mattermost" value="${esc(existing?.mattermostChannel || '')}" placeholder="https://mattermost.desering.org/de-sering/channels/...">
+      <input type="text" id="group-mattermost" value="${existing?.mattermostChannel || ''}" placeholder="https://mattermost.desering.org/de-sering/channels/...">
     </div>
     <div class="modal-actions">
       <button class="btn btn-secondary" data-action="closeModal">Cancel</button>
@@ -169,12 +169,12 @@ async function viewReportScreenshot(id) {
 
     const backdrop = document.createElement('div');
     backdrop.className = 'modal-backdrop';
-    backdrop.innerHTML = `<div class="modal report-screenshot-modal">
+    backdrop.innerHTML = html`<div class="modal report-screenshot-modal">
       <div class="flex-between mb-md">
         <h2>Screenshot</h2>
         <button class="btn btn-ghost btn-small" data-action="closeModal">Close</button>
       </div>
-      <img src="${report.screenshotData}" alt="Report screenshot" class="report-screenshot-full">
+      <img src="${raw(report.screenshotData)}" alt="Report screenshot" class="report-screenshot-full">
     </div>`;
     backdrop.addEventListener('click', e => { if (e.target === backdrop) backdrop.remove(); });
     document.body.appendChild(backdrop);
@@ -218,18 +218,18 @@ async function toggleResolvedReports() {
     container.innerHTML = reports.map(r => {
       window._reportCache = window._reportCache || {};
       window._reportCache[r.id] = r;
-      return `
+      return html`
       <div class="report-card ${r.resolved ? 'report-resolved' : ''}">
         <div class="report-card-header">
-          <strong>${esc(r.reporterName)}</strong>
-          <span class="text-muted text-xs">${r.resolved ? 'Resolved · ' : ''}${timeAgo(r.createdAt)}${r.currentPage ? ' · ' + esc(r.currentPage) : ''}</span>
+          <strong>${r.reporterName}</strong>
+          <span class="text-muted text-xs">${raw(r.resolved ? 'Resolved · ' : '')}${raw(timeAgo(r.createdAt))}${raw(r.currentPage ? ' · ' + esc(r.currentPage) : '')}</span>
         </div>
-        <p class="report-card-desc">${esc(r.description)}</p>
-        ${r.hasScreenshot ? `<button class="btn btn-ghost btn-small" data-action="viewReportScreenshot" data-id="${r.id}">View screenshot</button>` : ''}
+        <p class="report-card-desc">${r.description}</p>
+        ${raw(r.hasScreenshot ? html`<button class="btn btn-ghost btn-small" data-action="viewReportScreenshot" data-id="${r.id}">View screenshot</button>` : '')}
         <div class="report-card-actions">
-          ${r.resolved
-            ? `<button class="btn btn-ghost btn-small" data-action="unresolveReport" data-id="${r.id}">Reopen</button>`
-            : `<button class="btn btn-primary btn-small" data-action="resolveReport" data-id="${r.id}">Resolve</button>`}
+          ${raw(r.resolved
+            ? html`<button class="btn btn-ghost btn-small" data-action="unresolveReport" data-id="${r.id}">Reopen</button>`
+            : html`<button class="btn btn-primary btn-small" data-action="resolveReport" data-id="${r.id}">Resolve</button>`)}
           <button class="btn btn-danger btn-small" data-action="deleteReport" data-id="${r.id}">Delete</button>
         </div>
       </div>`;

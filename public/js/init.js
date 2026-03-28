@@ -14,7 +14,7 @@ function buildNav() {
   }
 
   nav.innerHTML = screens
-    .map(s => `<a href="#${s.id}" data-screen="${s.id}" class="${S.screen === s.id ? 'active' : ''}">${s.label}</a>`)
+    .map(s => html`<a href="#${s.id}" data-screen="${s.id}" class="${S.screen === s.id ? 'active' : ''}">${s.label}</a>`)
     .join('');
 
   // Attach click handlers — update hash only (hashchange listener handles render)

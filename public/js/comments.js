@@ -14,12 +14,12 @@ async function renderComments(targetType, targetId, container) {
 
   const authorName = S.isAdmin ? (S.adminEmail || 'Admin') : S.visitorName;
 
-  container.innerHTML = `
+  container.innerHTML = html`
     <div class="comments-section">
-      <h3>Comments (${comments.length})</h3>
+      <h3>Comments (${String(comments.length)})</h3>
       <div class="comment-list">
-        ${comments.length === 0 ? '<p class="text-muted text-sm">No comments yet. Be the first!</p>' : ''}
-        ${comments.map(c => renderComment(c)).join('')}
+        ${raw(comments.length === 0 ? '<p class="text-muted text-sm">No comments yet. Be the first!</p>' : '')}
+        ${raw(comments.map(c => renderComment(c)).join(''))}
       </div>
       <div class="comment-form">
         <textarea id="comment-input-${targetId}" placeholder="Write a comment..." rows="2"></textarea>
@@ -35,16 +35,16 @@ function renderComment(c) {
   const initial = (c.authorName || '?')[0].toUpperCase();
   const canDelete = S.isAdmin;
 
-  return `<div class="comment" data-id="${c.id}">
+  return html`<div class="comment" data-id="${c.id}">
     <div class="comment-avatar">${initial}</div>
     <div class="comment-content">
       <div class="comment-header">
-        <span class="comment-author">${esc(c.authorName)}</span>
+        <span class="comment-author">${c.authorName}</span>
         <span class="comment-time">${timeAgo(c.createdAt)}</span>
-        ${canDelete ? `<button class="comment-delete" data-action="deleteComment" data-id="${c.id}">delete</button>` : ''}
+        ${raw(canDelete ? html`<button class="comment-delete" data-action="deleteComment" data-id="${c.id}">delete</button>` : '')}
       </div>
-      ${c.body ? `<div class="comment-body">${esc(c.body)}</div>` : ''}
-      ${renderMediaItems(c.media || [])}
+      ${raw(c.body ? html`<div class="comment-body">${c.body}</div>` : '')}
+      ${raw(renderMediaItems(c.media || []))}
     </div>
   </div>`;
 }

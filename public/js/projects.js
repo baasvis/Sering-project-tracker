@@ -29,7 +29,7 @@ async function renderProjects() {
   try {
     S.groups = await apiGet('/api/groups');
   } catch (err) {
-    app.innerHTML = `<p class="text-muted">Could not load projects: ${esc(err.message)}</p>`;
+    app.innerHTML = html`<p class="text-muted">Could not load projects: ${err.message}</p>`;
     return;
   }
 
@@ -74,22 +74,22 @@ async function renderProjects() {
     : allProjects;
   filtered = sortProjectsByTier(filterProjectsByTier(filtered));
 
-  app.innerHTML = `
+  app.innerHTML = html`
     <div class="flex-between mb-lg">
       <h1>Projects</h1>
-      ${S.isAdmin
+      ${raw(S.isAdmin
         ? '<button class="btn btn-primary" data-action="showProjectModal">+ New Project</button>'
-        : '<button class="btn btn-secondary" data-action="showSuggestProjectModal">Suggest Project</button>'}
+        : '<button class="btn btn-secondary" data-action="showSuggestProjectModal">Suggest Project</button>')}
     </div>
 
-    ${renderTierButtons()}
+    ${raw(renderTierButtons())}
 
     <div class="group-tabs" id="projects-group-tabs">
-      ${renderGroupTabs()}
+      ${raw(renderGroupTabs())}
     </div>
 
     <div class="project-cards" id="projects-cards">
-      ${renderProjectCards(filtered)}
+      ${raw(renderProjectCards(filtered))}
     </div>`;
 
   // Load media for approved project cards (batch)
@@ -99,12 +99,12 @@ async function renderProjects() {
 
 // Render group tab buttons (extracted for reuse)
 function renderGroupTabs() {
-  return `<button class="group-tab ${!S.selectedGroupId ? 'active' : ''}"
+  return html`<button class="group-tab ${raw(!S.selectedGroupId ? 'active' : '')}"
               data-action="selectGroup" data-group-id="">All</button>
-      ${S.groups.map(g => `
-        <button class="group-tab ${S.selectedGroupId === g.id ? 'active' : ''}"
-                data-action="selectGroup" data-group-id="${g.id}">${esc(g.name)}</button>
-      `).join('')}`;
+      ${raw(S.groups.map(g => html`
+        <button class="group-tab ${raw(S.selectedGroupId === g.id ? 'active' : '')}"
+                data-action="selectGroup" data-group-id="${g.id}">${g.name}</button>
+      `).join(''))}`;
 }
 
 // Render project card list HTML (extracted for reuse)
@@ -113,19 +113,19 @@ function renderProjectCards(filtered) {
     ? '<div class="empty-state"><h3>No projects yet</h3><p>Create a project to get started.</p></div>'
     : filtered.map(p => {
         if (p.approved === false) {
-          return `<div class="project-card pending">
+          return html`<div class="project-card pending">
             <div class="project-card-header">
-              <h3>${esc(p.name)}</h3>
+              <h3>${p.name}</h3>
               <div class="project-card-tags">
                 <span class="tag tag-pending">Pending approval</span>
-                <span class="tag tag-group">${esc(p.groupName)}</span>
+                <span class="tag tag-group">${p.groupName}</span>
               </div>
             </div>
-            <p class="text-muted text-sm">Suggested by ${esc(p.suggestedBy || 'someone')} — waiting for admin approval</p>
-            ${S.isAdmin ? `<div class="pending-actions mt-sm">
+            <p class="text-muted text-sm">Suggested by ${p.suggestedBy || 'someone'} — waiting for admin approval</p>
+            ${raw(S.isAdmin ? html`<div class="pending-actions mt-sm">
               <button class="btn btn-small btn-primary" data-action="approveSuggestedProject" data-id="${p.id}" data-stop>Approve</button>
               <button class="btn btn-small btn-danger" data-action="declineSuggested" data-type="project" data-id="${p.id}" data-stop>Decline</button>
-            </div>` : ''}
+            </div>` : '')}
           </div>`;
         }
         return renderProjectCard(p, { name: p.groupName });
@@ -171,7 +171,7 @@ async function renderProjectDetail() {
   try {
     S.currentProject = await apiGet(`/api/projects/${S.currentProjectId}`);
   } catch (err) {
-    app.innerHTML = `<p class="text-muted">Project not found.</p>`;
+    app.innerHTML = html`<p class="text-muted">Project not found.</p>`;
     return;
   }
 
@@ -183,32 +183,32 @@ async function renderProjectDetail() {
   const inProgress = approvedTasks.filter(t => t.status === 'in_progress').length;
   const pct = total > 0 ? Math.round((done / total) * 100) : 0;
 
-  app.innerHTML = `
+  app.innerHTML = html`
     <div class="project-detail">
       <div class="project-detail-header">
         <div class="breadcrumb">
           <a href="#projects" data-action="breadcrumbProjects">Projects</a>
-          &rsaquo; <a href="#projects" data-action="breadcrumbGroup" data-group-id="${p.groupId}">${esc(p.group?.name || '')}</a>
-          &rsaquo; ${esc(p.name)}
+          &rsaquo; <a href="#projects" data-action="breadcrumbGroup" data-group-id="${p.groupId}">${p.group?.name || ''}</a>
+          &rsaquo; ${p.name}
         </div>
         <div class="flex-between">
           <div class="flex gap-sm" style="align-items:center">
-            <h1>${esc(p.name)}</h1>
-            ${p.tier && PROJECT_TIERS[p.tier] ? `<span class="tag tag-tier" style="background:${PROJECT_TIERS[p.tier].bg};color:${PROJECT_TIERS[p.tier].color}">${PROJECT_TIERS[p.tier].label}</span>` : ''}
-            ${p.joinType && JOIN_TYPES[p.joinType] ? `<span class="tag tag-join-${esc(p.joinType)}">${JOIN_TYPES[p.joinType].label}</span>` : ''}
+            <h1>${p.name}</h1>
+            ${raw(p.tier && PROJECT_TIERS[p.tier] ? html`<span class="tag tag-tier" style="background:${raw(PROJECT_TIERS[p.tier].bg)};color:${raw(PROJECT_TIERS[p.tier].color)}">${PROJECT_TIERS[p.tier].label}</span>` : '')}
+            ${raw(p.joinType && JOIN_TYPES[p.joinType] ? html`<span class="tag tag-join-${p.joinType}">${JOIN_TYPES[p.joinType].label}</span>` : '')}
           </div>
-          ${S.isAdmin ? `<div class="flex gap-sm">
+          ${raw(S.isAdmin ? html`<div class="flex gap-sm">
             <button class="btn btn-ghost" data-action="showEditProjectModal" data-id="${p.id}">Edit</button>
             <button class="btn btn-danger" data-action="deleteProject" data-id="${p.id}">Delete</button>
-          </div>` : ''}
+          </div>` : '')}
         </div>
       </div>
 
-      ${p.description ? `<div class="project-description">${renderDescription(p.description)}</div>` : ''}
+      ${raw(p.description ? html`<div class="project-description">${raw(renderDescription(p.description))}</div>` : '')}
 
-      ${p.contactPerson ? `<div class="project-contact mb-lg">
-        <span class="text-sm text-muted">Contact:</span> <strong>${esc(p.contactPerson)}</strong>
-      </div>` : ''}
+      ${raw(p.contactPerson ? html`<div class="project-contact mb-lg">
+        <span class="text-sm text-muted">Contact:</span> <strong>${p.contactPerson}</strong>
+      </div>` : '')}
 
       <div class="project-contact-links mb-lg">
         <p class="text-sm text-muted mb-sm">Get involved or ask questions:</p>
@@ -216,9 +216,9 @@ async function renderProjectDetail() {
           <a href="${WHATSAPP_DIRECT}" target="_blank" rel="noopener" class="contact-link">
             💬 WhatsApp direct
           </a>
-          ${p.group?.mattermostChannel ? `<a href="${esc(p.group.mattermostChannel)}" target="_blank" rel="noopener" class="contact-link">
+          ${raw(p.group?.mattermostChannel ? html`<a href="${p.group.mattermostChannel}" target="_blank" rel="noopener" class="contact-link">
             # Mattermost channel
-          </a>` : ''}
+          </a>` : '')}
           <a href="${WHATSAPP_GROUP}" target="_blank" rel="noopener" class="contact-link">
             👥 WhatsApp group
           </a>
@@ -233,15 +233,15 @@ async function renderProjectDetail() {
           <div class="stat-label">Total</div>
         </div>
         <div class="stat">
-          <div class="stat-value" style="color: var(--status-todo)">${total - done - inProgress}</div>
+          <div class="stat-value" style="${raw('color: var(--status-todo)')}">${total - done - inProgress}</div>
           <div class="stat-label">To do</div>
         </div>
         <div class="stat">
-          <div class="stat-value" style="color: var(--status-progress)">${inProgress}</div>
+          <div class="stat-value" style="${raw('color: var(--status-progress)')}">${inProgress}</div>
           <div class="stat-label">In progress</div>
         </div>
         <div class="stat">
-          <div class="stat-value" style="color: var(--status-done)">${done}</div>
+          <div class="stat-value" style="${raw('color: var(--status-done)')}">${done}</div>
           <div class="stat-label">Done</div>
         </div>
       </div>
@@ -253,13 +253,13 @@ async function renderProjectDetail() {
       <div id="task-list-section" class="task-list">
         <div class="task-list-header">
           <h2>Tasks</h2>
-          ${S.isAdmin
+          ${raw(S.isAdmin
             ? '<button class="btn btn-primary" data-action="showTaskModal">+ Add Task</button>'
-            : '<button class="btn btn-secondary" data-action="showSuggestTaskModal">Suggest Task</button>'}
+            : '<button class="btn btn-secondary" data-action="showSuggestTaskModal">Suggest Task</button>')}
         </div>
-        ${tasks.length === 0
+        ${raw(tasks.length === 0
           ? '<div class="empty-state"><h3>No tasks yet</h3><p>Add tasks to track progress.</p></div>'
-          : tasks.map(renderTaskItem).join('')}
+          : tasks.map(renderTaskItem).join(''))}
       </div>
 
       <div id="shopping-container-${p.id}" class="mt-lg"></div>
@@ -292,16 +292,16 @@ function rerenderTaskList() {
   if (!section || !S.currentProject) return;
 
   const tasks = S.currentProject.tasks || [];
-  section.innerHTML = `
+  section.innerHTML = html`
     <div class="task-list-header">
       <h2>Tasks</h2>
-      ${S.isAdmin
+      ${raw(S.isAdmin
         ? '<button class="btn btn-primary" data-action="showTaskModal">+ Add Task</button>'
-        : '<button class="btn btn-secondary" data-action="showSuggestTaskModal">Suggest Task</button>'}
+        : '<button class="btn btn-secondary" data-action="showSuggestTaskModal">Suggest Task</button>')}
     </div>
-    ${tasks.length === 0
+    ${raw(tasks.length === 0
       ? '<div class="empty-state"><h3>No tasks yet</h3><p>Add tasks to track progress.</p></div>'
-      : tasks.map(renderTaskItem).join('')}`;
+      : tasks.map(renderTaskItem).join(''))}`;
 
   // Update stats — only count approved tasks
   const approvedTasks = tasks.filter(t => t.approved !== false);
@@ -331,19 +331,19 @@ function renderTaskItem(task) {
   const isPending = task.approved === false;
 
   if (isPending) {
-    return `<div class="task-item pending">
+    return html`<div class="task-item pending">
       <div class="task-status-btn" style="cursor:default;border-style:dashed"></div>
       <div class="task-content">
-        <div class="task-name">${esc(task.name)}</div>
+        <div class="task-name">${task.name}</div>
         <div class="task-meta">
           <span class="pending-badge">Pending approval</span>
-          ${task.suggestedBy ? `<span class="text-muted">suggested by ${esc(task.suggestedBy)}</span>` : ''}
+          ${raw(task.suggestedBy ? html`<span class="text-muted">suggested by ${task.suggestedBy}</span>` : '')}
         </div>
       </div>
-      ${S.isAdmin ? `<div class="task-pending-actions">
+      ${raw(S.isAdmin ? html`<div class="task-pending-actions">
         <button class="btn btn-small btn-primary" data-action="approveSuggestedTask" data-id="${task.id}" data-stop>Approve</button>
         <button class="btn btn-small btn-danger" data-action="declineSuggested" data-type="task" data-id="${task.id}" data-stop>Decline</button>
-      </div>` : ''}
+      </div>` : '')}
     </div>`;
   }
 
@@ -351,15 +351,15 @@ function renderTaskItem(task) {
   const statusIcon = task.status === 'done' ? '&#10003;' : (task.status === 'in_progress' ? '&#9679;' : '');
   const nameClass = task.status === 'done' ? 'done' : '';
 
-  return `<div class="task-item" data-action="showTaskDetail" data-id="${task.id}">
-    ${S.isAdmin ? `<button class="task-status-btn ${statusClass}"
-      data-action="cycleTaskStatus" data-id="${task.id}" data-status="${task.status}" data-stop>${statusIcon}</button>` :
-      `<div class="task-status-btn ${statusClass}" style="cursor:default">${statusIcon}</div>`}
+  return html`<div class="task-item" data-action="showTaskDetail" data-id="${task.id}">
+    ${raw(S.isAdmin ? html`<button class="task-status-btn ${raw(statusClass)}"
+      data-action="cycleTaskStatus" data-id="${task.id}" data-status="${task.status}" data-stop>${raw(statusIcon)}</button>` :
+      html`<div class="task-status-btn ${raw(statusClass)}" style="cursor:default">${raw(statusIcon)}</div>`)}
     <div class="task-content">
-      <div class="task-name ${nameClass}">${esc(task.name)}</div>
+      <div class="task-name ${raw(nameClass)}">${task.name}</div>
       <div class="task-meta">
-        ${task.assignee ? `<span>&#128100; ${esc(task.assignee)}</span>` : ''}
-        ${task.deadline ? `<span class="deadline ${isOverdue(task.deadline) && task.status !== 'done' ? 'overdue' : ''}">&#128197; ${formatDate(task.deadline)}</span>` : ''}
+        ${raw(task.assignee ? html`<span>&#128100; ${task.assignee}</span>` : '')}
+        ${raw(task.deadline ? html`<span class="deadline ${raw(isOverdue(task.deadline) && task.status !== 'done' ? 'overdue' : '')}">&#128197; ${formatDate(task.deadline)}</span>` : '')}
         <span class="tag tag-status-${task.status}">${TASK_STATUSES[task.status]?.label || task.status}</span>
       </div>
     </div>
@@ -422,12 +422,12 @@ async function showTaskDetail(taskId) {
 
   const backdrop = document.createElement('div');
   backdrop.className = 'modal-backdrop';
-  backdrop.innerHTML = `<div class="modal">
+  backdrop.innerHTML = html`<div class="modal">
     <div class="task-detail-header">
-      <div class="task-status-btn ${task.status}" style="width:32px;height:32px;font-size:16px;cursor:default">
-        ${task.status === 'done' ? '&#10003;' : (task.status === 'in_progress' ? '&#9679;' : '')}
+      <div class="task-status-btn ${raw(task.status)}" style="width:32px;height:32px;font-size:16px;cursor:default">
+        ${raw(task.status === 'done' ? '&#10003;' : (task.status === 'in_progress' ? '&#9679;' : ''))}
       </div>
-      <h2>${esc(task.name)}</h2>
+      <h2>${task.name}</h2>
     </div>
 
     <div class="task-detail-fields">
@@ -437,11 +437,11 @@ async function showTaskDetail(taskId) {
       </div>
       <div>
         <label>Assignee</label>
-        <span>${task.assignee ? esc(task.assignee) : '<span class="text-muted">Unassigned</span>'}</span>
+        <span>${raw(task.assignee ? esc(task.assignee) : '<span class="text-muted">Unassigned</span>')}</span>
       </div>
       <div>
         <label>Deadline</label>
-        <span>${task.deadline ? formatDate(task.deadline) : '<span class="text-muted">No deadline</span>'}</span>
+        <span>${raw(task.deadline ? formatDate(task.deadline) : '<span class="text-muted">No deadline</span>')}</span>
       </div>
       <div>
         <label>Created</label>
@@ -449,18 +449,18 @@ async function showTaskDetail(taskId) {
       </div>
     </div>
 
-    ${task.description ? `<div class="mb-lg">
+    ${raw(task.description ? html`<div class="mb-lg">
       <label>Description</label>
-      <div style="margin-top:var(--space-xs)">${renderDescription(task.description)}</div>
-    </div>` : ''}
+      <div style="${raw('margin-top:var(--space-xs)')}">${raw(renderDescription(task.description))}</div>
+    </div>` : '')}
 
-    ${renderMediaItems(media)}
-    ${S.isAdmin ? renderMediaUploadButtons('task', task.id) : ''}
+    ${raw(renderMediaItems(media))}
+    ${raw(S.isAdmin ? renderMediaUploadButtons('task', task.id) : '')}
 
-    ${S.isAdmin ? `<div class="flex gap-sm mt-md">
+    ${raw(S.isAdmin ? html`<div class="flex gap-sm mt-md">
       <button class="btn btn-ghost" data-action="editTaskFromDetail" data-id="${task.id}">Edit</button>
       <button class="btn btn-danger" data-action="deleteTask" data-id="${task.id}">Delete</button>
-    </div>` : ''}
+    </div>` : '')}
 
     <div id="task-comments-${task.id}" class="mt-lg"></div>
 
@@ -482,18 +482,18 @@ function showProjectModal(existing) {
   const isEdit = !!existing;
   const backdrop = document.createElement('div');
   backdrop.className = 'modal-backdrop';
-  backdrop.innerHTML = `<div class="modal">
+  backdrop.innerHTML = html`<div class="modal">
     <h2>${isEdit ? 'Edit' : 'New'} Project</h2>
     <div class="form-group">
       <label>Group / Theme</label>
       <select id="proj-group">
-        ${S.groups.map(g => `<option value="${g.id}" ${existing?.groupId === g.id ? 'selected' : ''}>${esc(g.name)}</option>`).join('')}
+        ${raw(S.groups.map(g => html`<option value="${g.id}" ${raw(existing?.groupId === g.id ? 'selected' : '')}>${g.name}</option>`).join(''))}
       </select>
-      ${S.groups.length === 0 ? '<p class="text-muted text-sm mt-sm">Create a group first in the Admin panel.</p>' : ''}
+      ${raw(S.groups.length === 0 ? '<p class="text-muted text-sm mt-sm">Create a group first in the Admin panel.</p>' : '')}
     </div>
     <div class="form-group">
       <label>Project Name</label>
-      <input type="text" id="proj-name" value="${esc(existing?.name || '')}">
+      <input type="text" id="proj-name" value="${existing?.name || ''}">
     </div>
     <div class="form-group">
       <label>Description</label>
@@ -502,33 +502,33 @@ function showProjectModal(existing) {
     <div class="form-row">
       <div class="form-group">
         <label>Contact Person</label>
-        <input type="text" id="proj-contact" value="${esc(existing?.contactPerson || '')}" placeholder="Who to reach out to">
+        <input type="text" id="proj-contact" value="${existing?.contactPerson || ''}" placeholder="Who to reach out to">
       </div>
       <div class="form-group">
         <label>Tier</label>
         <select id="proj-tier">
           <option value="">None</option>
-          ${Object.entries(PROJECT_TIERS).map(([k, v]) =>
-            `<option value="${k}" ${existing?.tier === k ? 'selected' : ''}>${v.label}</option>`
-          ).join('')}
+          ${raw(Object.entries(PROJECT_TIERS).map(([k, v]) =>
+            html`<option value="${k}" ${raw(existing?.tier === k ? 'selected' : '')}>${v.label}</option>`
+          ).join(''))}
         </select>
       </div>
     </div>
     <div class="form-group">
       <label>Join Type</label>
       <select id="proj-jointype">
-        <option value="" ${!existing?.joinType ? 'selected' : ''}>— No tag —</option>
-        ${Object.entries(JOIN_TYPES).map(([k, v]) =>
-          `<option value="${k}" ${existing?.joinType === k ? 'selected' : ''}>${v.label}</option>`
-        ).join('')}
+        <option value="" ${raw(!existing?.joinType ? 'selected' : '')}>— No tag —</option>
+        ${raw(Object.entries(JOIN_TYPES).map(([k, v]) =>
+          html`<option value="${k}" ${raw(existing?.joinType === k ? 'selected' : '')}>${v.label}</option>`
+        ).join(''))}
       </select>
     </div>
-    ${isEdit ? `<div class="form-group">
+    ${raw(isEdit ? html`<div class="form-group">
       <label>Status</label>
       <select id="proj-status">
-        ${PROJECT_STATUSES.map(s => `<option value="${s}" ${existing?.status === s ? 'selected' : ''}>${s}</option>`).join('')}
+        ${raw(PROJECT_STATUSES.map(s => html`<option value="${s}" ${raw(existing?.status === s ? 'selected' : '')}>${s}</option>`).join(''))}
       </select>
-    </div>` : ''}
+    </div>` : '')}
     <div class="modal-actions">
       <button class="btn btn-secondary" data-action="closeModal">Cancel</button>
       <button class="btn btn-primary" data-action="saveProject" data-id="${isEdit ? existing.id : ''}">
@@ -594,11 +594,11 @@ function showTaskModal(existing) {
   const isEdit = !!existing;
   const backdrop = document.createElement('div');
   backdrop.className = 'modal-backdrop';
-  backdrop.innerHTML = `<div class="modal">
+  backdrop.innerHTML = html`<div class="modal">
     <h2>${isEdit ? 'Edit' : 'Add'} Task</h2>
     <div class="form-group">
       <label>Task Name</label>
-      <input type="text" id="task-name" value="${esc(existing?.name || '')}">
+      <input type="text" id="task-name" value="${existing?.name || ''}">
     </div>
     <div class="form-group">
       <label>Description (optional)</label>
@@ -607,21 +607,21 @@ function showTaskModal(existing) {
     <div class="form-row">
       <div class="form-group">
         <label>Assignee (optional)</label>
-        <input type="text" id="task-assignee" value="${esc(existing?.assignee || '')}" placeholder="Who's doing this?">
+        <input type="text" id="task-assignee" value="${existing?.assignee || ''}" placeholder="Who's doing this?">
       </div>
       <div class="form-group">
         <label>Deadline (optional)</label>
         <input type="date" id="task-deadline" value="${existing?.deadline ? existing.deadline.slice(0, 10) : ''}">
       </div>
     </div>
-    ${isEdit ? `<div class="form-group">
+    ${raw(isEdit ? html`<div class="form-group">
       <label>Status</label>
       <select id="task-status">
-        ${Object.entries(TASK_STATUSES).map(([k, v]) =>
-          `<option value="${k}" ${existing?.status === k ? 'selected' : ''}>${v.label}</option>`
-        ).join('')}
+        ${raw(Object.entries(TASK_STATUSES).map(([k, v]) =>
+          html`<option value="${k}" ${raw(existing?.status === k ? 'selected' : '')}>${v.label}</option>`
+        ).join(''))}
       </select>
-    </div>` : ''}
+    </div>` : '')}
     <div class="modal-actions">
       <button class="btn btn-secondary" data-action="closeModal">Cancel</button>
       <button class="btn btn-primary" data-action="saveTask" data-id="${isEdit ? existing.id : ''}">
@@ -693,7 +693,7 @@ async function deleteTask(id) {
 function showSuggestTaskModal() {
   const backdrop = document.createElement('div');
   backdrop.className = 'modal-backdrop';
-  backdrop.innerHTML = `<div class="modal">
+  backdrop.innerHTML = html`<div class="modal">
     <h2>Suggest a Task</h2>
     <p class="text-muted text-sm mb-md">Your suggestion will be reviewed by an admin before it appears as an active task.</p>
     <div class="form-group">
@@ -741,13 +741,13 @@ function showSuggestProjectModal() {
   }
   const backdrop = document.createElement('div');
   backdrop.className = 'modal-backdrop';
-  backdrop.innerHTML = `<div class="modal">
+  backdrop.innerHTML = html`<div class="modal">
     <h2>Suggest a Project</h2>
     <p class="text-muted text-sm mb-md">Your suggestion will be reviewed by an admin before it appears as an active project.</p>
     <div class="form-group">
       <label>Group / Theme</label>
       <select id="suggest-proj-group">
-        ${S.groups.map(g => `<option value="${g.id}">${esc(g.name)}</option>`).join('')}
+        ${raw(S.groups.map(g => html`<option value="${g.id}">${g.name}</option>`).join(''))}
       </select>
     </div>
     <div class="form-group">

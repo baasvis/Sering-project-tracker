@@ -6,42 +6,42 @@
 function renderMediaItems(mediaList) {
   if (!mediaList || mediaList.length === 0) return '';
 
-  return `<div class="media-grid">${mediaList.map(m => {
+  return html`<div class="media-grid">${raw(mediaList.map(m => {
     const deleteBtn = S.isAdmin
-      ? `<button class="media-delete-btn" data-action="deleteMedia" data-id="${m.id}" data-stop title="Delete">&#10005;</button>`
+      ? html`<button class="media-delete-btn" data-action="deleteMedia" data-id="${m.id}" data-stop title="Delete">${raw('&#10005;')}</button>`
       : '';
 
     if (m.type === 'photo') {
-      return `<div class="media-item">
+      return html`<div class="media-item">
         <img src="/api/media/${m.id}/file" class="media-thumb" loading="lazy"
               data-action="openLightbox" data-src="/api/media/${m.id}/file"
-              alt="${esc(m.originalName)}">
-        ${deleteBtn}
+              alt="${m.originalName}">
+        ${raw(deleteBtn)}
       </div>`;
     }
     if (m.type === 'voice') {
-      return `<div class="media-item">
+      return html`<div class="media-item">
         <div class="voice-note">
-          <button class="voice-note-btn" data-action="playVoice" data-src="/api/media/${m.id}/file">&#9654;</button>
-          <span class="voice-note-duration">${esc(m.originalName)}</span>
+          <button class="voice-note-btn" data-action="playVoice" data-src="/api/media/${m.id}/file">${raw('&#9654;')}</button>
+          <span class="voice-note-duration">${m.originalName}</span>
         </div>
-        ${deleteBtn}
+        ${raw(deleteBtn)}
       </div>`;
     }
     return '';
-  }).join('')}</div>`;
+  }).join(''))}</div>`;
 }
 
 // Render upload buttons (photo + voice)
 function renderMediaUploadButtons(parentType, parentId) {
-  return `<div class="media-upload-area">
+  return html`<div class="media-upload-area">
     <label class="media-upload-btn">
-      &#128247; Photo
+      ${raw('&#128247;')} Photo
       <input type="file" accept="image/*" style="display:none"
              data-on-change="uploadPhoto" data-parent-type="${parentType}" data-parent-id="${parentId}">
     </label>
     <button class="media-upload-btn" data-action="toggleVoiceRecorder" data-parent-type="${parentType}" data-parent-id="${parentId}">
-      &#127908; Voice
+      ${raw('&#127908;')} Voice
     </button>
   </div>`;
 }
@@ -80,9 +80,9 @@ async function uploadPhoto(input, parentType, parentId) {
         uploadArea.parentNode.insertBefore(grid, uploadArea);
       }
       grid.insertAdjacentHTML('beforeend',
-        `<img src="/api/media/${newMedia.id}/file" class="media-thumb"
+        html`<img src="/api/media/${newMedia.id}/file" class="media-thumb"
               data-action="openLightbox" data-src="/api/media/${newMedia.id}/file"
-              alt="${esc(newMedia.originalName)}">`);
+              alt="${newMedia.originalName}">`);
     }
   } catch (err) {
     toast(err.message, 'error');
@@ -157,9 +157,9 @@ function toggleVoiceRecorder(btn, parentType, parentId) {
             uploadArea.parentNode.insertBefore(grid, uploadArea);
           }
           grid.insertAdjacentHTML('beforeend',
-            `<div class="voice-note">
-              <button class="voice-note-btn" data-action="playVoice" data-src="/api/media/${newMedia.id}/file">&#9654;</button>
-              <span class="voice-note-duration">${esc(newMedia.originalName)}</span>
+            html`<div class="voice-note">
+              <button class="voice-note-btn" data-action="playVoice" data-src="/api/media/${newMedia.id}/file">${raw('&#9654;')}</button>
+              <span class="voice-note-duration">${newMedia.originalName}</span>
             </div>`);
         }
       } catch (err) {
@@ -205,7 +205,7 @@ async function deleteMedia(id) {
 function openLightbox(src) {
   const lb = document.createElement('div');
   lb.className = 'lightbox';
-  lb.innerHTML = `<img src="${src}">`;
+  lb.innerHTML = html`<img src="${src}">`;
   lb.onclick = () => lb.remove();
   document.body.appendChild(lb);
 }

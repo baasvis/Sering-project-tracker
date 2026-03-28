@@ -17,7 +17,7 @@ function initReportButton() {
 async function showReportModal() {
   const backdrop = document.createElement('div');
   backdrop.className = 'modal-backdrop';
-  backdrop.innerHTML = `<div class="modal report-modal">
+  backdrop.innerHTML = html`<div class="modal report-modal">
     <h2>Report a Problem</h2>
     <p class="text-muted text-sm">Describe the issue and a screenshot of the current page will be attached automatically.</p>
     <div class="form-group">
@@ -58,7 +58,7 @@ async function showReportModal() {
 
     const preview = document.getElementById('report-screenshot-preview');
     if (preview) {
-      preview.innerHTML = `<img src="${window._reportScreenshot}" alt="Screenshot preview">`;
+      preview.innerHTML = html`<img src="${raw(window._reportScreenshot)}" alt="Screenshot preview">`;
     }
   } catch (err) {
     console.warn('Screenshot capture failed:', err);
