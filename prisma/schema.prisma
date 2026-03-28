@@ -7,57 +7,9 @@ datasource db {
   url      = env("DATABASE_URL")
 }
 
-// ─── Enums ──────────────────────────────────────────────────────────────────
-
-enum ProjectStatus {
-  active
-  completed
-  archived
-}
-
-enum TaskStatus {
-  todo
-  in_progress
-  done
-}
-
-enum ProjectTier {
-  mvp
-  medium
-  next_level
-}
-
-enum JoinType {
-  open
-  contact
-  closed
-}
-
-enum ShoppingItemType {
-  product
-  cost
-}
-
-enum MediaType {
-  photo
-  voice
-}
-
-enum CommentTargetType {
-  group
-  project
-  task
-  announcement
-}
-
-enum MediaParentType {
-  task
-  project
-  announcement
-  comment
-}
-
 // ─── Models ─────────────────────────────────────────────────────────────────
+// Enum validation is handled by Zod schemas in lib/schemas.js.
+// Columns use String to match the current production database.
 
 model Group {
   id                String    @id @default(uuid())
@@ -74,20 +26,20 @@ model Group {
 }
 
 model Project {
-  id            String         @id @default(uuid())
+  id            String    @id @default(uuid())
   groupId       String
-  group         Group          @relation(fields: [groupId], references: [id])
+  group         Group     @relation(fields: [groupId], references: [id])
   name          String
   description   String?
   contactPerson String?
-  tier          ProjectTier?
-  joinType      JoinType?
-  status        ProjectStatus  @default(active)
-  approved      Boolean        @default(true)
+  tier          String?
+  joinType      String?
+  status        String    @default("active")
+  approved      Boolean   @default(true)
   suggestedBy   String?
   deletedAt     DateTime?
-  createdAt     DateTime       @default(now())
-  updatedAt     DateTime       @updatedAt
+  createdAt     DateTime  @default(now())
+  updatedAt     DateTime  @updatedAt
   tasks         Task[]
   shoppingItems ShoppingItem[]
 
@@ -95,20 +47,20 @@ model Project {
 }
 
 model Task {
-  id          String      @id @default(uuid())
+  id          String    @id @default(uuid())
   projectId   String
-  project     Project     @relation(fields: [projectId], references: [id], onDelete: Cascade)
+  project     Project   @relation(fields: [projectId], references: [id], onDelete: Cascade)
   name        String
   description String?
-  status      TaskStatus  @default(todo)
+  status      String    @default("todo")
   assignee    String?
   deadline    DateTime?
-  order       Int         @default(0)
-  approved    Boolean     @default(true)
+  order       Int       @default(0)
+  approved    Boolean   @default(true)
   suggestedBy String?
   deletedAt   DateTime?
-  createdAt   DateTime    @default(now())
-  updatedAt   DateTime    @updatedAt
+  createdAt   DateTime  @default(now())
+  updatedAt   DateTime  @updatedAt
 
   @@index([projectId, status])
   @@index([projectId, deadline])
@@ -127,47 +79,47 @@ model Announcement {
 }
 
 model Comment {
-  id         String            @id @default(uuid())
-  targetType CommentTargetType
+  id         String   @id @default(uuid())
+  targetType String
   targetId   String
   authorName String
   body       String?
-  createdAt  DateTime          @default(now())
+  createdAt  DateTime @default(now())
 
   @@index([targetType, targetId, createdAt])
   @@index([authorName, createdAt])
 }
 
 model ShoppingItem {
-  id           String           @id @default(uuid())
+  id           String   @id @default(uuid())
   projectId    String
-  project      Project          @relation(fields: [projectId], references: [id], onDelete: Cascade)
-  type         ShoppingItemType @default(product)
+  project      Project  @relation(fields: [projectId], references: [id], onDelete: Cascade)
+  type         String   @default("product")
   name         String
   link         String?
   pricePerItem Float?
-  quantity     Int?             @default(1)
+  quantity     Int?     @default(1)
   amount       Float?
-  purchased    Boolean          @default(false)
+  purchased    Boolean  @default(false)
   suggestedBy  String?
-  approved     Boolean          @default(false)
-  order        Int              @default(0)
-  createdAt    DateTime         @default(now())
-  updatedAt    DateTime         @updatedAt
+  approved     Boolean  @default(false)
+  order        Int      @default(0)
+  createdAt    DateTime @default(now())
+  updatedAt    DateTime @updatedAt
 
   @@index([projectId, approved])
 }
 
 model Media {
-  id           String          @id @default(uuid())
-  parentType   MediaParentType
+  id           String   @id @default(uuid())
+  parentType   String
   parentId     String
-  type         MediaType
+  type         String
   filename     String
   originalName String
   mimeType     String
   sizeBytes    Int
-  createdAt    DateTime        @default(now())
+  createdAt    DateTime @default(now())
 
   @@index([parentType, parentId, createdAt])
 }
