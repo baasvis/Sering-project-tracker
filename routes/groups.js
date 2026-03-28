@@ -3,17 +3,27 @@ const prisma = require('../lib/db');
 const { requireAdmin } = require('./auth');
 const { sanitize } = require('../lib/sanitize');
 const asyncHandler = require('../lib/async-handler');
-const { validateId, isValidUrl, stripTags } = require('../lib/validate');
+const { validateId, isValidUrl } = require('../lib/validate');
 const { broadcast, getMutationId } = require('../lib/sse');
 const { logAction } = require('../lib/audit');
+const { sendError, handleZodError } = require('../lib/errors');
+const { groupCreate, groupUpdate } = require('../lib/schemas');
+const { PAGINATION_DEFAULT_LIMIT, PAGINATION_MAX_LIMIT } = require('../lib/config');
 
 const router = Router();
 
-// List all groups with project counts and task status counts
+// List all groups with project counts and task status counts (paginated)
 router.get('/', asyncHandler(async (req, res) => {
-  const groups = await prisma.group.findMany({
+  const limit = Math.min(
+    parseInt(req.query.limit, 10) || PAGINATION_DEFAULT_LIMIT,
+    PAGINATION_MAX_LIMIT
+  );
+  const cursor = req.query.cursor;
+
+  const findArgs = {
     where: { deletedAt: null },
     orderBy: { order: 'asc' },
+    take: limit + 1,
     include: {
       _count: { select: { projects: true } },
       projects: {
@@ -25,9 +35,18 @@ router.get('/', asyncHandler(async (req, res) => {
         }
       }
     }
-  });
+  };
+  if (cursor) {
+    findArgs.cursor = { id: cursor };
+    findArgs.skip = 1;
+  }
 
-  const result = groups.map(g => ({
+  const groups = await prisma.group.findMany(findArgs);
+
+  const hasMore = groups.length > limit;
+  if (hasMore) groups.pop();
+
+  const data = groups.map(g => ({
     ...g,
     projects: g.projects.map(p => {
       const counts = { todo: 0, in_progress: 0, done: 0 };
@@ -39,7 +58,8 @@ router.get('/', asyncHandler(async (req, res) => {
     })
   }));
 
-  res.json(result);
+  const nextCursor = hasMore && data.length > 0 ? data[data.length - 1].id : null;
+  res.json({ data, nextCursor, hasMore });
 }));
 
 // Get single group
@@ -56,7 +76,7 @@ router.get('/:id', validateId, asyncHandler(async (req, res) => {
       }
     }
   });
-  if (!group) return res.status(404).json({ error: 'Group not found' });
+  if (!group || group.deletedAt) return sendError(res, 'NOT_FOUND', 'Group not found');
 
   const result = {
     ...group,
@@ -75,21 +95,22 @@ router.get('/:id', validateId, asyncHandler(async (req, res) => {
 
 // Create group (admin)
 router.post('/', requireAdmin, asyncHandler(async (req, res) => {
-  const { name, description } = req.body;
-  const mattermostChannel = req.body.mattermostChannel?.trim() || null;
-  if (!name) return res.status(400).json({ error: 'Name is required' });
+  let data;
+  try {
+    data = groupCreate.parse(req.body);
+  } catch (err) {
+    if (handleZodError(err, res)) return;
+    throw err;
+  }
 
-  const trimmedName = stripTags(String(name)).slice(0, 200);
-  if (trimmedName.length < 1) return res.status(400).json({ error: 'Name must be 1-200 characters' });
-
-  if (!isValidUrl(mattermostChannel)) return res.status(400).json({ error: 'mattermostChannel must be a valid URL' });
+  if (data.description) data.description = sanitize(data.description);
 
   const maxOrder = await prisma.group.aggregate({ _max: { order: true } });
   const group = await prisma.group.create({
     data: {
-      name: trimmedName,
-      description: sanitize(description),
-      mattermostChannel,
+      name: data.name,
+      description: data.description || null,
+      mattermostChannel: data.mattermostChannel || null,
       order: (maxOrder._max.order || 0) + 1
     }
   });
@@ -100,22 +121,15 @@ router.post('/', requireAdmin, asyncHandler(async (req, res) => {
 
 // Update group (admin)
 router.patch('/:id', validateId, requireAdmin, asyncHandler(async (req, res) => {
-  const { name, description, order } = req.body;
-  const mattermostChannel = req.body.mattermostChannel !== undefined
-    ? (req.body.mattermostChannel?.trim() || null)
-    : undefined;
-
-  if (!isValidUrl(mattermostChannel)) return res.status(400).json({ error: 'mattermostChannel must be a valid URL' });
-
-  const data = {};
-  if (name !== undefined) {
-    const trimmed = stripTags(String(name)).slice(0, 200);
-    if (trimmed.length < 1) return res.status(400).json({ error: 'Name must be 1-200 characters' });
-    data.name = trimmed;
+  let data;
+  try {
+    data = groupUpdate.parse(req.body);
+  } catch (err) {
+    if (handleZodError(err, res)) return;
+    throw err;
   }
-  if (description !== undefined) data.description = sanitize(description);
-  if (order !== undefined) data.order = order;
-  if (mattermostChannel !== undefined) data.mattermostChannel = mattermostChannel;
+
+  if (data.description !== undefined) data.description = sanitize(data.description);
 
   const group = await prisma.group.update({ where: { id: req.params.id }, data });
   res.json(group);
@@ -125,7 +139,7 @@ router.patch('/:id', validateId, requireAdmin, asyncHandler(async (req, res) => 
 // Soft-delete group (admin, only if no active projects)
 router.delete('/:id', validateId, requireAdmin, asyncHandler(async (req, res) => {
   const count = await prisma.project.count({ where: { groupId: req.params.id, deletedAt: null } });
-  if (count > 0) return res.status(400).json({ error: 'Cannot delete group with projects' });
+  if (count > 0) return sendError(res, 'VALIDATION_ERROR', 'Cannot delete group with projects');
 
   await prisma.group.update({ where: { id: req.params.id }, data: { deletedAt: new Date() } });
   res.json({ ok: true });
