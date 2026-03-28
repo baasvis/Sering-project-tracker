@@ -11,7 +11,7 @@ This codebase is being rewritten phase-by-phase. The API contract and database m
 - [x] Phase 2: Shared backend infrastructure (validation, CRUD factory, config)
 - [x] Phase 3a: Simple route rewrites (groups, announcements, comments, health)
 - [x] Phase 3b: Complex route rewrites (projects, tasks)
-- [ ] Phase 3c: Remaining routes (media, shopping, reports, export)
+- [x] Phase 3c: Remaining routes (media, shopping, reports, export)
 - [ ] Phase 4: Auth hardening
 - [ ] Phase 5a: Frontend core (state, utils, auth)
 - [ ] Phase 5b: Frontend screens (dashboard, projects)

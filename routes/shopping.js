@@ -2,25 +2,43 @@ const { Router } = require('express');
 const prisma = require('../lib/db');
 const { requireAdmin } = require('./auth');
 const asyncHandler = require('../lib/async-handler');
-const {
-  validateId, isValidUuid, isValidUrl, stripTags, validateNumber,
-  sanitizeName, VALID_SHOPPING_TYPES,
-} = require('../lib/validate');
+const { validateId, isValidUuid } = require('../lib/validate');
 const { broadcast, getMutationId } = require('../lib/sse');
+const { sendError, handleZodError } = require('../lib/errors');
+const { shoppingItemCreate, shoppingItemUpdate } = require('../lib/schemas');
+const { PAGINATION_DEFAULT_LIMIT, PAGINATION_MAX_LIMIT } = require('../lib/config');
 
 const router = Router();
 
-// List shopping items for a project
+// List shopping items for a project (paginated)
 router.get('/', asyncHandler(async (req, res) => {
   const { projectId } = req.query;
-  if (!projectId) return res.status(400).json({ error: 'projectId query param required' });
-  if (!isValidUuid(projectId)) return res.status(400).json({ error: 'Invalid projectId format' });
+  if (!projectId) return sendError(res, 'VALIDATION_ERROR', 'projectId query param required');
+  if (!isValidUuid(projectId)) return sendError(res, 'VALIDATION_ERROR', 'Invalid projectId format');
 
-  const items = await prisma.shoppingItem.findMany({
+  const limit = Math.min(
+    parseInt(req.query.limit, 10) || PAGINATION_DEFAULT_LIMIT,
+    PAGINATION_MAX_LIMIT
+  );
+  const cursor = req.query.cursor;
+
+  const findArgs = {
     where: { projectId },
-    orderBy: { order: 'asc' }
-  });
-  res.json(items);
+    orderBy: { order: 'asc' },
+    take: limit + 1,
+  };
+  if (cursor) {
+    findArgs.cursor = { id: cursor };
+    findArgs.skip = 1;
+  }
+
+  const items = await prisma.shoppingItem.findMany(findArgs);
+
+  const hasMore = items.length > limit;
+  if (hasMore) items.pop();
+
+  const nextCursor = hasMore && items.length > 0 ? items[items.length - 1].id : null;
+  res.json({ data: items, nextCursor, hasMore });
 }));
 
 // Budget summary: all projects with shopping totals
@@ -64,42 +82,39 @@ router.get('/summary', asyncHandler(async (req, res) => {
 
 // Create shopping item (anyone can suggest, admin auto-approved)
 router.post('/', asyncHandler(async (req, res) => {
-  const { projectId, type, name, link, pricePerItem, quantity, amount, authorName } = req.body;
-  if (!projectId || !name) return res.status(400).json({ error: 'projectId and name are required' });
-  if (!isValidUuid(projectId)) return res.status(400).json({ error: 'Invalid projectId format' });
-  if (!VALID_SHOPPING_TYPES.includes(type)) return res.status(400).json({ error: 'type must be product or cost' });
-
-  const trimmedName = stripTags(String(name)).slice(0, 200);
-  if (trimmedName.length < 1) return res.status(400).json({ error: 'Name must be 1-200 characters' });
-
-  const trimmedLink = link?.trim() || null;
-  if (trimmedLink && !isValidUrl(trimmedLink)) {
-    return res.status(400).json({ error: 'Link must be a valid http or https URL' });
+  let data;
+  try {
+    data = shoppingItemCreate.parse(req.body);
+  } catch (err) {
+    if (handleZodError(err, res)) return;
+    throw err;
   }
 
   const isAdmin = !!req.session?.admin;
 
+  let suggestedBy = null;
   if (!isAdmin) {
-    const sanitizedAuthor = sanitizeName(authorName);
-    if (!sanitizedAuthor) return res.status(400).json({ error: 'authorName is required for suggestions (1-50 chars)' });
-    var suggestedBy = sanitizedAuthor;
+    if (!data.authorName) return sendError(res, 'VALIDATION_ERROR', 'authorName is required for suggestions');
+    suggestedBy = data.authorName;
   }
 
-  const project = await prisma.project.findUnique({ where: { id: projectId }, select: { id: true } });
-  if (!project) return res.status(404).json({ error: 'Project not found' });
+  const project = await prisma.project.findUnique({ where: { id: data.projectId }, select: { id: true } });
+  if (!project) return sendError(res, 'NOT_FOUND', 'Project not found');
 
-  const maxOrder = await prisma.shoppingItem.aggregate({ where: { projectId }, _max: { order: true } });
+  const maxOrder = await prisma.shoppingItem.aggregate({ where: { projectId: data.projectId }, _max: { order: true } });
 
   const item = await prisma.shoppingItem.create({
     data: {
-      projectId, type, name: trimmedName,
-      link: trimmedLink,
-      pricePerItem: validateNumber(pricePerItem, 0, 1000000),
-      quantity: Math.max(1, Math.min(10000, parseInt(quantity) || 1)),
-      amount: validateNumber(amount, 0, 1000000),
+      projectId: data.projectId,
+      type: data.type,
+      name: data.name,
+      link: data.link || null,
+      pricePerItem: data.pricePerItem ?? null,
+      quantity: data.quantity,
+      amount: data.amount ?? null,
       approved: isAdmin,
-      suggestedBy: isAdmin ? null : suggestedBy,
-      order: (maxOrder._max.order || 0) + 1
+      suggestedBy,
+      order: (maxOrder._max.order || 0) + 1,
     }
   });
   res.status(201).json(item);
@@ -108,33 +123,20 @@ router.post('/', asyncHandler(async (req, res) => {
 
 // Update shopping item (admin)
 router.patch('/:id', validateId, requireAdmin, asyncHandler(async (req, res) => {
-  const { name, link, pricePerItem, quantity, amount, purchased, order } = req.body;
-  const data = {};
-
-  if (name !== undefined) {
-    const trimmed = stripTags(String(name)).slice(0, 200);
-    if (trimmed.length < 1) return res.status(400).json({ error: 'Name must be 1-200 characters' });
-    data.name = trimmed;
+  let data;
+  try {
+    data = shoppingItemUpdate.parse(req.body);
+  } catch (err) {
+    if (handleZodError(err, res)) return;
+    throw err;
   }
-  if (link !== undefined) {
-    const trimmedLink = link?.trim() || null;
-    if (trimmedLink && !isValidUrl(trimmedLink)) {
-      return res.status(400).json({ error: 'Link must be a valid http or https URL' });
-    }
-    data.link = trimmedLink;
-  }
-  if (pricePerItem !== undefined) data.pricePerItem = validateNumber(pricePerItem, 0, 1000000);
-  if (quantity !== undefined) data.quantity = Math.max(1, Math.min(10000, parseInt(quantity) || 1));
-  if (amount !== undefined) data.amount = validateNumber(amount, 0, 1000000);
-  if (purchased !== undefined) data.purchased = !!purchased;
-  if (order !== undefined) data.order = parseInt(order) || 0;
 
   try {
     const item = await prisma.shoppingItem.update({ where: { id: req.params.id }, data });
     res.json(item);
     broadcast('shopping:updated', { item, projectId: item.projectId }, getMutationId(req));
   } catch (err) {
-    if (err.code === 'P2025') return res.status(404).json({ error: 'Item not found' });
+    if (err.code === 'P2025') return sendError(res, 'NOT_FOUND', 'Item not found');
     throw err;
   }
 }));
@@ -149,7 +151,7 @@ router.patch('/:id/approve', validateId, requireAdmin, asyncHandler(async (req, 
     res.json(item);
     broadcast('shopping:approved', { item, projectId: item.projectId }, getMutationId(req));
   } catch (err) {
-    if (err.code === 'P2025') return res.status(404).json({ error: 'Item not found' });
+    if (err.code === 'P2025') return sendError(res, 'NOT_FOUND', 'Item not found');
     throw err;
   }
 }));
@@ -158,11 +160,13 @@ router.patch('/:id/approve', validateId, requireAdmin, asyncHandler(async (req, 
 router.delete('/:id', validateId, requireAdmin, asyncHandler(async (req, res) => {
   try {
     const existing = await prisma.shoppingItem.findUnique({ where: { id: req.params.id }, select: { projectId: true } });
+    if (!existing) return sendError(res, 'NOT_FOUND', 'Item not found');
+
     await prisma.shoppingItem.delete({ where: { id: req.params.id } });
     res.json({ ok: true });
-    if (existing) broadcast('shopping:deleted', { itemId: req.params.id, projectId: existing.projectId }, getMutationId(req));
+    broadcast('shopping:deleted', { itemId: req.params.id, projectId: existing.projectId }, getMutationId(req));
   } catch (err) {
-    if (err.code === 'P2025') return res.status(404).json({ error: 'Item not found' });
+    if (err.code === 'P2025') return sendError(res, 'NOT_FOUND', 'Item not found');
     throw err;
   }
 }));

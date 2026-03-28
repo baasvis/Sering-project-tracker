@@ -2,93 +2,117 @@ const { Router } = require('express');
 const prisma = require('../lib/db');
 const { requireAdmin } = require('./auth');
 const asyncHandler = require('../lib/async-handler');
-const { validateId, stripTags, sanitizeName } = require('../lib/validate');
+const { validateId } = require('../lib/validate');
+const { sendError, handleZodError } = require('../lib/errors');
+const { reportCreate, reportUpdate } = require('../lib/schemas');
+const { PAGINATION_DEFAULT_LIMIT, PAGINATION_MAX_LIMIT } = require('../lib/config');
 
 const router = Router();
 
 // Create report (anyone can submit)
 router.post('/', asyncHandler(async (req, res) => {
-  const { description, screenshotData, reporterName, currentPage } = req.body;
-  if (!description || !reporterName) {
-    return res.status(400).json({ error: 'Description and name are required' });
+  let data;
+  try {
+    data = reportCreate.parse(req.body);
+  } catch (err) {
+    if (handleZodError(err, res)) return;
+    throw err;
   }
 
-  const cleanName = sanitizeName(reporterName, { maxLen: 100 });
-  if (!cleanName) return res.status(400).json({ error: 'Valid name is required' });
-
-  const cleanDesc = stripTags(String(description)).slice(0, 2000);
-  if (!cleanDesc || cleanDesc.length < 2) {
-    return res.status(400).json({ error: 'Description must be at least 2 characters' });
-  }
-
-  if (screenshotData) {
-    if (typeof screenshotData !== 'string') {
-      return res.status(400).json({ error: 'Invalid screenshot format' });
-    }
-    // Only allow raster image formats — reject SVG (can contain embedded scripts)
+  // Extra screenshot validation: only raster image formats (reject SVG)
+  if (data.screenshotData) {
     const SAFE_PREFIXES = ['data:image/jpeg', 'data:image/png', 'data:image/webp', 'data:image/gif'];
-    if (!SAFE_PREFIXES.some(p => screenshotData.startsWith(p))) {
-      return res.status(400).json({ error: 'Screenshot must be JPEG, PNG, WebP, or GIF' });
+    if (!SAFE_PREFIXES.some(p => data.screenshotData.startsWith(p))) {
+      return sendError(res, 'VALIDATION_ERROR', 'Screenshot must be JPEG, PNG, WebP, or GIF');
     }
-    if (screenshotData.length > 2 * 1024 * 1024) {
-      return res.status(400).json({ error: 'Screenshot too large' });
+    if (data.screenshotData.length > 2 * 1024 * 1024) {
+      return sendError(res, 'VALIDATION_ERROR', 'Screenshot too large');
     }
   }
 
   const report = await prisma.report.create({
     data: {
-      description: cleanDesc,
-      screenshotData: screenshotData || null,
-      reporterName: cleanName,
-      currentPage: currentPage ? stripTags(String(currentPage)).slice(0, 200) : null
+      description: data.description,
+      screenshotData: data.screenshotData || null,
+      reporterName: data.reporterName,
+      currentPage: data.currentPage || null,
     }
   });
 
   res.status(201).json({ ...report, screenshotData: undefined });
 }));
 
-// List reports (admin only)
+// List reports (admin only, paginated)
 router.get('/', requireAdmin, asyncHandler(async (req, res) => {
   const where = {};
   if (req.query.resolved === 'true') where.resolved = true;
   if (req.query.resolved === 'false') where.resolved = false;
 
-  const reports = await prisma.report.findMany({
+  const limit = Math.min(
+    parseInt(req.query.limit, 10) || PAGINATION_DEFAULT_LIMIT,
+    PAGINATION_MAX_LIMIT
+  );
+  const cursor = req.query.cursor;
+
+  const findArgs = {
     where,
     orderBy: { createdAt: 'desc' },
-    take: 50
-  });
+    take: limit + 1,
+  };
+  if (cursor) {
+    findArgs.cursor = { id: cursor };
+    findArgs.skip = 1;
+  }
 
-  const result = reports.map(r => ({
+  const reports = await prisma.report.findMany(findArgs);
+
+  const hasMore = reports.length > limit;
+  if (hasMore) reports.pop();
+
+  const data = reports.map(r => ({
     ...r,
     hasScreenshot: !!r.screenshotData,
     screenshotData: undefined
   }));
 
-  res.json(result);
+  const nextCursor = hasMore && data.length > 0 ? data[data.length - 1].id : null;
+  res.json({ data, nextCursor, hasMore });
 }));
 
 // Get single report with screenshot (admin only)
 router.get('/:id', validateId, requireAdmin, asyncHandler(async (req, res) => {
   const report = await prisma.report.findUnique({ where: { id: req.params.id } });
-  if (!report) return res.status(404).json({ error: 'Report not found' });
+  if (!report) return sendError(res, 'NOT_FOUND', 'Report not found');
   res.json(report);
 }));
 
 // Update report (admin — resolve, add notes)
 router.patch('/:id', validateId, requireAdmin, asyncHandler(async (req, res) => {
-  const { resolved, adminNotes } = req.body;
-  const data = {};
-  if (resolved !== undefined) data.resolved = !!resolved;
-  if (adminNotes !== undefined) data.adminNotes = stripTags(String(adminNotes)).slice(0, 2000);
+  let data;
+  try {
+    data = reportUpdate.parse(req.body);
+  } catch (err) {
+    if (handleZodError(err, res)) return;
+    throw err;
+  }
 
-  const report = await prisma.report.update({ where: { id: req.params.id }, data });
-  res.json({ ...report, screenshotData: undefined });
+  try {
+    const report = await prisma.report.update({ where: { id: req.params.id }, data });
+    res.json({ ...report, screenshotData: undefined });
+  } catch (err) {
+    if (err.code === 'P2025') return sendError(res, 'NOT_FOUND', 'Report not found');
+    throw err;
+  }
 }));
 
 // Delete report (admin)
 router.delete('/:id', validateId, requireAdmin, asyncHandler(async (req, res) => {
-  await prisma.report.delete({ where: { id: req.params.id } });
+  try {
+    await prisma.report.delete({ where: { id: req.params.id } });
+  } catch (err) {
+    if (err.code === 'P2025') return sendError(res, 'NOT_FOUND', 'Report not found');
+    throw err;
+  }
   res.json({ ok: true });
 }));
 

@@ -8,36 +8,31 @@ const { requireAdmin } = require('./auth');
 const asyncHandler = require('../lib/async-handler');
 const { deleteMediaFile } = require('../lib/media-utils');
 const { validateId, isValidUuid } = require('../lib/validate');
+const { sendError, handleZodError } = require('../lib/errors');
+const { mediaCreate, mediaBatch } = require('../lib/schemas');
+const {
+  MAX_IMAGE_SIZE_BYTES, MAX_VOICE_SIZE_BYTES, MAX_STORAGE_BYTES,
+} = require('../lib/config');
 
 const router = Router();
-
-const VALID_PARENT_TYPES = ['task', 'project', 'announcement', 'comment'];
 
 // Configure multer for file uploads — save to a flat directory
 const uploadsDir = path.join(__dirname, '..', 'uploads');
 if (!fs.existsSync(uploadsDir)) fs.mkdirSync(uploadsDir, { recursive: true });
 
 const storage = multer.diskStorage({
-  destination: (req, file, cb) => {
-    cb(null, uploadsDir);
-  },
+  destination: (req, file, cb) => cb(null, uploadsDir),
   filename: (req, file, cb) => {
     const ext = path.extname(file.originalname) || '';
     cb(null, `${uuidv4()}${ext}`);
   }
 });
 
-// File size limits: 5MB for images, 2MB for voice notes
-const MAX_IMAGE_SIZE = 5 * 1024 * 1024;
-const MAX_VOICE_SIZE = 2 * 1024 * 1024;
-
 const upload = multer({
   storage,
-  limits: { fileSize: MAX_IMAGE_SIZE },
+  limits: { fileSize: MAX_IMAGE_SIZE_BYTES },
   fileFilter: (req, file, cb) => {
-    if (file.mimetype.startsWith('image/')) {
-      cb(null, true);
-    } else if (file.mimetype.startsWith('audio/')) {
+    if (file.mimetype.startsWith('image/') || file.mimetype.startsWith('audio/')) {
       cb(null, true);
     } else {
       cb(new Error('Only image and audio files are allowed'));
@@ -45,16 +40,10 @@ const upload = multer({
   }
 });
 
-// Total storage cap: prevent abuse (100MB)
-const STORAGE_CAP_BYTES = 100 * 1024 * 1024;
-
-// Atomic storage counter — initialized from DB on first use, then maintained in-memory.
-// Avoids full table scan on every upload. Race-safe: even if two concurrent uploads
-// both read the same initial value, the counter only drifts by one file size — acceptable
-// since the DB is the source of truth and we re-sync periodically.
+// In-memory storage cache — initialized from DB on first use, re-synced periodically
 let cachedStorageUsed = null;
 let storageCacheTime = 0;
-const STORAGE_CACHE_TTL = 5 * 60 * 1000; // 5 minutes
+const STORAGE_CACHE_TTL = 5 * 60 * 1000;
 
 async function getTotalStorageUsed() {
   const now = Date.now();
@@ -67,52 +56,51 @@ async function getTotalStorageUsed() {
   return cachedStorageUsed;
 }
 
+function cleanupFile(file) {
+  try { if (file?.path) fs.unlinkSync(file.path); } catch { /* ignore */ }
+}
+
 // Upload media — requires admin session OR uploaderName in body
 router.post('/', upload.single('file'), asyncHandler(async (req, res) => {
-  if (!req.file) return res.status(400).json({ error: 'No file uploaded' });
+  if (!req.file) return sendError(res, 'VALIDATION_ERROR', 'No file uploaded');
 
-  const isAdmin = req.session && req.session.admin;
+  const isAdmin = req.session?.admin;
   const uploaderName = req.body.uploaderName;
 
-  // Require identity: either admin or a visitor name
   if (!isAdmin && !uploaderName) {
-    fs.unlinkSync(req.file.path);
-    return res.status(401).json({ error: 'Please enter your name before uploading' });
+    cleanupFile(req.file);
+    return sendError(res, 'UNAUTHORIZED', 'Please enter your name before uploading');
   }
 
-  const { parentType, parentId } = req.body;
-  if (!parentType || !parentId) {
-    fs.unlinkSync(req.file.path);
-    return res.status(400).json({ error: 'parentType and parentId are required' });
-  }
-  if (!VALID_PARENT_TYPES.includes(parentType)) {
-    fs.unlinkSync(req.file.path);
-    return res.status(400).json({ error: `Invalid parentType. Must be one of: ${VALID_PARENT_TYPES.join(', ')}` });
-  }
-  if (!isValidUuid(parentId)) {
-    fs.unlinkSync(req.file.path);
-    return res.status(400).json({ error: 'Invalid parentId format' });
+  // Validate parentType + parentId via Zod
+  let parsed;
+  try {
+    parsed = mediaCreate.parse(req.body);
+  } catch (err) {
+    cleanupFile(req.file);
+    if (handleZodError(err, res)) return;
+    throw err;
   }
 
-  // Enforce voice note size limit (2MB)
-  if (req.file.mimetype.startsWith('audio/') && req.file.size > MAX_VOICE_SIZE) {
-    fs.unlinkSync(req.file.path);
-    return res.status(400).json({ error: 'Voice notes must be under 2MB (about 60 seconds)' });
+  // Enforce voice note size limit
+  if (req.file.mimetype.startsWith('audio/') && req.file.size > MAX_VOICE_SIZE_BYTES) {
+    cleanupFile(req.file);
+    return sendError(res, 'VALIDATION_ERROR', 'Voice notes must be under 2MB (about 60 seconds)');
   }
 
-  // Check total storage used (cached, simple abuse prevention)
+  // Check total storage used
   const totalUsed = await getTotalStorageUsed();
-  if (totalUsed + req.file.size > STORAGE_CAP_BYTES) {
-    fs.unlinkSync(req.file.path);
-    return res.status(507).json({ error: 'Storage limit reached. Contact an admin.' });
+  if (totalUsed + req.file.size > MAX_STORAGE_BYTES) {
+    cleanupFile(req.file);
+    return res.status(507).json({ error: 'Storage limit reached. Contact an admin.', code: 'INTERNAL_ERROR' });
   }
 
   const type = req.file.mimetype.startsWith('image/') ? 'photo' : 'voice';
 
   const media = await prisma.media.create({
     data: {
-      parentType,
-      parentId,
+      parentType: parsed.parentType,
+      parentId: parsed.parentId,
       type,
       filename: req.file.filename,
       originalName: req.file.originalname,
@@ -121,7 +109,6 @@ router.post('/', upload.single('file'), asyncHandler(async (req, res) => {
     }
   });
 
-  // Update cached storage total
   if (cachedStorageUsed !== null) cachedStorageUsed += req.file.size;
 
   res.status(201).json(media);
@@ -129,46 +116,36 @@ router.post('/', upload.single('file'), asyncHandler(async (req, res) => {
 
 // List media for a parent
 router.get('/', asyncHandler(async (req, res) => {
-  const { parentType, parentId } = req.query;
-  if (!parentType || !parentId) {
-    return res.status(400).json({ error: 'parentType and parentId required' });
-  }
-  if (!VALID_PARENT_TYPES.includes(parentType)) {
-    return res.status(400).json({ error: 'Invalid parentType' });
-  }
-  if (!isValidUuid(parentId)) {
-    return res.status(400).json({ error: 'Invalid parentId format' });
+  let parsed;
+  try {
+    parsed = mediaCreate.parse({ parentType: req.query.parentType, parentId: req.query.parentId });
+  } catch (err) {
+    if (handleZodError(err, res)) return;
+    throw err;
   }
 
   const media = await prisma.media.findMany({
-    where: { parentType, parentId },
+    where: { parentType: parsed.parentType, parentId: parsed.parentId },
     orderBy: { createdAt: 'asc' }
   });
   res.json(media);
 }));
 
 // Batch-fetch media for multiple parents (avoids N+1 on dashboard)
-// Exported as router.batchHandler for app-level mounting (Express 5 compatibility)
 const batchHandler = asyncHandler(async (req, res) => {
-  const { parentType, parentIds } = req.query;
-  if (!parentType || !parentIds) {
-    return res.status(400).json({ error: 'parentType and parentIds required' });
-  }
-  if (!VALID_PARENT_TYPES.includes(parentType)) {
-    return res.status(400).json({ error: 'Invalid parentType' });
-  }
-
-  const ids = parentIds.split(',').filter(id => isValidUuid(id)).slice(0, 50);
-  if (ids.length === 0) {
-    return res.json({});
+  let parsed;
+  try {
+    parsed = mediaBatch.parse({ parentType: req.query.parentType, parentIds: req.query.parentIds || '' });
+  } catch (err) {
+    if (handleZodError(err, res)) return;
+    throw err;
   }
 
   const media = await prisma.media.findMany({
-    where: { parentType, parentId: { in: ids } },
+    where: { parentType: parsed.parentType, parentId: { in: parsed.parentIds } },
     orderBy: { createdAt: 'asc' }
   });
 
-  // Group by parentId
   const grouped = {};
   for (const m of media) {
     if (!grouped[m.parentId]) grouped[m.parentId] = [];
@@ -181,13 +158,11 @@ router.batchHandler = batchHandler;
 // Serve a media file
 router.get('/:id/file', validateId, asyncHandler(async (req, res) => {
   const media = await prisma.media.findUnique({ where: { id: req.params.id } });
-  if (!media) return res.status(404).json({ error: 'Media not found' });
+  if (!media) return sendError(res, 'NOT_FOUND', 'Media not found');
 
-  // Validate filename to prevent path traversal — use basename only
   const safeFilename = path.basename(media.filename);
   const resolvedUploads = path.resolve(uploadsDir);
 
-  // Check multiple possible locations for the file, validating each
   const candidates = [
     path.resolve(uploadsDir, safeFilename),
     path.resolve(uploadsDir, media.parentType, media.parentId, safeFilename),
@@ -196,22 +171,20 @@ router.get('/:id/file', validateId, asyncHandler(async (req, res) => {
 
   let filePath = null;
   for (const candidate of candidates) {
-    // Path traversal guard: every candidate must resolve within uploads dir
     if (!candidate.startsWith(resolvedUploads)) continue;
     if (fs.existsSync(candidate)) { filePath = candidate; break; }
   }
 
-  if (!filePath) return res.status(404).json({ error: 'File not found on disk' });
+  if (!filePath) return sendError(res, 'NOT_FOUND', 'File not found on disk');
 
   res.set('Cache-Control', 'public, max-age=604800, immutable');
   res.set('Content-Type', media.mimeType);
   res.set('X-Content-Type-Options', 'nosniff');
-  // Force download for non-image/non-audio types (defense against HTML-as-image attacks)
   const safeInline = media.mimeType.startsWith('image/') || media.mimeType.startsWith('audio/');
   res.set('Content-Disposition', safeInline ? 'inline' : 'attachment');
   const stream = fs.createReadStream(filePath);
   stream.on('error', () => {
-    if (!res.headersSent) res.status(500).json({ error: 'Failed to serve file' });
+    if (!res.headersSent) res.status(500).json({ error: 'Failed to serve file', code: 'INTERNAL_ERROR' });
   });
   stream.pipe(res);
 }));
@@ -219,11 +192,10 @@ router.get('/:id/file', validateId, asyncHandler(async (req, res) => {
 // Delete media (admin only)
 router.delete('/:id', validateId, requireAdmin, asyncHandler(async (req, res) => {
   const media = await prisma.media.findUnique({ where: { id: req.params.id } });
-  if (!media) return res.status(404).json({ error: 'Media not found' });
+  if (!media) return sendError(res, 'NOT_FOUND', 'Media not found');
 
   deleteMediaFile(media);
 
-  // Decrement storage counter (atomic counter approach — no full DB scan)
   if (cachedStorageUsed !== null) {
     cachedStorageUsed = Math.max(0, cachedStorageUsed - media.sizeBytes);
   }
