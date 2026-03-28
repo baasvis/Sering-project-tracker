@@ -7,7 +7,7 @@ Project tracker for De Sering community kitchen. Small user base (< 100 users), 
 This codebase is being rewritten phase-by-phase. The API contract and database models stay the same, but the internals are being rebuilt for correctness, testability, and safety. Each phase below should be completed in order. Mark phases as DONE here as they're finished.
 
 ### Phase Status
-- [ ] Phase 1: Schema hardening (enums, constraints, indexes, migration)
+- [x] Phase 1: Schema hardening (enums, constraints, indexes, migration)
 - [ ] Phase 2: Shared backend infrastructure (validation, CRUD factory, config)
 - [ ] Phase 3a: Simple route rewrites (groups, announcements, comments, health)
 - [ ] Phase 3b: Complex route rewrites (projects, tasks)

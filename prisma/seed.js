@@ -15,7 +15,7 @@ async function main() {
     description: 'New outdoor seating area for Sering Centraal. Needs permits, materials, and volunteer build days.',
     contactPerson: 'Daan',
     tier: 'medium',
-    joinType: 'at_get_together',
+    joinType: 'open',
     status: 'active',
   }});
 
@@ -25,7 +25,7 @@ async function main() {
     description: 'Current ventilation is too loud and not up to standard. Getting quotes from contractors.',
     contactPerson: 'Sara',
     tier: 'mvp',
-    joinType: 'contact_us',
+    joinType: 'contact',
     status: 'active',
   }});
 
@@ -35,7 +35,7 @@ async function main() {
     description: 'Weekly community dinners every Tuesday at Sering West. Need menu planning, volunteer schedule, and promotion.',
     contactPerson: 'Lena',
     tier: 'mvp',
-    joinType: 'at_get_together',
+    joinType: 'open',
     status: 'active',
   }});
 
@@ -45,7 +45,7 @@ async function main() {
     description: 'Set up a simple system to log daily food waste by category so we can see where to improve.',
     contactPerson: 'Tom',
     tier: 'medium',
-    joinType: 'no_help_needed',
+    joinType: 'closed',
     status: 'active',
   }});
 
@@ -55,7 +55,7 @@ async function main() {
     description: 'Exploring a potential fourth location in Amsterdam Noord. Research phase.',
     contactPerson: 'Daan',
     tier: 'next_level',
-    joinType: 'contact_us',
+    joinType: 'contact',
     status: 'active',
   }});
 
@@ -65,7 +65,7 @@ async function main() {
     description: 'Repainted the entrance at Sering West.',
     contactPerson: 'Rosa',
     tier: 'mvp',
-    joinType: 'no_help_needed',
+    joinType: 'closed',
     status: 'completed',
   }});
 

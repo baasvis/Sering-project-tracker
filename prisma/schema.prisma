@@ -7,10 +7,62 @@ datasource db {
   url      = env("DATABASE_URL")
 }
 
+// ─── Enums ──────────────────────────────────────────────────────────────────
+
+enum ProjectStatus {
+  active
+  completed
+  archived
+}
+
+enum TaskStatus {
+  todo
+  in_progress
+  done
+}
+
+enum ProjectTier {
+  mvp
+  medium
+  next_level
+}
+
+enum JoinType {
+  open
+  contact
+  closed
+}
+
+enum ShoppingItemType {
+  product
+  cost
+}
+
+enum MediaType {
+  photo
+  voice
+}
+
+enum CommentTargetType {
+  group
+  project
+  task
+  announcement
+}
+
+enum MediaParentType {
+  task
+  project
+  announcement
+  comment
+}
+
+// ─── Models ─────────────────────────────────────────────────────────────────
+
 model Group {
-  id          String    @id @default(uuid())
-  name        String
-  description String?
+  id                String    @id @default(uuid())
+  name              String
+  description       String?
   order             Int       @default(0)
   mattermostChannel String?
   deletedAt         DateTime?
@@ -20,20 +72,20 @@ model Group {
 }
 
 model Project {
-  id          String   @id @default(uuid())
-  groupId     String
-  group       Group    @relation(fields: [groupId], references: [id])
+  id            String         @id @default(uuid())
+  groupId       String
+  group         Group          @relation(fields: [groupId], references: [id])
   name          String
   description   String?
   contactPerson String?
-  tier          String?  // mvp, medium, next_level
-  joinType      String?  // open, contact, closed
-  status        String   @default("active") // active, completed, archived
-  approved      Boolean  @default(true)
+  tier          ProjectTier?
+  joinType      JoinType?
+  status        ProjectStatus  @default(active)
+  approved      Boolean        @default(true)
   suggestedBy   String?
   deletedAt     DateTime?
-  createdAt   DateTime @default(now())
-  updatedAt   DateTime @updatedAt
+  createdAt     DateTime       @default(now())
+  updatedAt     DateTime       @updatedAt
   tasks         Task[]
   shoppingItems ShoppingItem[]
 
@@ -41,22 +93,22 @@ model Project {
 }
 
 model Task {
-  id          String    @id @default(uuid())
+  id          String      @id @default(uuid())
   projectId   String
-  project     Project   @relation(fields: [projectId], references: [id], onDelete: Cascade)
+  project     Project     @relation(fields: [projectId], references: [id], onDelete: Cascade)
   name        String
   description String?
-  status      String    @default("todo") // todo, in_progress, done
+  status      TaskStatus  @default(todo)
   assignee    String?
   deadline    DateTime?
-  order       Int       @default(0)
-  approved    Boolean   @default(true)
+  order       Int         @default(0)
+  approved    Boolean     @default(true)
   suggestedBy String?
   deletedAt   DateTime?
-  createdAt   DateTime  @default(now())
-  updatedAt   DateTime  @updatedAt
+  createdAt   DateTime    @default(now())
+  updatedAt   DateTime    @updatedAt
 
-  @@index([projectId])
+  @@index([projectId, status])
 }
 
 model Announcement {
@@ -72,59 +124,59 @@ model Announcement {
 }
 
 model Comment {
-  id         String   @id @default(uuid())
-  targetType String   // group, project, task, announcement
+  id         String            @id @default(uuid())
+  targetType CommentTargetType
   targetId   String
   authorName String
   body       String?
-  createdAt  DateTime @default(now())
+  createdAt  DateTime          @default(now())
 
   @@index([targetType, targetId])
   @@index([authorName, createdAt])
 }
 
 model ShoppingItem {
-  id           String   @id @default(uuid())
+  id           String           @id @default(uuid())
   projectId    String
-  project      Project  @relation(fields: [projectId], references: [id], onDelete: Cascade)
-  type         String   @default("product") // product, cost
+  project      Project          @relation(fields: [projectId], references: [id], onDelete: Cascade)
+  type         ShoppingItemType @default(product)
   name         String
   link         String?
   pricePerItem Float?
-  quantity     Int?     @default(1)
+  quantity     Int?             @default(1)
   amount       Float?
-  purchased    Boolean  @default(false)
+  purchased    Boolean          @default(false)
   suggestedBy  String?
-  approved     Boolean  @default(false)
-  order        Int      @default(0)
-  createdAt    DateTime @default(now())
-  updatedAt    DateTime @updatedAt
+  approved     Boolean          @default(false)
+  order        Int              @default(0)
+  createdAt    DateTime         @default(now())
+  updatedAt    DateTime         @updatedAt
 
-  @@index([projectId])
+  @@index([projectId, approved])
 }
 
 model Media {
-  id           String   @id @default(uuid())
-  parentType   String   // task, project, announcement, comment
+  id           String          @id @default(uuid())
+  parentType   MediaParentType
   parentId     String
-  type         String   // photo, voice
+  type         MediaType
   filename     String
   originalName String
   mimeType     String
   sizeBytes    Int
-  createdAt    DateTime @default(now())
+  createdAt    DateTime        @default(now())
 
-  @@index([parentType, parentId])
+  @@index([parentType, parentId, createdAt])
 }
 
 model AuditLog {
-  id        String   @id @default(uuid())
-  action    String   // e.g. "project:deleted", "task:approved", "comment:deleted"
-  actor     String   // admin email or "system"
-  targetType String? // e.g. "project", "task", "group"
-  targetId  String?
-  details   String?  // JSON string with extra context
-  createdAt DateTime @default(now())
+  id         String   @id @default(uuid())
+  action     String
+  actor      String
+  targetType String?
+  targetId   String?
+  details    String?
+  createdAt  DateTime @default(now())
 
   @@index([action, createdAt])
   @@index([actor, createdAt])
@@ -133,9 +185,9 @@ model AuditLog {
 model Report {
   id             String   @id @default(uuid())
   description    String
-  screenshotData String?  // base64 data URL of auto-captured screenshot
+  screenshotData String?
   reporterName   String
-  currentPage    String?  // hash route when report was created
+  currentPage    String?
   resolved       Boolean  @default(false)
   adminNotes     String?
   createdAt      DateTime @default(now())
