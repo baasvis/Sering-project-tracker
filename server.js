@@ -244,27 +244,31 @@ app.use((err, req, res, next) => {
   }
 });
 
-const server = app.listen(PORT, () => {
-  console.log(`Sering Project Tracker running on http://localhost:${PORT}`);
-  if (DEV_MODE) console.log('DEV MODE: No Google auth required. Use /auth/dev-login to become admin.');
-});
+// Export app for testing (supertest)
+module.exports = app;
 
-server.keepAliveTimeout = 120_000;
-server.headersTimeout = 125_000;
-
-// Graceful shutdown — stop accepting connections, drain existing ones, then exit
-function gracefulShutdown(signal) {
-  console.log(`${signal} received — shutting down gracefully...`);
-  server.close(() => {
-    console.log('HTTP server closed');
-    process.exit(0);
+// Only listen when run directly (not when imported by tests)
+if (require.main === module) {
+  const server = app.listen(PORT, () => {
+    console.log(`Sering Project Tracker running on http://localhost:${PORT}`);
+    if (DEV_MODE) console.log('DEV MODE: No Google auth required. Use /auth/dev-login to become admin.');
   });
-  // Force exit after 10s if connections don't drain
-  setTimeout(() => {
-    console.error('Forced shutdown after 10s timeout');
-    process.exit(1);
-  }, 10_000);
-}
 
-process.on('SIGTERM', () => gracefulShutdown('SIGTERM'));
-process.on('SIGINT', () => gracefulShutdown('SIGINT'));
+  server.keepAliveTimeout = 120_000;
+  server.headersTimeout = 125_000;
+
+  function gracefulShutdown(signal) {
+    console.log(`${signal} received — shutting down gracefully...`);
+    server.close(() => {
+      console.log('HTTP server closed');
+      process.exit(0);
+    });
+    setTimeout(() => {
+      console.error('Forced shutdown after 10s timeout');
+      process.exit(1);
+    }, 10_000);
+  }
+
+  process.on('SIGTERM', () => gracefulShutdown('SIGTERM'));
+  process.on('SIGINT', () => gracefulShutdown('SIGINT'));
+}

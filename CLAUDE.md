@@ -16,7 +16,7 @@ This codebase is being rewritten phase-by-phase. The API contract and database m
 - [x] Phase 5a: Frontend core (state, utils, auth)
 - [x] Phase 5b: Frontend screens (dashboard, projects)
 - [x] Phase 5c: Frontend remaining (shopping, budget, admin, reports, sse, init)
-- [ ] Phase 6: Integration tests + hardening
+- [x] Phase 6: Integration tests + hardening
 
 ---
 
