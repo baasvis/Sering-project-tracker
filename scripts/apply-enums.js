@@ -10,8 +10,10 @@ async function applyEnums() {
 
   try {
     console.log('[migrate] Checking if enum migration is needed...');
+    console.log('[migrate] DATABASE_URL set: ' + (!!process.env.DATABASE_URL));
 
     // Check if the Project.status column is already an enum (not just text)
+    console.log('[migrate] Querying column info...');
     const colCheck = await prisma.$queryRaw`
       SELECT data_type, udt_name
       FROM information_schema.columns
@@ -106,11 +108,16 @@ async function applyEnums() {
     console.log('[migrate] Enum migration complete!');
   } catch (err) {
     console.error('[migrate] Migration failed.');
-    console.error('[migrate] Error name:', err.name);
-    console.error('[migrate] Error message:', err.message || '(empty)');
-    console.error('[migrate] Error code:', err.code || '(none)');
-    console.error('[migrate] Error meta:', JSON.stringify(err.meta || {}));
-    console.error('[migrate] Full error:', JSON.stringify(err, Object.getOwnPropertyNames(err)));
+    console.error('[migrate] Error name: ' + (err.name || 'unknown'));
+    console.error('[migrate] Error code: ' + (err.code || 'none'));
+    // Prisma wraps the real error — dig it out
+    const cause = err.cause || err;
+    console.error('[migrate] Cause: ' + String(cause));
+    console.error('[migrate] Stack: ' + (err.stack || 'no stack').slice(0, 500));
+    // Try to get Prisma's internal message
+    if (err.meta) console.error('[migrate] Meta: ' + JSON.stringify(err.meta));
+    // Log the entire error as a string
+    try { console.error('[migrate] Stringified: ' + JSON.stringify(err)); } catch { /* circular */ }
     process.exit(1);
   } finally {
     await prisma.$disconnect();
