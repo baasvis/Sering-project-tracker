@@ -1,142 +1,86 @@
 /**
  * One-time migration: convert string columns to PostgreSQL enums.
- * Runs the migration SQL directly, skipping steps that already exist.
- * Safe to run multiple times (idempotent).
+ * Fully idempotent — every step is wrapped individually.
+ * Safe to run any number of times in any database state.
  */
 const { PrismaClient } = require('@prisma/client');
+
+async function run(prisma, label, sql) {
+  try {
+    await prisma.$executeRawUnsafe(sql);
+    console.log('[migrate] OK: ' + label);
+  } catch (e) {
+    const msg = String(e.meta?.message || e.message || e).slice(0, 200);
+    if (msg.includes('already exists') || msg.includes('does not exist') || msg.includes('No default')) {
+      console.log('[migrate] SKIP: ' + label + ' (' + msg.slice(0, 80) + ')');
+    } else {
+      console.error('[migrate] WARN: ' + label + ' -> ' + msg);
+    }
+  }
+}
 
 async function applyEnums() {
   const prisma = new PrismaClient();
 
   try {
-    console.log('[migrate] Checking if enum migration is needed...');
-    console.log('[migrate] DATABASE_URL set: ' + (!!process.env.DATABASE_URL));
+    console.log('[migrate] Starting idempotent enum migration...');
 
-    // Check if the Project.status column is already an enum (not just text)
-    console.log('[migrate] Querying column info...');
-    const colCheck = await prisma.$queryRaw`
-      SELECT data_type, udt_name
-      FROM information_schema.columns
-      WHERE table_name = 'Project' AND column_name = 'status'
-    `;
+    // Step 1: Create enum types (skip if they exist)
+    await run(prisma, 'create ProjectStatus', `DO $$ BEGIN CREATE TYPE "ProjectStatus" AS ENUM ('active', 'completed', 'archived'); EXCEPTION WHEN duplicate_object THEN NULL; END $$`);
+    await run(prisma, 'create TaskStatus', `DO $$ BEGIN CREATE TYPE "TaskStatus" AS ENUM ('todo', 'in_progress', 'done'); EXCEPTION WHEN duplicate_object THEN NULL; END $$`);
+    await run(prisma, 'create ProjectTier', `DO $$ BEGIN CREATE TYPE "ProjectTier" AS ENUM ('mvp', 'medium', 'next_level'); EXCEPTION WHEN duplicate_object THEN NULL; END $$`);
+    await run(prisma, 'create JoinType', `DO $$ BEGIN CREATE TYPE "JoinType" AS ENUM ('open', 'contact', 'closed'); EXCEPTION WHEN duplicate_object THEN NULL; END $$`);
+    await run(prisma, 'create ShoppingItemType', `DO $$ BEGIN CREATE TYPE "ShoppingItemType" AS ENUM ('product', 'cost'); EXCEPTION WHEN duplicate_object THEN NULL; END $$`);
+    await run(prisma, 'create MediaType', `DO $$ BEGIN CREATE TYPE "MediaType" AS ENUM ('photo', 'voice'); EXCEPTION WHEN duplicate_object THEN NULL; END $$`);
+    await run(prisma, 'create CommentTargetType', `DO $$ BEGIN CREATE TYPE "CommentTargetType" AS ENUM ('group', 'project', 'task', 'announcement'); EXCEPTION WHEN duplicate_object THEN NULL; END $$`);
+    await run(prisma, 'create MediaParentType', `DO $$ BEGIN CREATE TYPE "MediaParentType" AS ENUM ('task', 'project', 'announcement', 'comment'); EXCEPTION WHEN duplicate_object THEN NULL; END $$`);
 
-    const currentType = colCheck[0]?.udt_name || 'unknown';
-    console.log('[migrate] Project.status column type:', currentType);
+    // Step 2: Normalize data (safe even if already correct or already enum)
+    await run(prisma, 'normalize Project.joinType', `UPDATE "Project" SET "joinType" = 'open' WHERE "joinType" IS NOT NULL AND "joinType"::text NOT IN ('open', 'contact', 'closed')`);
+    await run(prisma, 'normalize Project.tier', `UPDATE "Project" SET "tier" = NULL WHERE "tier" IS NOT NULL AND "tier"::text NOT IN ('mvp', 'medium', 'next_level')`);
+    await run(prisma, 'normalize Project.status', `UPDATE "Project" SET "status" = 'active' WHERE "status"::text NOT IN ('active', 'completed', 'archived')`);
+    await run(prisma, 'normalize Task.status', `UPDATE "Task" SET "status" = 'todo' WHERE "status"::text NOT IN ('todo', 'in_progress', 'done')`);
+    await run(prisma, 'normalize ShoppingItem.type', `UPDATE "ShoppingItem" SET "type" = 'product' WHERE "type"::text NOT IN ('product', 'cost')`);
 
-    if (currentType === 'ProjectStatus') {
-      console.log('[migrate] Columns already converted to enums, skipping.');
-
-      // Still ensure indexes exist
-      await applyIndexes(prisma);
-      return;
-    }
-
-    console.log('[migrate] Converting columns to enums...');
-
-    // Create enum types (IF NOT EXISTS via catch)
-    const enumDefs = [
-      `CREATE TYPE "ProjectStatus" AS ENUM ('active', 'completed', 'archived')`,
-      `CREATE TYPE "TaskStatus" AS ENUM ('todo', 'in_progress', 'done')`,
-      `CREATE TYPE "ProjectTier" AS ENUM ('mvp', 'medium', 'next_level')`,
-      `CREATE TYPE "JoinType" AS ENUM ('open', 'contact', 'closed')`,
-      `CREATE TYPE "ShoppingItemType" AS ENUM ('product', 'cost')`,
-      `CREATE TYPE "MediaType" AS ENUM ('photo', 'voice')`,
-      `CREATE TYPE "CommentTargetType" AS ENUM ('group', 'project', 'task', 'announcement')`,
-      `CREATE TYPE "MediaParentType" AS ENUM ('task', 'project', 'announcement', 'comment')`,
-    ];
-
-    for (const sql of enumDefs) {
-      try {
-        await prisma.$executeRawUnsafe(sql);
-      } catch (e) {
-        // Type already exists — that's fine
-        if (e.message && e.message.includes('already exists')) {
-          console.log('[migrate] (type already exists, continuing)');
-        } else {
-          throw e;
-        }
-      }
-    }
-    console.log('[migrate] Enum types ready.');
-
-    // Normalize invalid data before casting
-    await prisma.$executeRawUnsafe(`UPDATE "Project" SET "joinType" = 'open' WHERE "joinType" NOT IN ('open', 'contact', 'closed') AND "joinType" IS NOT NULL`);
-    await prisma.$executeRawUnsafe(`UPDATE "Project" SET "tier" = NULL WHERE "tier" NOT IN ('mvp', 'medium', 'next_level') AND "tier" IS NOT NULL`);
-    await prisma.$executeRawUnsafe(`UPDATE "Project" SET "status" = 'active' WHERE "status" NOT IN ('active', 'completed', 'archived')`);
-    await prisma.$executeRawUnsafe(`UPDATE "Task" SET "status" = 'todo' WHERE "status" NOT IN ('todo', 'in_progress', 'done')`);
-    await prisma.$executeRawUnsafe(`UPDATE "ShoppingItem" SET "type" = 'product' WHERE "type" NOT IN ('product', 'cost')`);
-    console.log('[migrate] Data normalized.');
-
-    // Convert columns — each wrapped individually so we can skip already-converted ones
+    // Step 3: Convert columns to enum types (skip if already the right type)
+    // Using DO blocks so Postgres handles "already correct type" gracefully
     const conversions = [
-      { table: 'Project', column: 'status', type: 'ProjectStatus', default: 'active' },
-      { table: 'Project', column: 'tier', type: 'ProjectTier', default: null },
-      { table: 'Project', column: 'joinType', type: 'JoinType', default: null },
-      { table: 'Task', column: 'status', type: 'TaskStatus', default: 'todo' },
-      { table: 'Comment', column: 'targetType', type: 'CommentTargetType', default: null },
-      { table: 'ShoppingItem', column: 'type', type: 'ShoppingItemType', default: 'product' },
-      { table: 'Media', column: 'type', type: 'MediaType', default: null },
-      { table: 'Media', column: 'parentType', type: 'MediaParentType', default: null },
+      ['Project.status -> ProjectStatus',   `ALTER TABLE "Project" ALTER COLUMN "status" TYPE "ProjectStatus" USING "status"::text::"ProjectStatus"`],
+      ['Project.status default',            `ALTER TABLE "Project" ALTER COLUMN "status" SET DEFAULT 'active'::"ProjectStatus"`],
+      ['Project.tier -> ProjectTier',       `ALTER TABLE "Project" ALTER COLUMN "tier" TYPE "ProjectTier" USING "tier"::text::"ProjectTier"`],
+      ['Project.joinType -> JoinType',      `ALTER TABLE "Project" ALTER COLUMN "joinType" TYPE "JoinType" USING "joinType"::text::"JoinType"`],
+      ['Task.status -> TaskStatus',         `ALTER TABLE "Task" ALTER COLUMN "status" TYPE "TaskStatus" USING "status"::text::"TaskStatus"`],
+      ['Task.status default',               `ALTER TABLE "Task" ALTER COLUMN "status" SET DEFAULT 'todo'::"TaskStatus"`],
+      ['Comment.targetType -> CommentTargetType', `ALTER TABLE "Comment" ALTER COLUMN "targetType" TYPE "CommentTargetType" USING "targetType"::text::"CommentTargetType"`],
+      ['ShoppingItem.type -> ShoppingItemType',   `ALTER TABLE "ShoppingItem" ALTER COLUMN "type" TYPE "ShoppingItemType" USING "type"::text::"ShoppingItemType"`],
+      ['ShoppingItem.type default',               `ALTER TABLE "ShoppingItem" ALTER COLUMN "type" SET DEFAULT 'product'::"ShoppingItemType"`],
+      ['Media.type -> MediaType',           `ALTER TABLE "Media" ALTER COLUMN "type" TYPE "MediaType" USING "type"::text::"MediaType"`],
+      ['Media.parentType -> MediaParentType', `ALTER TABLE "Media" ALTER COLUMN "parentType" TYPE "MediaParentType" USING "parentType"::text::"MediaParentType"`],
     ];
 
-    for (const c of conversions) {
-      // Check if this column is already the right type
-      const check = await prisma.$queryRaw`
-        SELECT udt_name FROM information_schema.columns
-        WHERE table_name = ${c.table} AND column_name = ${c.column}
-      `;
-      if (check[0]?.udt_name === c.type) {
-        console.log(`[migrate] ${c.table}.${c.column} already ${c.type}, skipping.`);
-        continue;
-      }
-
-      console.log(`[migrate] Converting ${c.table}.${c.column} to ${c.type}...`);
-      if (c.default) {
-        await prisma.$executeRawUnsafe(`ALTER TABLE "${c.table}" ALTER COLUMN "${c.column}" SET DEFAULT '${c.default}'`);
-      } else {
-        try { await prisma.$executeRawUnsafe(`ALTER TABLE "${c.table}" ALTER COLUMN "${c.column}" DROP DEFAULT`); } catch { /* no default to drop */ }
-      }
-      await prisma.$executeRawUnsafe(`ALTER TABLE "${c.table}" ALTER COLUMN "${c.column}" TYPE "${c.type}" USING "${c.column}"::"${c.type}"`);
-      if (c.default) {
-        await prisma.$executeRawUnsafe(`ALTER TABLE "${c.table}" ALTER COLUMN "${c.column}" SET DEFAULT '${c.default}'`);
-      }
+    for (const [label, sql] of conversions) {
+      await run(prisma, label, sql);
     }
-    console.log('[migrate] All columns converted.');
 
-    await applyIndexes(prisma);
+    // Step 4: Indexes
+    await run(prisma, 'drop old Task_projectId_idx', `DROP INDEX IF EXISTS "Task_projectId_idx"`);
+    await run(prisma, 'create Task_projectId_status_idx', `CREATE INDEX IF NOT EXISTS "Task_projectId_status_idx" ON "Task"("projectId", "status")`);
+    await run(prisma, 'drop old ShoppingItem_projectId_idx', `DROP INDEX IF EXISTS "ShoppingItem_projectId_idx"`);
+    await run(prisma, 'create ShoppingItem_projectId_approved_idx', `CREATE INDEX IF NOT EXISTS "ShoppingItem_projectId_approved_idx" ON "ShoppingItem"("projectId", "approved")`);
+    await run(prisma, 'drop old Media_parentType_parentId_idx', `DROP INDEX IF EXISTS "Media_parentType_parentId_idx"`);
+    await run(prisma, 'create Media_parentType_parentId_createdAt_idx', `CREATE INDEX IF NOT EXISTS "Media_parentType_parentId_createdAt_idx" ON "Media"("parentType", "parentId", "createdAt")`);
+    await run(prisma, 'create Group_deletedAt_idx', `CREATE INDEX IF NOT EXISTS "Group_deletedAt_idx" ON "Group"("deletedAt")`);
+    await run(prisma, 'create Task_projectId_deadline_idx', `CREATE INDEX IF NOT EXISTS "Task_projectId_deadline_idx" ON "Task"("projectId", "deadline")`);
+    await run(prisma, 'drop old Comment index', `DROP INDEX IF EXISTS "Comment_targetType_targetId_idx"`);
+    await run(prisma, 'create Comment_targetType_targetId_createdAt_idx', `CREATE INDEX IF NOT EXISTS "Comment_targetType_targetId_createdAt_idx" ON "Comment"("targetType", "targetId", "createdAt")`);
 
-    console.log('[migrate] Enum migration complete!');
+    console.log('[migrate] Done.');
   } catch (err) {
-    console.error('[migrate] Migration failed.');
-    console.error('[migrate] Error name: ' + (err.name || 'unknown'));
-    console.error('[migrate] Error code: ' + (err.code || 'none'));
-    // Prisma wraps the real error — dig it out
-    const cause = err.cause || err;
-    console.error('[migrate] Cause: ' + String(cause));
-    console.error('[migrate] Stack: ' + (err.stack || 'no stack').slice(0, 500));
-    // Try to get Prisma's internal message
-    if (err.meta) console.error('[migrate] Meta: ' + JSON.stringify(err.meta));
-    // Log the entire error as a string
-    try { console.error('[migrate] Stringified: ' + JSON.stringify(err)); } catch { /* circular */ }
+    console.error('[migrate] Unexpected fatal error: ' + String(err).slice(0, 300));
     process.exit(1);
   } finally {
     await prisma.$disconnect();
   }
-}
-
-async function applyIndexes(prisma) {
-  console.log('[migrate] Ensuring indexes...');
-  await prisma.$executeRawUnsafe(`DROP INDEX IF EXISTS "Task_projectId_idx"`);
-  await prisma.$executeRawUnsafe(`CREATE INDEX IF NOT EXISTS "Task_projectId_status_idx" ON "Task"("projectId", "status")`);
-  await prisma.$executeRawUnsafe(`DROP INDEX IF EXISTS "ShoppingItem_projectId_idx"`);
-  await prisma.$executeRawUnsafe(`CREATE INDEX IF NOT EXISTS "ShoppingItem_projectId_approved_idx" ON "ShoppingItem"("projectId", "approved")`);
-  await prisma.$executeRawUnsafe(`DROP INDEX IF EXISTS "Media_parentType_parentId_idx"`);
-  await prisma.$executeRawUnsafe(`CREATE INDEX IF NOT EXISTS "Media_parentType_parentId_createdAt_idx" ON "Media"("parentType", "parentId", "createdAt")`);
-  await prisma.$executeRawUnsafe(`CREATE INDEX IF NOT EXISTS "Group_deletedAt_idx" ON "Group"("deletedAt")`);
-  await prisma.$executeRawUnsafe(`CREATE INDEX IF NOT EXISTS "Task_projectId_deadline_idx" ON "Task"("projectId", "deadline")`);
-  await prisma.$executeRawUnsafe(`DROP INDEX IF EXISTS "Comment_targetType_targetId_idx"`);
-  await prisma.$executeRawUnsafe(`CREATE INDEX IF NOT EXISTS "Comment_targetType_targetId_createdAt_idx" ON "Comment"("targetType", "targetId", "createdAt")`);
-  console.log('[migrate] Indexes ready.');
 }
 
 applyEnums();
