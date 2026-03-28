@@ -4,7 +4,7 @@
   "description": "Project tracker for De Sering community kitchen",
   "main": "server.js",
   "scripts": {
-    "start": "npx prisma db push --skip-generate && node server.js",
+    "start": "npx prisma db push --skip-generate --accept-data-loss && node server.js",
     "dev": "node --watch server.js",
     "postinstall": "prisma generate",
     "db:migrate": "npx prisma migrate dev",
