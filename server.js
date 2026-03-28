@@ -9,7 +9,12 @@ const morgan = require('morgan');
 const crypto = require('crypto');
 const path = require('path');
 const fs = require('fs');
-const { PORT, SESSION_SECRET, GOOGLE_CLIENT_ID, DEV_MODE } = require('./lib/config');
+const {
+  PORT, SESSION_SECRET, GOOGLE_CLIENT_ID, DEV_MODE, IS_PRODUCTION,
+  RATE_LIMIT_GENERAL, RATE_LIMIT_WRITES, RATE_LIMIT_UPLOADS,
+  RATE_LIMIT_SSE, RATE_LIMIT_AUTH, RATE_LIMIT_WINDOW_MS,
+  REQUEST_TIMEOUT_MS, EXPORT_TIMEOUT_MS, SESSION_MAX_AGE_MS,
+} = require('./lib/config');
 const { addClient, getClientCount } = require('./lib/sse');
 
 const app = express();
@@ -62,36 +67,31 @@ app.use(express.urlencoded({ extended: true, limit: '1mb' }));
 
 // ---- Rate limiting ----
 
+const limiterDefaults = { windowMs: RATE_LIMIT_WINDOW_MS, standardHeaders: true, legacyHeaders: false };
+
 const apiLimiter = rateLimit({
-  windowMs: 60_000,
-  max: 100,
-  standardHeaders: true,
-  legacyHeaders: false,
-  message: { error: 'Too many requests, please try again later' }
+  ...limiterDefaults, max: RATE_LIMIT_GENERAL,
+  message: { error: 'Too many requests, please try again later', code: 'RATE_LIMITED' },
 });
 
 const writeLimiter = rateLimit({
-  windowMs: 60_000,
-  max: 20,
-  standardHeaders: true,
-  legacyHeaders: false,
-  message: { error: 'Too many requests, please slow down' }
+  ...limiterDefaults, max: RATE_LIMIT_WRITES,
+  message: { error: 'Too many requests, please slow down', code: 'RATE_LIMITED' },
 });
 
 const uploadLimiter = rateLimit({
-  windowMs: 60_000,
-  max: 10,
-  standardHeaders: true,
-  legacyHeaders: false,
-  message: { error: 'Too many uploads, please wait a minute' }
+  ...limiterDefaults, max: RATE_LIMIT_UPLOADS,
+  message: { error: 'Too many uploads, please wait a minute', code: 'RATE_LIMITED' },
 });
 
 const sseLimiter = rateLimit({
-  windowMs: 60_000,
-  max: 5,
-  standardHeaders: true,
-  legacyHeaders: false,
-  message: { error: 'Too many SSE connections, please wait' }
+  ...limiterDefaults, max: RATE_LIMIT_SSE,
+  message: { error: 'Too many SSE connections, please wait', code: 'RATE_LIMITED' },
+});
+
+const authLimiter = rateLimit({
+  ...limiterDefaults, max: RATE_LIMIT_AUTH,
+  message: { error: 'Too many auth attempts, please wait', code: 'RATE_LIMITED' },
 });
 
 app.use('/api', apiLimiter);
@@ -102,17 +102,16 @@ app.delete('/api/shopping/:id', writeLimiter);
 app.delete('/api/reports/:id', writeLimiter);
 
 // Session with Postgres store (survives restarts, no memory leak)
-const isProduction = process.env.NODE_ENV === 'production';
 const sessionConfig = {
-  name: isProduction ? '__Host-sid' : 'sid',
+  name: IS_PRODUCTION ? '__Host-sid' : 'sid',
   secret: SESSION_SECRET,
   resave: false,
   saveUninitialized: false,
   cookie: {
-    maxAge: 7 * 24 * 60 * 60 * 1000,
+    maxAge: SESSION_MAX_AGE_MS,
     httpOnly: true,
     sameSite: 'lax',
-    secure: isProduction,
+    secure: IS_PRODUCTION,
     path: '/',
   }
 };
@@ -135,7 +134,7 @@ app.use(cookieParser());
 app.use((req, res, next) => {
   if (!req.cookies?.['csrf-token']) {
     const token = crypto.randomBytes(24).toString('hex');
-    res.cookie('csrf-token', token, { httpOnly: false, sameSite: 'strict', secure: isProduction });
+    res.cookie('csrf-token', token, { httpOnly: false, sameSite: 'strict', secure: IS_PRODUCTION });
   }
   if (['POST', 'PATCH', 'PUT', 'DELETE'].includes(req.method) && req.path.startsWith('/api/')) {
     const cookieToken = req.cookies?.['csrf-token'];
@@ -149,7 +148,7 @@ app.use((req, res, next) => {
 
 // Request timeout
 app.use((req, res, next) => {
-  const timeout = req.path === '/api/export' ? 120_000 : 30_000;
+  const timeout = req.path === '/api/export' ? EXPORT_TIMEOUT_MS : REQUEST_TIMEOUT_MS;
   req.setTimeout(timeout, () => {
     if (!res.headersSent) {
       res.status(408).json({ error: 'Request timeout' });
@@ -205,7 +204,7 @@ app.use('/api', (req, res, next) => {
 
 // ---- Routes ----
 
-app.use('/auth', require('./routes/auth'));
+app.use('/auth', authLimiter, require('./routes/auth'));
 app.use('/api/groups', require('./routes/groups'));
 app.use('/api/projects', require('./routes/projects'));
 app.use('/api/tasks', require('./routes/tasks'));

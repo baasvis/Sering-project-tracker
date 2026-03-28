@@ -8,7 +8,7 @@ This codebase is being rewritten phase-by-phase. The API contract and database m
 
 ### Phase Status
 - [x] Phase 1: Schema hardening (enums, constraints, indexes, migration)
-- [ ] Phase 2: Shared backend infrastructure (validation, CRUD factory, config)
+- [x] Phase 2: Shared backend infrastructure (validation, CRUD factory, config)
 - [ ] Phase 3a: Simple route rewrites (groups, announcements, comments, health)
 - [ ] Phase 3b: Complex route rewrites (projects, tasks)
 - [ ] Phase 3c: Remaining routes (media, shopping, reports, export)
