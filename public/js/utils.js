@@ -79,7 +79,14 @@ async function apiFetch(method, url, body) {
   return res.json();
 }
 
-function apiGet(url) { return apiFetch('GET', url); }
+async function apiGet(url) {
+  const result = await apiFetch('GET', url);
+  // Auto-unwrap paginated responses from CRUD factory
+  if (result && typeof result === 'object' && !Array.isArray(result) && Array.isArray(result.data) && 'hasMore' in result) {
+    return result.data;
+  }
+  return result;
+}
 function apiPost(url, body) { return apiFetch('POST', url, body); }
 function apiPatch(url, body) { return apiFetch('PATCH', url, body); }
 function apiDelete(url) { return apiFetch('DELETE', url); }
