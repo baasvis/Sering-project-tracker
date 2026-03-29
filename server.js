@@ -67,7 +67,8 @@ app.use(express.urlencoded({ extended: true, limit: '1mb' }));
 
 // ---- Rate limiting ----
 
-const limiterDefaults = { windowMs: RATE_LIMIT_WINDOW_MS, standardHeaders: true, legacyHeaders: false };
+const isTest = process.env.NODE_ENV === 'test';
+const limiterDefaults = { windowMs: RATE_LIMIT_WINDOW_MS, standardHeaders: true, legacyHeaders: false, ...(isTest && { skip: () => true }) };
 
 const apiLimiter = rateLimit({
   ...limiterDefaults, max: RATE_LIMIT_GENERAL,

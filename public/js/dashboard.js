@@ -327,8 +327,8 @@ function showAnnouncementModal(existing) {
       </button>
     </div>
   </div>`;
-  backdrop.addEventListener('click', e => { if (e.target === backdrop) backdrop.remove(); });
-  document.body.appendChild(backdrop);
+  backdrop.addEventListener('click', e => { if (e.target === backdrop) closeModal(backdrop); });
+  openModal(backdrop, (isEdit ? 'Edit' : 'New') + ' Announcement');
   createRichEditor('ann-body-editor', existing?.body || '');
 }
 
@@ -346,7 +346,8 @@ async function saveAnnouncement(id) {
       } else {
         await apiPost('/api/announcements', { title, body, pinned });
       }
-      document.querySelector('.modal-backdrop')?.remove();
+      const bd = document.querySelector('.modal-backdrop');
+      if (bd) closeModal(bd);
       renderDashboard();
       toast(id ? 'Announcement updated' : 'Announcement posted', 'success');
     } catch (err) {
@@ -383,7 +384,7 @@ onAction('navigateToProject', (el) => navigateToProject(el.dataset.projectId));
 onAction('slideCarousel', (el) => slideCarousel(el.dataset.annId, parseInt(el.dataset.direction)));
 onAction('goToSlide', (el) => goToSlide(el.dataset.annId, parseInt(el.dataset.index)));
 // deleteMedia action is registered in media.js — uses data-id
-onAction('closeModal', (el) => el.closest('.modal-backdrop').remove());
+onAction('closeModal', (el) => closeModal(el.closest('.modal-backdrop')));
 onAction('saveAnnouncement', (el) => saveAnnouncement(el.dataset.id || null));
 
 // ---- Reactive subscriptions (SSE updates S → subscribers re-render) ----

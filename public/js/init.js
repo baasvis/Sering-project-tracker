@@ -67,9 +67,11 @@ document.addEventListener('keydown', e => {
     const backdrops = document.querySelectorAll('.modal-backdrop');
     if (backdrops.length > 0) {
       cleanupQuillInstances();
-      backdrops.forEach(b => b.remove());
+      backdrops.forEach(b => closeModal(b));
+      return;
     }
-    document.querySelector('.lightbox')?.remove();
+    const lb = document.querySelector('.lightbox');
+    if (lb) { lb.onclick(); }
   }
 });
 

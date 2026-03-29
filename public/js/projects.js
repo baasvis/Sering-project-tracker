@@ -469,8 +469,8 @@ async function showTaskDetail(taskId) {
     </div>
   </div>`;
 
-  backdrop.addEventListener('click', e => { if (e.target === backdrop) backdrop.remove(); });
-  document.body.appendChild(backdrop);
+  backdrop.addEventListener('click', e => { if (e.target === backdrop) closeModal(backdrop); });
+  openModal(backdrop, 'Task: ' + task.name);
 
   // Load task comments
   const taskComments = document.getElementById(`task-comments-${task.id}`);
@@ -536,8 +536,8 @@ function showProjectModal(existing) {
       </button>
     </div>
   </div>`;
-  backdrop.addEventListener('click', e => { if (e.target === backdrop) backdrop.remove(); });
-  document.body.appendChild(backdrop);
+  backdrop.addEventListener('click', e => { if (e.target === backdrop) closeModal(backdrop); });
+  openModal(backdrop, (isEdit ? 'Edit' : 'New') + ' Project');
   createRichEditor('proj-description-editor', existing?.description || '');
 }
 
@@ -574,7 +574,7 @@ async function saveProject(id) {
       } else {
         await apiPost('/api/projects', data);
       }
-      document.querySelector('.modal-backdrop')?.remove();
+      { const bd = document.querySelector('.modal-backdrop'); if (bd) closeModal(bd); }
       renderCurrentScreen();
       toast(id ? 'Project updated' : 'Project created', 'success');
     } catch (err) {
@@ -636,8 +636,8 @@ function showTaskModal(existing) {
       </button>
     </div>
   </div>`;
-  backdrop.addEventListener('click', e => { if (e.target === backdrop) backdrop.remove(); });
-  document.body.appendChild(backdrop);
+  backdrop.addEventListener('click', e => { if (e.target === backdrop) closeModal(backdrop); });
+  openModal(backdrop, (isEdit ? 'Edit' : 'Add') + ' Task');
   createRichEditor('task-description-editor', existing?.description || '');
 }
 
@@ -671,7 +671,7 @@ async function saveTask(id) {
           S.currentProject.tasks.push(created);
         }
       }
-      document.querySelector('.modal-backdrop')?.remove();
+      { const bd = document.querySelector('.modal-backdrop'); if (bd) closeModal(bd); }
       rerenderTaskList();
       toast(id ? 'Task updated' : 'Task added', 'success');
     } catch (err) {
@@ -712,8 +712,8 @@ function showSuggestTaskModal() {
       <button class="btn btn-primary" data-action="saveSuggestedTask">Suggest</button>
     </div>
   </div>`;
-  backdrop.addEventListener('click', e => { if (e.target === backdrop) backdrop.remove(); });
-  document.body.appendChild(backdrop);
+  backdrop.addEventListener('click', e => { if (e.target === backdrop) closeModal(backdrop); });
+  openModal(backdrop, 'Suggest a Task');
 }
 
 async function saveSuggestedTask() {
@@ -731,7 +731,7 @@ async function saveSuggestedTask() {
         S.currentProject.tasks = S.currentProject.tasks || [];
         S.currentProject.tasks.push(created);
       }
-      document.querySelector('.modal-backdrop')?.remove();
+      { const bd = document.querySelector('.modal-backdrop'); if (bd) closeModal(bd); }
       rerenderTaskList();
       toast('Task suggestion submitted — waiting for admin approval', 'success');
     } catch (err) {
@@ -766,8 +766,8 @@ function showSuggestProjectModal() {
       <button class="btn btn-primary" data-action="saveSuggestedProject">Suggest</button>
     </div>
   </div>`;
-  backdrop.addEventListener('click', e => { if (e.target === backdrop) backdrop.remove(); });
-  document.body.appendChild(backdrop);
+  backdrop.addEventListener('click', e => { if (e.target === backdrop) closeModal(backdrop); });
+  openModal(backdrop, 'Suggest a Project');
 }
 
 async function saveSuggestedProject() {
@@ -783,7 +783,7 @@ async function saveSuggestedProject() {
         name,
         authorName: S.visitorName || 'Anonymous'
       });
-      document.querySelector('.modal-backdrop')?.remove();
+      { const bd = document.querySelector('.modal-backdrop'); if (bd) closeModal(bd); }
       renderCurrentScreen();
       toast('Project suggestion submitted — waiting for admin approval', 'success');
     } catch (err) {
@@ -873,7 +873,7 @@ onAction('approveSuggestedTask', (el) => approveSuggestedTask(el.dataset.id));
 onAction('showTaskDetail', (el) => showTaskDetail(el.dataset.id));
 onAction('cycleTaskStatus', (el) => cycleTaskStatus(el.dataset.id, el.dataset.status));
 onAction('editTaskFromDetail', (el) => {
-  document.querySelector('.modal-backdrop').remove();
+  { const bd = document.querySelector('.modal-backdrop'); if (bd) closeModal(bd); }
   showTaskModal(window._taskCache[el.dataset.id]);
 });
 onAction('deleteTask', (el) => deleteTask(el.dataset.id));

@@ -124,8 +124,8 @@ function showGroupModal(existing) {
       </button>
     </div>
   </div>`;
-  backdrop.addEventListener('click', e => { if (e.target === backdrop) backdrop.remove(); });
-  document.body.appendChild(backdrop);
+  backdrop.addEventListener('click', e => { if (e.target === backdrop) closeModal(backdrop); });
+  openModal(backdrop, (isEdit ? 'Edit' : 'New') + ' Group');
   createRichEditor('group-description-editor', existing?.description || '');
 }
 
@@ -141,7 +141,7 @@ async function saveGroup(id) {
     } else {
       await apiPost('/api/groups', { name, description, mattermostChannel });
     }
-    document.querySelector('.modal-backdrop')?.remove();
+    { const bd = document.querySelector('.modal-backdrop'); if (bd) closeModal(bd); }
     renderAdmin();
     toast(id ? 'Group updated' : 'Group created', 'success');
   } catch (err) {
@@ -176,8 +176,8 @@ async function viewReportScreenshot(id) {
       </div>
       <img src="${safeDataImageSrc(report.screenshotData)}" alt="Report screenshot" class="report-screenshot-full">
     </div>`;
-    backdrop.addEventListener('click', e => { if (e.target === backdrop) backdrop.remove(); });
-    document.body.appendChild(backdrop);
+    backdrop.addEventListener('click', e => { if (e.target === backdrop) closeModal(backdrop); });
+    openModal(backdrop, 'Report Screenshot');
   } catch (err) {
     toast(err.message, 'error');
   }

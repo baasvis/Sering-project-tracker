@@ -47,6 +47,54 @@ function html(strings, ...values) {
   return result;
 }
 
+// ─── Modal accessibility: focus trapping + restoration ──────────────────────
+
+const FOCUSABLE_SELECTOR = 'a[href], button:not([disabled]), input:not([disabled]), select:not([disabled]), textarea:not([disabled]), [tabindex]:not([tabindex="-1"])';
+
+// Track the element that opened the modal so we can restore focus on close
+let _modalTriggerEl = null;
+
+function openModal(backdrop, label) {
+  _modalTriggerEl = document.activeElement;
+  const modal = backdrop.querySelector('.modal') || backdrop.querySelector('.lightbox');
+  if (modal) {
+    modal.setAttribute('role', 'dialog');
+    modal.setAttribute('aria-modal', 'true');
+    if (label) modal.setAttribute('aria-label', label);
+  }
+  document.body.appendChild(backdrop);
+  trapFocus(backdrop);
+}
+
+function trapFocus(container) {
+  const focusable = container.querySelectorAll(FOCUSABLE_SELECTOR);
+  if (focusable.length > 0) {
+    focusable[0].focus();
+  }
+  container._trapHandler = function(e) {
+    if (e.key !== 'Tab') return;
+    const els = container.querySelectorAll(FOCUSABLE_SELECTOR);
+    if (els.length === 0) return;
+    const first = els[0];
+    const last = els[els.length - 1];
+    if (e.shiftKey) {
+      if (document.activeElement === first) { e.preventDefault(); last.focus(); }
+    } else {
+      if (document.activeElement === last) { e.preventDefault(); first.focus(); }
+    }
+  };
+  container.addEventListener('keydown', container._trapHandler);
+}
+
+function closeModal(backdrop) {
+  if (backdrop._trapHandler) backdrop.removeEventListener('keydown', backdrop._trapHandler);
+  backdrop.remove();
+  if (_modalTriggerEl && typeof _modalTriggerEl.focus === 'function') {
+    _modalTriggerEl.focus();
+    _modalTriggerEl = null;
+  }
+}
+
 // ─── Cryptographic mutation ID ──────────────────────────────────────────────
 
 function generateMutationId() {

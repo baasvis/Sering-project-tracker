@@ -36,8 +36,8 @@ async function showReportModal() {
       <button class="btn btn-primary" id="report-submit-btn" data-action="submitReport" disabled>Send Report</button>
     </div>
   </div>`;
-  backdrop.addEventListener('click', e => { if (e.target === backdrop) backdrop.remove(); });
-  document.body.appendChild(backdrop);
+  backdrop.addEventListener('click', e => { if (e.target === backdrop) closeModal(backdrop); });
+  openModal(backdrop, 'Report a Problem');
 
   // Focus the textarea
   document.getElementById('report-description').focus();
@@ -93,7 +93,7 @@ async function submitReport() {
       currentPage: window.location.hash || '#dashboard'
     });
 
-    document.querySelector('.modal-backdrop')?.remove();
+    { const bd = document.querySelector('.modal-backdrop'); if (bd) closeModal(bd); }
     window._reportScreenshot = null;
     toast('Report sent — thank you!', 'success');
   } catch (err) {

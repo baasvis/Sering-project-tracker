@@ -241,11 +241,17 @@ async function deleteMedia(id) {
 
 // Lightbox for images
 function openLightbox(src) {
+  _modalTriggerEl = document.activeElement;
   const lb = document.createElement('div');
   lb.className = 'lightbox';
-  lb.innerHTML = html`<img src="${src}">`;
-  lb.onclick = () => lb.remove();
+  lb.setAttribute('role', 'dialog');
+  lb.setAttribute('aria-modal', 'true');
+  lb.setAttribute('aria-label', 'Image lightbox');
+  lb.tabIndex = 0;
+  lb.innerHTML = html`<img src="${src}" alt="Enlarged image">`;
+  lb.onclick = () => { lb.remove(); if (_modalTriggerEl) { _modalTriggerEl.focus(); _modalTriggerEl = null; } };
   document.body.appendChild(lb);
+  lb.focus();
 }
 
 // --- onAction registrations ---

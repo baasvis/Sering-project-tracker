@@ -221,8 +221,8 @@ function showShoppingItemModal(type, projectId, existing) {
       <button class="btn btn-primary" data-action="saveShoppingItem" data-type="${type}" data-project-id="${projectId}" data-id="${isEdit ? existing.id : ''}">${isEdit ? 'Save' : (isAdmin ? 'Add' : 'Suggest')}</button>
     </div>
   </div>`;
-  backdrop.addEventListener('click', e => { if (e.target === backdrop) backdrop.remove(); });
-  document.body.appendChild(backdrop);
+  backdrop.addEventListener('click', e => { if (e.target === backdrop) closeModal(backdrop); });
+  openModal(backdrop, (isEdit ? 'Edit' : (isAdmin ? 'Add' : 'Suggest')) + ' ' + (isProduct ? 'Item' : 'Cost'));
 }
 
 // Save shopping item
@@ -256,7 +256,7 @@ async function saveShoppingItem(type, projectId, id) {
     } else {
       await apiPost('/api/shopping', data);
     }
-    document.querySelector('.modal-backdrop')?.remove();
+    { const bd = document.querySelector('.modal-backdrop'); if (bd) closeModal(bd); }
     toast(id ? 'Item updated' : (S.isAdmin ? 'Item added' : 'Suggestion submitted'), 'success');
     refreshShoppingView(projectId);
   } catch (err) {
