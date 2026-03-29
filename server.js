@@ -171,7 +171,16 @@ app.use(express.static(path.join(__dirname, 'public'), {
 // Ensure uploads directory exists
 const uploadsDir = path.join(__dirname, 'uploads');
 if (!fs.existsSync(uploadsDir)) fs.mkdirSync(uploadsDir, { recursive: true });
-app.use('/uploads', express.static(uploadsDir, { maxAge: '7d' }));
+app.use('/uploads', (req, res, next) => {
+  // Block serving potentially dangerous file types from uploads
+  const ext = path.extname(req.path).toLowerCase();
+  if (['.html', '.htm', '.js', '.svg', '.xml', '.xhtml'].includes(ext)) {
+    return res.status(403).end();
+  }
+  res.setHeader('X-Content-Type-Options', 'nosniff');
+  res.setHeader('Content-Security-Policy', "default-src 'none'");
+  next();
+}, express.static(uploadsDir, { maxAge: '7d' }));
 
 // SSE endpoint
 app.get('/api/events', sseLimiter, (req, res) => {

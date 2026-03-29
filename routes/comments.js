@@ -101,6 +101,20 @@ router.post('/', asyncHandler(async (req, res) => {
   });
   if (duplicate) return sendError(res, 'CONFLICT', 'Duplicate comment — you already posted this');
 
+  // Verify target entity exists (and is not soft-deleted)
+  const targetModel = { group: 'group', project: 'project', task: 'task', announcement: 'announcement' }[data.targetType];
+  if (targetModel) {
+    const where = { id: data.targetId };
+    // Projects, tasks, and groups use soft-delete
+    if (['project', 'task', 'group'].includes(data.targetType)) {
+      where.deletedAt = null;
+    }
+    const target = await prisma[targetModel].findFirst({ where, select: { id: true } });
+    if (!target) {
+      return sendError(res, 'NOT_FOUND', `${data.targetType} not found`);
+    }
+  }
+
   const comment = await prisma.comment.create({
     data: {
       targetType: data.targetType,

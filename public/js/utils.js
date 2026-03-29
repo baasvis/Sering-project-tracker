@@ -13,6 +13,14 @@ function esc(str) {
   return d.innerHTML;
 }
 
+// Validate and return a data:image/* URI, or empty string if invalid.
+// Prevents XSS via crafted data URIs in img src attributes.
+function safeDataImageSrc(str) {
+  if (typeof str !== 'string') return '';
+  if (/^data:image\/(png|jpeg|jpg|gif|webp|svg\+xml);base64,[A-Za-z0-9+/=]+$/.test(str)) return str;
+  return '';
+}
+
 // Marker for pre-sanitized HTML that should NOT be escaped
 function raw(str) {
   const r = new String(str || '');

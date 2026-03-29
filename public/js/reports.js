@@ -58,7 +58,7 @@ async function showReportModal() {
 
     const preview = document.getElementById('report-screenshot-preview');
     if (preview) {
-      preview.innerHTML = html`<img src="${raw(window._reportScreenshot)}" alt="Screenshot preview">`;
+      preview.innerHTML = html`<img src="${safeDataImageSrc(window._reportScreenshot)}" alt="Screenshot preview">`;
     }
   } catch (err) {
     console.warn('Screenshot capture failed:', err);

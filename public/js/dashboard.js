@@ -96,7 +96,7 @@ async function loadAnnouncementMedia(a) {
       if (S.isAdmin) {
         if (photos.length > 0) {
           extrasHtml += html`<div class="media-grid">${raw(photos.map(p =>
-            html`<div class="media-item"><img src="/api/media/${p.id}/file" class="media-thumb" style="width:40px;height:40px" alt="${p.originalName}"><button class="media-delete-btn" data-action="deleteMedia" data-stop data-media-id="${p.id}" title="Delete" style="display:flex">${raw('&#10005;')}</button></div>`
+            html`<div class="media-item"><img src="/api/media/${p.id}/file" class="media-thumb" style="width:40px;height:40px" alt="${p.originalName}"><button class="media-delete-btn" data-action="deleteMedia" data-stop data-id="${p.id}" title="Delete" style="display:flex">${raw('&#10005;')}</button></div>`
           ).join(''))}</div>`;
         }
         extrasHtml += renderMediaUploadButtons('announcement', annId);
@@ -382,6 +382,6 @@ onAction('toggleProjectCard', (el) => toggleProjectCard(el.dataset.projectId));
 onAction('navigateToProject', (el) => navigateToProject(el.dataset.projectId));
 onAction('slideCarousel', (el) => slideCarousel(el.dataset.annId, parseInt(el.dataset.direction)));
 onAction('goToSlide', (el) => goToSlide(el.dataset.annId, parseInt(el.dataset.index)));
-onAction('deleteMedia', (el) => deleteMedia(el.dataset.mediaId));
+// deleteMedia action is registered in media.js — uses data-id
 onAction('closeModal', (el) => el.closest('.modal-backdrop').remove());
 onAction('saveAnnouncement', (el) => saveAnnouncement(el.dataset.id || null));

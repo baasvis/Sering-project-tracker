@@ -28,11 +28,20 @@ const storage = multer.diskStorage({
   }
 });
 
+// Allowed file extensions — prevents uploading .html, .js, .svg etc.
+const ALLOWED_EXTENSIONS = new Set([
+  '.jpg', '.jpeg', '.png', '.gif', '.webp', '.heic', '.heif',  // images
+  '.webm', '.ogg', '.mp3', '.m4a', '.wav',                     // audio
+]);
+
 const upload = multer({
   storage,
   limits: { fileSize: MAX_IMAGE_SIZE_BYTES },
   fileFilter: (req, file, cb) => {
-    if (file.mimetype.startsWith('image/') || file.mimetype.startsWith('audio/')) {
+    const ext = path.extname(file.originalname).toLowerCase();
+    const mimeOk = file.mimetype.startsWith('image/') || file.mimetype.startsWith('audio/');
+    const extOk = ALLOWED_EXTENSIONS.has(ext);
+    if (mimeOk && extOk) {
       cb(null, true);
     } else {
       cb(new Error('Only image and audio files are allowed'));

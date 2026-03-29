@@ -6,6 +6,19 @@ const { sendError } = require('../lib/errors');
 const router = Router();
 const googleClient = GOOGLE_CLIENT_ID ? new OAuth2Client(GOOGLE_CLIENT_ID) : null;
 
+// Regenerate session ID to prevent session fixation attacks.
+// Falls back to just setting the session if regenerate is unavailable or errors.
+function regenerateSession(req, cb) {
+  if (typeof req.session.regenerate === 'function') {
+    req.session.regenerate((err) => {
+      if (err) console.warn('Session regenerate failed (non-fatal):', err.message);
+      cb();
+    });
+  } else {
+    cb();
+  }
+}
+
 // Check current auth state
 router.get('/me', (req, res) => {
   if (req.session?.admin) {
@@ -36,10 +49,12 @@ router.post('/google', async (req, res) => {
       return sendError(res, 'FORBIDDEN', 'Not an admin email');
     }
 
-    req.session.admin = true;
-    req.session.email = email;
-    req.session.name = name;
-    res.json({ admin: true, email });
+    regenerateSession(req, () => {
+      req.session.admin = true;
+      req.session.email = email;
+      req.session.name = name;
+      res.json({ admin: true, email });
+    });
   } catch (err) {
     console.error('Google auth error:', err.message);
     sendError(res, 'UNAUTHORIZED', 'Invalid credential');
@@ -55,10 +70,12 @@ router.post('/dev-login', (req, res) => {
     return sendError(res, 'FORBIDDEN', 'Dev login is not available');
   }
 
-  req.session.admin = true;
-  req.session.email = 'dev@localhost';
-  req.session.name = 'Dev Admin';
-  res.json({ admin: true, email: 'dev@localhost' });
+  regenerateSession(req, () => {
+    req.session.admin = true;
+    req.session.email = 'dev@localhost';
+    req.session.name = 'Dev Admin';
+    res.json({ admin: true, email: 'dev@localhost' });
+  });
 });
 
 // Logout

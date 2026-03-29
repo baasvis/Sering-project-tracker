@@ -174,7 +174,7 @@ async function viewReportScreenshot(id) {
         <h2>Screenshot</h2>
         <button class="btn btn-ghost btn-small" data-action="closeModal">Close</button>
       </div>
-      <img src="${raw(report.screenshotData)}" alt="Report screenshot" class="report-screenshot-full">
+      <img src="${safeDataImageSrc(report.screenshotData)}" alt="Report screenshot" class="report-screenshot-full">
     </div>`;
     backdrop.addEventListener('click', e => { if (e.target === backdrop) backdrop.remove(); });
     document.body.appendChild(backdrop);
