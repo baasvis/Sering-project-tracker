@@ -163,7 +163,7 @@ router.patch('/:id', validateId, requireAdmin, asyncHandler(async (req, res) => 
 router.patch('/:id/approve', validateId, requireAdmin, asyncHandler(async (req, res) => {
   try {
     const project = await prisma.project.update({
-      where: { id: req.params.id },
+      where: { id: req.params.id, deletedAt: null },
       data: { approved: true },
       include: { group: { select: { id: true, name: true } } }
     });

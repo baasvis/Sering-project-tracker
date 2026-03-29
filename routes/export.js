@@ -70,7 +70,14 @@ router.get('/', requireAdmin, asyncHandler(async (req, res) => {
   res.setHeader('Content-Disposition', `attachment; filename="sering-backup-${date}.zip"`);
 
   const archive = archiver('zip', { zlib: { level: 6 } });
-  archive.on('error', err => { throw err; });
+  archive.on('error', err => {
+    console.error('Archive error:', err);
+    if (!res.headersSent) {
+      res.status(500).json({ error: 'Export failed', code: 'INTERNAL_ERROR' });
+    } else {
+      res.destroy();
+    }
+  });
   archive.pipe(res);
 
   const identity = r => r;

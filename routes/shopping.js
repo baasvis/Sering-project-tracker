@@ -41,10 +41,15 @@ router.get('/', asyncHandler(async (req, res) => {
   res.json({ data: items, nextCursor, hasMore });
 }));
 
-// Budget summary: all active projects with approved shopping items
+// Budget summary: active projects with approved shopping items (paginated)
 router.get('/summary', asyncHandler(async (req, res) => {
-  // Only fetch projects that actually have approved shopping items
-  const projects = await prisma.project.findMany({
+  const limit = Math.min(
+    parseInt(req.query.limit, 10) || PAGINATION_DEFAULT_LIMIT,
+    PAGINATION_MAX_LIMIT
+  );
+  const cursor = req.query.cursor;
+
+  const findArgs = {
     where: {
       status: 'active',
       shoppingItems: { some: { approved: true } }
@@ -62,8 +67,18 @@ router.get('/summary', asyncHandler(async (req, res) => {
         orderBy: { order: 'asc' }
       }
     },
-    orderBy: { name: 'asc' }
-  });
+    orderBy: { name: 'asc' },
+    take: limit + 1,
+  };
+  if (cursor) {
+    findArgs.cursor = { id: cursor };
+    findArgs.skip = 1;
+  }
+
+  const projects = await prisma.project.findMany(findArgs);
+
+  const hasMore = projects.length > limit;
+  if (hasMore) projects.pop();
 
   const summary = projects.map(p => {
     let productTotal = 0, costTotal = 0;
@@ -85,7 +100,8 @@ router.get('/summary', asyncHandler(async (req, res) => {
     };
   });
 
-  res.json(summary);
+  const nextCursor = hasMore && summary.length > 0 ? summary[summary.length - 1].id : null;
+  res.json({ data: summary, nextCursor, hasMore });
 }));
 
 // Create shopping item (anyone can suggest, admin auto-approved)

@@ -13,13 +13,15 @@ beforeAll(() => {
 });
 
 describe('Health endpoint', () => {
-  it('GET /api/health returns status ok', async () => {
+  it('GET /api/health returns health status with db field', async () => {
     const res = await request(app).get('/api/health');
-    expect(res.status).toBe(200);
-    expect(res.body.status).toBe('ok');
+    expect([200, 503]).toContain(res.status);
+    expect(['ok', 'degraded']).toContain(res.body.status);
     expect(res.body).toHaveProperty('uptime');
     expect(res.body).toHaveProperty('sseClients');
     expect(res.body).toHaveProperty('timestamp');
+    expect(res.body).toHaveProperty('db');
+    expect(['connected', 'unreachable']).toContain(res.body.db);
   });
 });
 

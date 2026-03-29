@@ -214,14 +214,32 @@ app.use('/api', (req, res, next) => {
 // ---- Routes ----
 
 app.use('/auth', authLimiter, require('./routes/auth'));
+app.post('/api/groups', writeLimiter);
+app.patch('/api/groups/:id', writeLimiter);
+app.delete('/api/groups/:id', writeLimiter);
 app.use('/api/groups', require('./routes/groups'));
+
+app.post('/api/projects', writeLimiter);
+app.patch('/api/projects/:id', writeLimiter);
+app.patch('/api/projects/:id/approve', writeLimiter);
+app.delete('/api/projects/:id', writeLimiter);
 app.use('/api/projects', require('./routes/projects'));
+
+app.post('/api/tasks', writeLimiter);
+app.patch('/api/tasks/:id', writeLimiter);
+app.patch('/api/tasks/:id/approve', writeLimiter);
+app.delete('/api/tasks/:id', writeLimiter);
 app.use('/api/tasks', require('./routes/tasks'));
 
 const shoppingRouter = require('./routes/shopping');
 app.post('/api/shopping', writeLimiter);
+app.patch('/api/shopping/:id', writeLimiter);
+app.patch('/api/shopping/:id/approve', writeLimiter);
 app.use('/api/shopping', shoppingRouter);
 
+app.post('/api/announcements', writeLimiter);
+app.patch('/api/announcements/:id', writeLimiter);
+app.delete('/api/announcements/:id', writeLimiter);
 app.use('/api/announcements', require('./routes/announcements'));
 
 const commentsRouter = require('./routes/comments');
@@ -263,8 +281,8 @@ if (require.main === module) {
     if (DEV_MODE) console.log('DEV MODE: No Google auth required. Use /auth/dev-login to become admin.');
   });
 
-  server.keepAliveTimeout = 120_000;
-  server.headersTimeout = 125_000;
+  server.keepAliveTimeout = 55_000;
+  server.headersTimeout = 60_000;
 
   function gracefulShutdown(signal) {
     console.log(`${signal} received — shutting down gracefully...`);
