@@ -313,3 +313,12 @@ onAction('deleteShoppingItem', (el) => deleteShoppingItem(el.dataset.id, el.data
 onAction('togglePurchased', (el) => togglePurchased(el.dataset.id, el.dataset.purchased === 'true'));
 onAction('approveShoppingItem', (el) => approveShoppingItem(el.dataset.id, el.dataset.projectId));
 onAction('saveShoppingItem', (el) => saveShoppingItem(el.dataset.type, el.dataset.projectId, el.dataset.id || null));
+
+// ---- Reactive subscriptions ----
+
+S.subscribe('_shoppingUpdate', (update) => {
+  if (S.screen === 'budget') return; // budget.js handles this
+  if (update && S.currentProjectId === update.projectId) {
+    loadShoppingSection(update.projectId, `shopping-container-${update.projectId}`);
+  }
+});

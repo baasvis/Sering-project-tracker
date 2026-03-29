@@ -267,7 +267,7 @@ app.get('/{*path}', (req, res) => {
 app.use((err, req, res, next) => {
   console.error('Unhandled error:', err);
   if (!res.headersSent) {
-    res.status(500).json({ error: 'Internal server error' });
+    res.status(500).json({ error: 'Internal server error', code: 'INTERNAL_ERROR' });
   }
 });
 

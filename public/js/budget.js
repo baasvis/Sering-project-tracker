@@ -65,3 +65,10 @@ function toggleBudgetFoldout(projectId) {
 
 // ---- onAction registrations ----
 onAction('toggleBudgetFoldout', (el) => toggleBudgetFoldout(el.dataset.id));
+
+// ---- Reactive subscriptions ----
+
+S.subscribe('_shoppingUpdate', () => {
+  if (S.screen !== 'budget') return;
+  renderBudget();
+});

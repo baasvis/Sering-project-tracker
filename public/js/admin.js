@@ -249,6 +249,29 @@ async function unresolveReport(id) {
   }
 }
 
+// Re-render just the groups list from current S.groups (no API fetch)
+function rerenderAdminGroups() {
+  const list = document.querySelector('.admin-list');
+  if (!list) return;
+  window._groupCache = window._groupCache || {};
+  list.innerHTML = S.groups.length === 0
+    ? '<p class="text-muted">No groups yet. Create one to start organising projects.</p>'
+    : S.groups.map(g => {
+        window._groupCache[g.id] = g;
+        return html`
+        <li class="admin-list-item">
+          <div>
+            <strong>${g.name}</strong>
+            <span class="text-muted text-sm"> — ${g._count?.projects || 0} projects</span>
+          </div>
+          <div class="admin-actions">
+            <button class="btn btn-ghost btn-small" data-action="editGroup" data-id="${g.id}">Edit</button>
+            <button class="btn btn-danger btn-small" data-action="deleteGroup" data-id="${g.id}">Delete</button>
+          </div>
+        </li>`;
+      }).join('');
+}
+
 // ---- onAction registrations ----
 onAction('showGroupModal', () => showGroupModal());
 onAction('editGroup', (el) => showGroupModal(window._groupCache[el.dataset.id]));
@@ -260,3 +283,10 @@ onAction('viewReportScreenshot', (el) => viewReportScreenshot(el.dataset.id));
 onAction('resolveReport', (el) => resolveReport(el.dataset.id));
 onAction('deleteReport', (el) => deleteReport(el.dataset.id));
 onAction('unresolveReport', (el) => unresolveReport(el.dataset.id));
+
+// ---- Reactive subscriptions ----
+
+S.subscribe('groups', () => {
+  if (S.screen !== 'admin') return;
+  rerenderAdminGroups();
+});

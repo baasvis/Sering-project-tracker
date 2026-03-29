@@ -226,7 +226,7 @@ router.delete('/:id', validateId, requireAdmin, asyncHandler(async (req, res) =>
   await prisma.media.delete({ where: { id: req.params.id } });
 
   // Delete file from disk after DB record is removed
-  deleteMediaFile(media);
+  await deleteMediaFile(media);
 
   if (cachedStorageUsed !== null) {
     cachedStorageUsed = Math.max(0, cachedStorageUsed - media.sizeBytes);

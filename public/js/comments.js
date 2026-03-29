@@ -88,3 +88,23 @@ async function deleteComment(id) {
 // --- Action registrations ---
 onAction('postComment', (el) => postComment(el.dataset.targetType, el.dataset.id));
 onAction('deleteComment', (el) => deleteComment(el.dataset.id));
+
+// ---- Reactive subscriptions ----
+
+S.subscribe('_commentUpdate', (update) => {
+  if (!update) return;
+  // Optimized path: remove a single comment DOM node if visible
+  if (update.action === 'deleted' && update.commentId) {
+    const el = document.querySelector(`.comment[data-id="${update.commentId}"]`);
+    if (el) { el.remove(); return; }
+  }
+  // Reload full comment section if target is visible
+  if (update.targetType === 'project' && S.currentProjectId === update.targetId) {
+    const container = document.getElementById('project-comments');
+    if (container) renderComments('project', update.targetId, container);
+  }
+  if (update.targetType === 'task') {
+    const container = document.getElementById(`task-comments-${update.targetId}`);
+    if (container) renderComments('task', update.targetId, container);
+  }
+});

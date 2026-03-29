@@ -44,7 +44,19 @@ router.get('/', asyncHandler(async (req, res) => {
     findArgs.skip = 1;
   }
 
-  const comments = await prisma.comment.findMany(findArgs);
+  let comments = await prisma.comment.findMany(findArgs);
+
+  // Filter out comments whose target entity has been soft-deleted
+  if (['project', 'task'].includes(parsed.targetType)) {
+    const targetModel = parsed.targetType;
+    const target = await prisma[targetModel].findFirst({
+      where: { id: parsed.targetId, deletedAt: null },
+      select: { id: true },
+    });
+    if (!target) {
+      return res.json({ data: [], nextCursor: null, hasMore: false });
+    }
+  }
 
   const hasMore = comments.length > limit;
   if (hasMore) comments.pop();
@@ -135,14 +147,18 @@ router.delete('/:id', validateId, requireAdmin, asyncHandler(async (req, res) =>
   });
   if (!existing) return sendError(res, 'NOT_FOUND', 'Comment not found');
 
-  // Delete associated media files from disk
+  // Gather media for disk cleanup, then delete in a transaction
   const media = await prisma.media.findMany({
     where: { parentType: 'comment', parentId: req.params.id }
   });
-  for (const m of media) deleteMediaFile(m);
 
-  await prisma.media.deleteMany({ where: { parentType: 'comment', parentId: req.params.id } });
-  await prisma.comment.delete({ where: { id: req.params.id } });
+  await prisma.$transaction([
+    prisma.media.deleteMany({ where: { parentType: 'comment', parentId: req.params.id } }),
+    prisma.comment.delete({ where: { id: req.params.id } }),
+  ]);
+
+  // Clean up files on disk after successful DB delete
+  for (const m of media) await deleteMediaFile(m);
   res.json({ ok: true });
   logAction(req, 'comment:deleted', 'comment', req.params.id, existing);
   broadcast('comment:deleted', {

@@ -385,3 +385,20 @@ onAction('goToSlide', (el) => goToSlide(el.dataset.annId, parseInt(el.dataset.in
 // deleteMedia action is registered in media.js — uses data-id
 onAction('closeModal', (el) => el.closest('.modal-backdrop').remove());
 onAction('saveAnnouncement', (el) => saveAnnouncement(el.dataset.id || null));
+
+// ---- Reactive subscriptions (SSE updates S → subscribers re-render) ----
+
+S.subscribe('groups', () => {
+  if (S.screen !== 'dashboard') return;
+  rerenderDashboardProjects();
+});
+
+S.subscribe('announcements', () => {
+  if (S.screen !== 'dashboard') return;
+  const grid = document.getElementById('announcements-list');
+  if (!grid) return;
+  grid.innerHTML = S.announcements.length === 0
+    ? html`<p class="text-muted">No announcements yet.</p>`
+    : S.announcements.map(renderAnnouncementCard).join('');
+  S.announcements.forEach(a => loadAnnouncementMedia(a));
+});

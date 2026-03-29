@@ -1,48 +1,27 @@
 /* ========================================
    SSE — Real-time event handling
+   SSE handlers ONLY update S — subscribers handle re-rendering.
    ======================================== */
 
 let _eventSource = null;
 let _reconnectCount = 0;
-let _renderDebounceTimer = null;
 let _backoffReconnectTimer = null;
 
-// Debounced renderCurrentScreen — coalesces rapid SSE events into a single render
-function _debouncedRender() {
-  if (_renderDebounceTimer) return;
-  _renderDebounceTimer = setTimeout(() => {
-    _renderDebounceTimer = null;
-    renderCurrentScreen();
-  }, 300);
-}
-
-// Refresh groups data and do targeted re-render (no loading spinner)
+// Debounced groups refresh — fetches and sets S.groups, subscribers handle rendering
 let _refreshGroupsTimer = null;
-let _refreshGroupsAbort = null;
-async function _refreshGroupsAndRerender() {
-  // Debounce: multiple events in quick succession → single fetch
+function _refreshGroups() {
   if (_refreshGroupsTimer) return;
   _refreshGroupsTimer = setTimeout(async () => {
     _refreshGroupsTimer = null;
-    // Capture screen at time of dispatch to avoid writing to wrong screen
-    const screenAtDispatch = S.screen;
     try {
       S.groups = await apiGet('/api/groups');
-      // Only re-render if still on the same screen
-      if (S.screen !== screenAtDispatch) return;
-      if (S.screen === 'dashboard') {
-        rerenderDashboardProjects();
-      } else if (S.screen === 'projects' && !S.currentProjectId) {
-        _allProjectsCached = S.groups.flatMap(g => (g.projects || []).filter(p => p.approved !== false));
-        rerenderProjectFilters();
-      }
     } catch (e) {
       // Silent — don't disrupt the user
     }
   }, 300);
 }
 
-// Silently refresh data for the current screen without showing a loading spinner
+// Silently refresh state for the current screen (on SSE reconnect)
 async function _silentRefresh() {
   try {
     if (S.screen === 'dashboard') {
@@ -50,20 +29,15 @@ async function _silentRefresh() {
         apiGet('/api/announcements'),
         apiGet('/api/groups')
       ]);
-      S.announcements = announcements;
-      S.groups = groups;
-      rerenderDashboardProjects();
+      S.batch({ announcements, groups });
     } else if (S.screen === 'projects' && S.currentProjectId) {
-      const project = await apiGet(`/api/projects/${S.currentProjectId}`);
-      S.currentProject = project;
-      rerenderTaskList();
+      S.currentProject = await apiGet(`/api/projects/${S.currentProjectId}`);
     } else if (S.screen === 'projects') {
       S.groups = await apiGet('/api/groups');
-      rerenderProjectFilters();
     } else if (S.screen === 'budget') {
-      renderBudget();
+      S._shoppingUpdate = { projectId: null, ts: Date.now() };
     } else if (S.screen === 'admin') {
-      renderAdmin();
+      S.groups = await apiGet('/api/groups');
     }
   } catch (e) {
     // Silent refresh failed — don't disrupt the user
@@ -95,14 +69,12 @@ function connectSSE() {
     _reconnectCount = 0;
     _showSSEDisconnected(false);
     if (wasDisconnected) {
-      // Reconnection — silently refresh data without blanking the page
       _silentRefresh();
     }
   };
 
   _eventSource.onerror = () => {
     _reconnectCount++;
-    // After 10 consecutive failures, back off with exponential delay then retry
     if (_reconnectCount > 10) {
       _eventSource.close();
       _eventSource = null;
@@ -144,7 +116,7 @@ function connectSSE() {
   }
 }
 
-// ---- Event handlers ----
+// ---- Event handlers (update S only — subscribers handle rendering) ----
 
 const SSE_HANDLERS = {
   'task:created':    handleTaskMutation,
@@ -174,26 +146,25 @@ function handleTaskMutation(data) {
   if (!task) return;
 
   if (S.currentProject && S.currentProjectId === task.projectId) {
-    const idx = S.currentProject.tasks.findIndex(t => t.id === task.id);
+    const tasks = [...(S.currentProject.tasks || [])];
+    const idx = tasks.findIndex(t => t.id === task.id);
     if (idx !== -1) {
-      S.currentProject.tasks[idx] = { ...S.currentProject.tasks[idx], ...task };
+      tasks[idx] = { ...tasks[idx], ...task };
     } else {
-      S.currentProject.tasks.push(task);
+      tasks.push(task);
     }
-    rerenderTaskList();
-  } else if (S.screen === 'dashboard' || S.screen === 'projects') {
-    // Task counts changed — refresh groups silently and re-render cards
-    _refreshGroupsAndRerender();
+    S.currentProject = { ...S.currentProject, tasks };
   }
+  // Task counts changed — refresh groups for dashboard/projects
+  _refreshGroups();
 }
 
 function handleTaskDeleted(data) {
   if (S.currentProject && S.currentProjectId === data.projectId) {
-    S.currentProject.tasks = (S.currentProject.tasks || []).filter(t => t.id !== data.taskId);
-    rerenderTaskList();
-  } else if (S.screen === 'dashboard' || S.screen === 'projects') {
-    _refreshGroupsAndRerender();
+    const tasks = (S.currentProject.tasks || []).filter(t => t.id !== data.taskId);
+    S.currentProject = { ...S.currentProject, tasks };
   }
+  _refreshGroups();
 }
 
 function handleProjectMutation(data) {
@@ -202,11 +173,9 @@ function handleProjectMutation(data) {
 
   if (S.currentProjectId === project.id && S.currentProject) {
     const { tasks, ...rest } = project;
-    Object.assign(S.currentProject, rest);
-    renderProjectDetail();
-  } else if (S.screen === 'dashboard' || S.screen === 'projects') {
-    _refreshGroupsAndRerender();
+    S.currentProject = { ...S.currentProject, ...rest };
   }
+  _refreshGroups();
 }
 
 function handleProjectDeleted(data) {
@@ -214,61 +183,39 @@ function handleProjectDeleted(data) {
     S.currentProjectId = null;
     S.currentProject = null;
     window.location.hash = 'projects';
-    renderProjects();
     toast('This project was deleted', 'info');
-  } else if (S.screen === 'dashboard' || S.screen === 'projects') {
-    _refreshGroupsAndRerender();
   }
+  _refreshGroups();
 }
 
 function handleShoppingMutation(data) {
   const projectId = data.item?.projectId || data.projectId;
   if (!projectId) return;
-
-  if (S.screen === 'budget') {
-    renderBudget();
-  } else if (S.currentProjectId === projectId) {
-    loadShoppingSection(projectId, `shopping-container-${projectId}`);
-  }
+  S._shoppingUpdate = { projectId, ts: Date.now() };
 }
 
 function handleCommentCreated(data) {
   const comment = data.comment;
   if (!comment) return;
-  _reloadCommentsIfVisible(comment.targetType, comment.targetId);
+  S._commentUpdate = { action: 'created', targetType: comment.targetType, targetId: comment.targetId, ts: Date.now() };
 }
 
 function handleCommentDeleted(data) {
-  if (data.commentId) {
-    const el = document.querySelector(`.comment[data-id="${data.commentId}"]`);
-    if (el) { el.remove(); return; }
-  }
-  if (data.targetType && data.targetId) {
-    _reloadCommentsIfVisible(data.targetType, data.targetId);
-  }
-}
-
-function _reloadCommentsIfVisible(targetType, targetId) {
-  if (targetType === 'project' && S.currentProjectId === targetId) {
-    const container = document.getElementById('project-comments');
-    if (container) renderComments('project', targetId, container);
-  }
-  if (targetType === 'task') {
-    const container = document.getElementById(`task-comments-${targetId}`);
-    if (container) renderComments('task', targetId, container);
-  }
+  S._commentUpdate = {
+    action: 'deleted',
+    commentId: data.commentId,
+    targetType: data.targetType,
+    targetId: data.targetId,
+    ts: Date.now()
+  };
 }
 
 function handleAnnouncementMutation() {
-  if (S.screen === 'dashboard') {
-    _debouncedRender();
-  }
+  apiGet('/api/announcements').then(announcements => {
+    S.announcements = announcements;
+  }).catch(() => {});
 }
 
 function handleGroupMutation() {
-  if (S.screen === 'admin') {
-    _debouncedRender();
-  } else if (S.screen === 'dashboard' || S.screen === 'projects') {
-    _refreshGroupsAndRerender();
-  }
+  _refreshGroups();
 }

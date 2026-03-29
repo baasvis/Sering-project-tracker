@@ -841,8 +841,7 @@ function navigateToProject(projectId) {
   S.screen = 'projects';
   S.currentProjectId = projectId;
   window.location.hash = `project/${projectId}`;
-  renderCurrentScreen();
-  buildNav();
+  // hashchange listener handles renderCurrentScreen() + buildNav()
 }
 
 /* ---- onAction registrations for projects ---- */
@@ -882,3 +881,21 @@ onAction('saveProject', (el) => saveProject(el.dataset.id || null));
 onAction('saveTask', (el) => saveTask(el.dataset.id || null));
 onAction('saveSuggestedTask', () => saveSuggestedTask());
 onAction('saveSuggestedProject', () => saveSuggestedProject());
+
+// ---- Reactive subscriptions (SSE updates S → subscribers re-render) ----
+
+S.subscribe('groups', () => {
+  if (S.screen !== 'projects' || S.currentProjectId) return;
+  _allProjectsCached = S.groups.flatMap(g =>
+    (g.projects || []).filter(p => p.approved !== false)
+      .map(p => ({ ...p, groupName: g.name, groupId: g.id }))
+  );
+  rerenderProjectFilters();
+});
+
+S.subscribe('currentProject', () => {
+  if (S.screen !== 'projects' || !S.currentProjectId) return;
+  if (document.getElementById('task-list-section')) {
+    rerenderTaskList();
+  }
+});

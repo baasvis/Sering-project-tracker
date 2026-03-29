@@ -99,25 +99,38 @@ router.patch('/:id', validateId, requireAdmin, asyncHandler(async (req, res) => 
   broadcast('announcement:updated', { announcement }, getMutationId(req));
 }));
 
-// Delete announcement (admin) — hard delete + cleanup associated media
+// Delete announcement (admin) — hard delete + cleanup associated media & comments
 router.delete('/:id', validateId, requireAdmin, asyncHandler(async (req, res) => {
-  // Find and clean up associated media files before deleting
-  const media = await prisma.media.findMany({
-    where: { parentType: 'announcement', parentId: req.params.id }
+  // Gather all media to delete from disk (announcement media + comment media)
+  const comments = await prisma.comment.findMany({
+    where: { targetType: 'announcement', targetId: req.params.id },
+    select: { id: true },
   });
+  const commentIds = comments.map(c => c.id);
+
+  const [announcementMedia, commentMedia] = await Promise.all([
+    prisma.media.findMany({ where: { parentType: 'announcement', parentId: req.params.id } }),
+    commentIds.length > 0
+      ? prisma.media.findMany({ where: { parentType: 'comment', parentId: { in: commentIds } } })
+      : [],
+  ]);
 
   try {
-    await prisma.$transaction([
-      prisma.media.deleteMany({ where: { parentType: 'announcement', parentId: req.params.id } }),
-      prisma.announcement.delete({ where: { id: req.params.id } }),
-    ]);
+    const ops = [];
+    if (commentIds.length > 0) {
+      ops.push(prisma.media.deleteMany({ where: { parentType: 'comment', parentId: { in: commentIds } } }));
+      ops.push(prisma.comment.deleteMany({ where: { targetType: 'announcement', targetId: req.params.id } }));
+    }
+    ops.push(prisma.media.deleteMany({ where: { parentType: 'announcement', parentId: req.params.id } }));
+    ops.push(prisma.announcement.delete({ where: { id: req.params.id } }));
+    await prisma.$transaction(ops);
   } catch (err) {
     if (err.code === 'P2025') return sendError(res, 'NOT_FOUND', 'Announcement not found');
     throw err;
   }
 
   // Clean up files on disk after successful DB delete
-  for (const m of media) deleteMediaFile(m);
+  for (const m of [...commentMedia, ...announcementMedia]) await deleteMediaFile(m);
 
   res.json({ ok: true });
   logAction(req, 'announcement:deleted', 'announcement', req.params.id);
