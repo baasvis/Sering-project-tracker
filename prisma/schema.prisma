@@ -7,9 +7,57 @@ datasource db {
   url      = env("DATABASE_URL")
 }
 
+// ─── Enums ──────────────────────────────────────────────────────────────────
+
+enum ProjectStatus {
+  active
+  completed
+  archived
+}
+
+enum ProjectTier {
+  mvp
+  medium
+  next_level
+}
+
+enum JoinType {
+  open
+  contact
+  closed
+}
+
+enum TaskStatus {
+  todo
+  in_progress
+  done
+}
+
+enum CommentTargetType {
+  group
+  project
+  task
+  announcement
+}
+
+enum ShoppingItemType {
+  product
+  cost
+}
+
+enum MediaParentType {
+  task
+  project
+  announcement
+  comment
+}
+
+enum MediaType {
+  photo
+  voice
+}
+
 // ─── Models ─────────────────────────────────────────────────────────────────
-// Enum validation is handled by Zod schemas in lib/schemas.js.
-// Columns use String to match the current production database.
 
 model Group {
   id                String    @id @default(uuid())
@@ -32,8 +80,8 @@ model Project {
   name          String
   description   String?
   contactPerson String?
-  tier          String?
-  joinType      String?
+  tier          ProjectTier?
+  joinType      JoinType?
   status        String    @default("active")
   approved      Boolean   @default(true)
   suggestedBy   String?
@@ -79,8 +127,8 @@ model Announcement {
 }
 
 model Comment {
-  id         String   @id @default(uuid())
-  targetType String
+  id         String            @id @default(uuid())
+  targetType CommentTargetType
   targetId   String
   authorName String
   body       String?
@@ -111,10 +159,10 @@ model ShoppingItem {
 }
 
 model Media {
-  id           String   @id @default(uuid())
-  parentType   String
+  id           String          @id @default(uuid())
+  parentType   MediaParentType
   parentId     String
-  type         String
+  type         MediaType
   filename     String
   originalName String
   mimeType     String

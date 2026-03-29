@@ -1,6 +1,6 @@
 # Sering Project Tracker — Design Document
 
-*Last updated: 2026-03-27*
+*Last updated: 2026-03-29*
 *Master reference for any AI assistant working on this codebase.*
 
 ---
@@ -118,7 +118,7 @@ Based on the De Sering Brand Guidelines (February 2026).
 
 ### Typography
 
-**Primary typeface**: Neue Haas Grotesk Display Pro
+**Primary typeface**: Overused Grotesk (variable font, matching desering.org)
 
 | Weight | Usage | Size ratio |
 |--------|-------|-----------|
@@ -127,11 +127,9 @@ Based on the De Sering Brand Guidelines (February 2026).
 | Medium | Highlighted text, labels, buttons | — |
 | Light | Body text, descriptions, comments | Base size |
 
-**Fallback stack**: `'Neue Haas Grotesk Display Pro', 'Helvetica Neue', Helvetica, Arial, sans-serif`
+**Fallback stack**: `'Overused Grotesk', 'Inter', 'Helvetica Neue', Helvetica, Arial, sans-serif`
 
-> Note: Neue Haas Grotesk Display Pro is a commercial font. For the web app, we'll either self-host the font files (if the license permits) or use a close free alternative. Options:
-> - **Inter** — excellent free alternative, very similar geometric sans-serif
-> - **Self-hosted NHGDP** — if De Sering owns a web license
+Self-hosted as a variable font file (`/fonts/OverusedGroteskRoman-VF.woff2`), preloaded in index.html.
 
 ### Visual Style
 
@@ -165,7 +163,7 @@ Based on the De Sering Brand Guidelines (February 2026).
   --highlight: var(--sering-yellow);
 
   /* Typography */
-  --font-family: 'Inter', 'Helvetica Neue', Helvetica, Arial, sans-serif;
+  --font-family: 'Overused Grotesk', 'Inter', 'Helvetica Neue', Helvetica, Arial, sans-serif;
   --font-size-base: 16px;
   --font-size-title: calc(var(--font-size-base) * 2.9);
   --font-size-subtitle: calc(var(--font-size-base) * 1.4);
@@ -489,18 +487,21 @@ public/
     admin.css            — Admin panel
     mobile.css           — Responsive overrides
   js/
-    state.js             — App state, constants
+    state.js             — App state, constants, reactive S object
+    events.js            — Custom event bus (EventTarget-based pub/sub)
     auth.js              — Google Sign-In (admin), name entry (visitors)
-    utils.js             — API helpers, toast notifications
+    utils.js             — API helpers, toast, html`` tagged template, helpers
     dashboard.js         — Dashboard screen
     projects.js          — Project list + detail screens
-    tasks.js             — Task detail, status changes
     comments.js          — Comment threads, media-in-comments
-    media.js             — Photo upload, voice recorder
+    media.js             — Photo upload, voice recorder, lightbox
+    shopping.js          — Shopping list UI per project
+    budget.js            — Budget overview screen
     reports.js           — Floating report button, screenshot capture modal
     admin.js             — Admin panel (incl. report management)
-    init.js              — Router, navigation, app init
-  fonts/                 — Self-hosted font files (if licensed)
+    sse.js               — SSE event handlers (real-time updates)
+    init.js              — Router, navigation, app init (LAST)
+  fonts/                 — Self-hosted Overused Grotesk variable font
 uploads/                 — User-uploaded media (gitignored)
 data/                    — Any server-side JSON config (gitignored)
 DESIGN.md                — This document
@@ -565,7 +566,7 @@ Implemented protections for a public-facing app:
 
 Things to decide as we build:
 
-- [ ] **Font licensing**: Can we self-host Neue Haas Grotesk Display Pro for web? If not, use Inter.
+- [x] **Font**: Using Overused Grotesk (variable font, self-hosted), matching desering.org.
 - [x] **Voice note length limit**: 60 seconds, 2MB max
 - [x] **Photo size limit**: 5MB max per file
 - [x] **Comment moderation**: Admin-delete only (no community flag button for now)

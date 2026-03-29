@@ -36,7 +36,7 @@ This codebase is being rewritten phase-by-phase. The API contract and database m
 - **Every Prisma schema change requires a migration.** Use `npx prisma migrate dev --name <descriptive_name>`.
 - **Never remove `asyncHandler()` wrapping** from route handlers.
 - **Never bypass `sanitize()`** for user-provided HTML content.
-- **Script load order in index.html must be preserved:** `state.js` -> `auth.js` -> `utils.js` -> `media.js` -> `comments.js` -> `dashboard.js` -> `projects.js` -> `shopping.js` -> `budget.js` -> `reports.js` -> `admin.js` -> `sse.js` -> `init.js`
+- **Script load order in index.html must be preserved:** `state.js` -> `events.js` -> `auth.js` -> `utils.js` -> `media.js` -> `comments.js` -> `dashboard.js` -> `projects.js` -> `shopping.js` -> `budget.js` -> `reports.js` -> `admin.js` -> `sse.js` -> `init.js`
 
 ---
 
@@ -49,7 +49,7 @@ This codebase is being rewritten phase-by-phase. The API contract and database m
 - Define schemas in `lib/schemas.js` — one `create` and one `update` schema per entity.
 - Schemas must match Prisma enums exactly. Single source of truth.
 - All route handlers validate with `schema.parse(req.body)` inside a try/catch that returns 400 on ZodError.
-- Delete the old `lib/validate.js` once all routes are migrated.
+- `lib/validate.js` still provides UUID validation and `stripTags()` used across routes.
 
 #### CRUD Factory: `lib/crud.js`
 - Create a factory function: `makeCrud({ model, createSchema, updateSchema, include?, broadcast? })`
@@ -110,18 +110,20 @@ Use codes: `VALIDATION_ERROR`, `NOT_FOUND`, `UNAUTHORIZED`, `FORBIDDEN`, `RATE_L
 
 ### Database Schema Changes (Phase 1)
 
-#### Add Prisma Enums
+#### Prisma Enums
 ```prisma
-enum ProjectStatus { active completed archived }
-enum TaskStatus { todo in_progress done }
 enum ProjectTier { mvp medium next_level }
 enum JoinType { open contact closed }
-enum ShoppingItemType { product cost }
-enum MediaType { photo voice }
 enum CommentTargetType { group project task announcement }
 enum MediaParentType { task project announcement comment }
+enum MediaType { photo voice }
 ```
-Replace all `String` type fields with these enums.
+These enums exist as PostgreSQL enum types in production and are used in the Prisma schema.
+
+**Still `text` in production** (validated by Zod, not DB enums):
+- `Project.status`, `Task.status`, `ShoppingItem.type` — remain `String` in Prisma schema.
+
+The unused DB-level enums `ProjectStatus`, `TaskStatus`, `ShoppingItemType` exist but the columns still use `text` type. Do not change these columns to enum types without a migration that also casts existing data.
 
 #### Add Missing Indexes
 - `Task(projectId, status)` compound index
@@ -162,7 +164,9 @@ lib/
   db.js                   — Prisma client instance
   schemas.js              — Zod validation schemas (one per entity)
   crud.js                 — CRUD factory (list/get/create/update/delete/approve)
+  errors.js               — Custom error classes (AppError, NotFoundError, etc.)
   sanitize.js             — HTML sanitization (sanitize-html allowlist)
+  validate.js             — Legacy validation helpers (UUID, stripTags, etc.)
   async-handler.js        — Wraps async route handlers
   media-utils.js          — File deletion utility
   sse.js                  — SSE broadcast hub (connection management, heartbeat)
@@ -185,6 +189,7 @@ public/
   css/                    — Same structure, no changes planned
   js/
     state.js              — Global S with subscribe() reactivity
+    events.js             — Custom event bus (EventTarget-based pub/sub)
     auth.js               — Google Sign-In, dev login, name overlay
     utils.js              — html`` tagged template, apiFetch, toast, helpers
     media.js              — Photo upload, voice recording, lightbox
