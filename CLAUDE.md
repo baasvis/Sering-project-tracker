@@ -120,10 +120,12 @@ enum MediaType { photo voice }
 ```
 These enums exist as PostgreSQL enum types in production and are used in the Prisma schema.
 
-**Still `text` in production** (validated by Zod, not DB enums):
-- `Project.status`, `Task.status`, `ShoppingItem.type` — remain `String` in Prisma schema.
-
-The unused DB-level enums `ProjectStatus`, `TaskStatus`, `ShoppingItemType` exist but the columns still use `text` type. Do not change these columns to enum types without a migration that also casts existing data.
+**Now enforced as PostgreSQL enums** (migration `20260329000000_enforce_enums_decimal`):
+- `Project.status` uses `ProjectStatus` enum
+- `Task.status` uses `TaskStatus` enum
+- `ShoppingItem.type` uses `ShoppingItemType` enum
+- `ShoppingItem.pricePerItem` and `ShoppingItem.amount` are `Decimal(10,2)` (not Float)
+- `Project.groupId` has `onDelete: Restrict` (prevents deleting groups with projects)
 
 #### Add Missing Indexes
 - `Task(projectId, status)` compound index
@@ -241,4 +243,12 @@ The API contract stays the same. Same endpoints, same JSON shapes, same SSE even
 - [x] Session secret crash in production (Phase 2)
 - [x] html`` tagged template for XSS prevention (Phase 5a)
 - [x] crypto.getRandomValues for mutation IDs (Phase 5a)
-- [ ] Atomic storage cap checks (Phase 3c)
+- [x] Atomic storage cap checks (serializable transaction in media upload)
+- [x] Comment body HTML stripped server-side
+- [x] Media upload validates parent entity exists
+- [x] Soft-deleted records cannot be updated via PATCH
+- [x] SSE graceful shutdown (clears heartbeat, closes connections, orders Prisma disconnect)
+- [x] SSE reconnects with exponential backoff (never gives up permanently)
+- [x] Keyboard focus-visible styles on all interactive elements
+- [x] prefers-reduced-motion support
+- [x] WCAG AA contrast compliance

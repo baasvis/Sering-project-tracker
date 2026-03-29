@@ -106,7 +106,7 @@ router.post('/', asyncHandler(async (req, res) => {
       targetType: data.targetType,
       targetId: data.targetId,
       authorName: data.authorName,
-      body: data.body,
+      body: data.body ? data.body.replace(/<[^>]*>/g, '') : data.body,
     }
   });
   res.status(201).json(comment);

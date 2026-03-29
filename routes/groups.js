@@ -78,6 +78,7 @@ router.get('/:id', validateId, asyncHandler(async (req, res) => {
     where: { id: req.params.id },
     include: {
       projects: {
+        where: { deletedAt: null },
         orderBy: { createdAt: 'desc' },
         include: {
           _count: { select: { tasks: true } },
@@ -154,9 +155,14 @@ router.patch('/:id', validateId, requireAdmin, asyncHandler(async (req, res) => 
 
   if (data.description !== undefined) data.description = sanitize(data.description);
 
-  const group = await prisma.group.update({ where: { id: req.params.id }, data });
-  res.json(group);
-  broadcast('group:updated', { group }, getMutationId(req));
+  try {
+    const group = await prisma.group.update({ where: { id: req.params.id, deletedAt: null }, data });
+    res.json(group);
+    broadcast('group:updated', { group }, getMutationId(req));
+  } catch (err) {
+    if (err.code === 'P2025') return sendError(res, 'NOT_FOUND', 'Group not found');
+    throw err;
+  }
 }));
 
 // Soft-delete group (admin, only if no active projects)

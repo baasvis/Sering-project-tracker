@@ -552,12 +552,18 @@ Implemented protections for a public-facing app:
 - **Security headers** (helmet): CSP, HSTS, X-Frame-Options, X-Content-Type-Options, Referrer-Policy, hides X-Powered-By
 - **CSRF protection**: double-submit cookie pattern on all `/api/*` write operations; frontend sends `X-CSRF-Token` header
 - **Rate limiting** (express-rate-limit): 100 req/min general API, 20/min for write operations, 10/min for file uploads — all per IP
-- **Input sanitization**: HTML tags stripped server-side from shopping item names and author names; URL protocol validation (http/https only)
+- **Input sanitization**: HTML tags stripped server-side from shopping item names, author names, and comment bodies; URL protocol validation (http/https only)
+- **Media upload validation**: parent entity must exist before upload is accepted (prevents orphaned files)
 - **UUID validation**: all route params and query params validated as UUID format before Prisma queries
 - **Comment spam protection**: min 2 / max 2000 chars, duplicate detection within 5-minute window, name validation (1-50 chars)
 - **Media upload restrictions**: requires identity (admin session or visitor name), photos max 5MB, voice notes max 2MB (~60 seconds), auto-stop recording at 60s, client-side size check before upload
 - **Global storage cap**: 100MB total uploads — prevents abuse as free storage. Returns 507 when full.
 - **Admin-only moderation**: only admins can delete comments and media
+- **Soft-delete protection**: PATCH endpoints reject updates to soft-deleted records
+- **SSE resilience**: exponential backoff reconnection (never gives up), visual disconnection indicator
+- **Accessibility**: `:focus-visible` on all interactive elements, `prefers-reduced-motion`, WCAG AA contrast, `<noscript>` fallback
+- **Database enums**: `Project.status`, `Task.status`, `ShoppingItem.type` enforced as PostgreSQL enums (not text)
+- **Decimal money fields**: `ShoppingItem.pricePerItem` and `amount` use `Decimal(10,2)` to avoid floating-point errors
 - **Report validation**: screenshot must be `data:image/*` data URL (max 2MB), description/name HTML-stripped, UUID validation on all `:id` params
 
 ---

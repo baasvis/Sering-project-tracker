@@ -17,12 +17,12 @@
   <link href="https://cdn.jsdelivr.net/npm/quill@2.0.3/dist/quill.snow.css" rel="stylesheet"
         integrity="sha384-ecIckRi4QlKYya/FQUbBUjS4qp65jF/J87Guw5uzTbO1C1Jfa/6kYmd6dXUF6D7i" crossorigin="anonymous">
   <script src="https://cdn.jsdelivr.net/npm/quill@2.0.3/dist/quill.js"
-          integrity="sha384-utBUCeG4SYaCm4m7GQZYr8Hy8Fpy3V4KGjBZaf4WTKOcwhCYpt/0PfeEe3HNlwx8" crossorigin="anonymous"></script>
+          integrity="sha384-utBUCeG4SYaCm4m7GQZYr8Hy8Fpy3V4KGjBZaf4WTKOcwhCYpt/0PfeEe3HNlwx8" crossorigin="anonymous" defer></script>
   <!-- Google Sign-In SDK (no SRI — Google rotates this script) -->
   <script src="https://accounts.google.com/gsi/client" async defer></script>
   <!-- Screenshot capture for problem reports (SRI-protected) -->
   <script src="https://cdn.jsdelivr.net/npm/html2canvas@1.4.1/dist/html2canvas.min.js"
-          integrity="sha384-ZZ1pncU3bQe8y31yfZdMFdSpttDoPmOZg2wguVK9almUodir1PghgT0eY7Mrty8H" crossorigin="anonymous"></script>
+          integrity="sha384-ZZ1pncU3bQe8y31yfZdMFdSpttDoPmOZg2wguVK9almUodir1PghgT0eY7Mrty8H" crossorigin="anonymous" defer></script>
 </head>
 <body>
   <!-- Name entry overlay (for non-admin visitors) -->
@@ -31,6 +31,7 @@
       <h1>Welcome to De Sering Projects</h1>
       <p>Enter your name to join the conversation.</p>
       <p class="overlay-warning">Everything on this platform is public</p>
+      <label for="name-input" class="sr-only">Your name</label>
       <input type="text" id="name-input" placeholder="Your name" maxlength="50" autofocus>
       <button id="name-submit" class="btn btn-primary">Let's go</button>
     </div>
@@ -50,7 +51,14 @@
   </header>
 
   <!-- Main content area -->
-  <main id="app"></main>
+  <main id="app">
+    <noscript>
+      <div style="text-align:center;padding:40px 20px;">
+        <h1>JavaScript Required</h1>
+        <p>De Sering Projects needs JavaScript to work. Please enable it in your browser settings.</p>
+      </div>
+    </noscript>
+  </main>
 
   <!-- Toast notifications -->
   <div id="toast-container"></div>

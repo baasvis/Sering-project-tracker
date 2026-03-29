@@ -4,6 +4,7 @@
 
 async function renderBudget() {
   const app = document.getElementById('app');
+  app.innerHTML = '<div class="loading-spinner">Loading budget\u2026</div>';
 
   let summary;
   try {

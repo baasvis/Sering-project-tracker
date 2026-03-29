@@ -115,6 +115,11 @@ function toggleVoiceRecorder(btn, parentType, parentId) {
     return;
   }
 
+  if (!navigator.mediaDevices || !navigator.mediaDevices.getUserMedia) {
+    toast('Microphone not supported in this browser', 'error');
+    return;
+  }
+
   navigator.mediaDevices.getUserMedia({ audio: true }).then(stream => {
     // Clean up any previous recorder
     stopActiveRecorder();
@@ -181,12 +186,45 @@ function toggleVoiceRecorder(btn, parentType, parentId) {
   });
 }
 
-// Play voice note
+// Play voice note — track single active audio to prevent overlapping playback
+let _activeAudio = null;
+let _activeAudioBtn = null;
+
 function playVoice(btn, url) {
+  // If same button clicked again, toggle pause/resume
+  if (_activeAudio && _activeAudioBtn === btn) {
+    if (_activeAudio.paused) {
+      _activeAudio.play();
+      btn.textContent = '\u23f8';
+    } else {
+      _activeAudio.pause();
+      btn.innerHTML = '&#9654;';
+    }
+    return;
+  }
+
+  // Stop any currently playing audio
+  if (_activeAudio) {
+    _activeAudio.pause();
+    _activeAudio.src = '';
+    if (_activeAudioBtn) _activeAudioBtn.innerHTML = '&#9654;';
+  }
+
   const audio = new Audio(url);
-  btn.textContent = '⏸';
+  _activeAudio = audio;
+  _activeAudioBtn = btn;
+  btn.textContent = '\u23f8';
   audio.play();
-  audio.onended = () => { btn.innerHTML = '&#9654;'; };
+  audio.onended = () => {
+    btn.innerHTML = '&#9654;';
+    _activeAudio = null;
+    _activeAudioBtn = null;
+  };
+  audio.onerror = () => {
+    btn.innerHTML = '&#9654;';
+    _activeAudio = null;
+    _activeAudioBtn = null;
+  };
 }
 
 // Delete media (admin only)

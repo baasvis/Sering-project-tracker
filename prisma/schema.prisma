@@ -76,13 +76,13 @@ model Group {
 model Project {
   id            String    @id @default(uuid())
   groupId       String
-  group         Group     @relation(fields: [groupId], references: [id])
+  group         Group     @relation(fields: [groupId], references: [id], onDelete: Restrict)
   name          String
   description   String?
   contactPerson String?
   tier          ProjectTier?
   joinType      JoinType?
-  status        String    @default("active")
+  status        ProjectStatus @default(active)
   approved      Boolean   @default(true)
   suggestedBy   String?
   deletedAt     DateTime?
@@ -100,7 +100,7 @@ model Task {
   project     Project   @relation(fields: [projectId], references: [id], onDelete: Cascade)
   name        String
   description String?
-  status      String    @default("todo")
+  status      TaskStatus @default(todo)
   assignee    String?
   deadline    DateTime?
   order       Int       @default(0)
@@ -142,12 +142,12 @@ model ShoppingItem {
   id           String   @id @default(uuid())
   projectId    String
   project      Project  @relation(fields: [projectId], references: [id], onDelete: Cascade)
-  type         String   @default("product")
+  type         ShoppingItemType @default(product)
   name         String
   link         String?
-  pricePerItem Float?
+  pricePerItem Decimal?  @db.Decimal(10, 2)
   quantity     Int?     @default(1)
-  amount       Float?
+  amount       Decimal?  @db.Decimal(10, 2)
   purchased    Boolean  @default(false)
   suggestedBy  String?
   approved     Boolean  @default(false)

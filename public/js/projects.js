@@ -542,7 +542,14 @@ function showProjectModal(existing) {
 }
 
 async function showEditProjectModal(id) {
-  showProjectModal(S.currentProject);
+  try {
+    const project = id && id !== S.currentProject?.id
+      ? await apiGet(`/api/projects/${id}`)
+      : S.currentProject;
+    if (project) showProjectModal(project);
+  } catch (err) {
+    toast(err.message, 'error');
+  }
 }
 
 async function saveProject(id) {

@@ -68,8 +68,12 @@ router.get('/summary', asyncHandler(async (req, res) => {
   const summary = projects.map(p => {
     let productTotal = 0, costTotal = 0;
     for (const i of p.shoppingItems) {
-      if (i.type === 'product') productTotal += (i.pricePerItem || 0) * (i.quantity || 1);
-      else if (i.type === 'cost') costTotal += (i.amount || 0);
+      // Prisma Decimal values need explicit conversion to Number
+      const price = Number(i.pricePerItem) || 0;
+      const qty = i.quantity || 1;
+      const amt = Number(i.amount) || 0;
+      if (i.type === 'product') productTotal += price * qty;
+      else if (i.type === 'cost') costTotal += amt;
     }
     return {
       id: p.id, name: p.name,

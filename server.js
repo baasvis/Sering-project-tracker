@@ -15,7 +15,7 @@ const {
   RATE_LIMIT_SSE, RATE_LIMIT_AUTH, RATE_LIMIT_WINDOW_MS,
   REQUEST_TIMEOUT_MS, EXPORT_TIMEOUT_MS, SESSION_MAX_AGE_MS,
 } = require('./lib/config');
-const { addClient, getClientCount } = require('./lib/sse');
+const { addClient, getClientCount, shutdown: shutdownSSE } = require('./lib/sse');
 
 const app = express();
 
@@ -194,10 +194,10 @@ app.get('/api/config', (req, res) => {
   res.json({ googleClientId: GOOGLE_CLIENT_ID, devMode: DEV_MODE });
 });
 
-// Cache-Control for read-heavy API GETs
+// Cache-Control for read-heavy API GETs — use private to prevent shared caches leaking data
 app.use('/api', (req, res, next) => {
   if (req.method === 'GET') {
-    res.set('Cache-Control', 'public, max-age=30, stale-while-revalidate=60');
+    res.set('Cache-Control', 'private, max-age=30, stale-while-revalidate=60');
   }
   next();
 });
@@ -259,8 +259,11 @@ if (require.main === module) {
 
   function gracefulShutdown(signal) {
     console.log(`${signal} received — shutting down gracefully...`);
-    server.close(() => {
+    // Close SSE connections first so server.close() can complete
+    shutdownSSE();
+    server.close(async () => {
       console.log('HTTP server closed');
+      try { await require('./lib/db').$disconnect(); } catch { /* ignore */ }
       process.exit(0);
     });
     setTimeout(() => {

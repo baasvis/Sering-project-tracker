@@ -111,7 +111,7 @@ router.patch('/:id', validateId, requireAdmin, asyncHandler(async (req, res) => 
   if (data.deadline !== undefined && !data.deadline) data.deadline = null;
 
   try {
-    const task = await prisma.task.update({ where: { id: req.params.id }, data });
+    const task = await prisma.task.update({ where: { id: req.params.id, deletedAt: null }, data });
     res.json(task);
     broadcast('task:updated', { task, projectId: task.projectId }, getMutationId(req));
   } catch (err) {

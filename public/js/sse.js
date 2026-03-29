@@ -5,6 +5,7 @@
 let _eventSource = null;
 let _reconnectCount = 0;
 let _renderDebounceTimer = null;
+let _backoffReconnectTimer = null;
 
 // Debounced renderCurrentScreen — coalesces rapid SSE events into a single render
 function _debouncedRender() {
@@ -17,17 +18,21 @@ function _debouncedRender() {
 
 // Refresh groups data and do targeted re-render (no loading spinner)
 let _refreshGroupsTimer = null;
+let _refreshGroupsAbort = null;
 async function _refreshGroupsAndRerender() {
   // Debounce: multiple events in quick succession → single fetch
   if (_refreshGroupsTimer) return;
   _refreshGroupsTimer = setTimeout(async () => {
     _refreshGroupsTimer = null;
+    // Capture screen at time of dispatch to avoid writing to wrong screen
+    const screenAtDispatch = S.screen;
     try {
       S.groups = await apiGet('/api/groups');
+      // Only re-render if still on the same screen
+      if (S.screen !== screenAtDispatch) return;
       if (S.screen === 'dashboard') {
         rerenderDashboardProjects();
       } else if (S.screen === 'projects' && !S.currentProjectId) {
-        // Update cached projects and re-render filters/cards
         _allProjectsCached = S.groups.flatMap(g => (g.projects || []).filter(p => p.approved !== false));
         rerenderProjectFilters();
       }
@@ -65,29 +70,50 @@ async function _silentRefresh() {
   }
 }
 
+// Show/hide SSE disconnected indicator
+function _showSSEDisconnected(show) {
+  let el = document.getElementById('sse-disconnected');
+  if (show && !el) {
+    el = document.createElement('div');
+    el.id = 'sse-disconnected';
+    el.style.cssText = 'position:fixed;bottom:0;left:0;right:0;background:var(--color-danger,#cc0000);color:#fff;text-align:center;padding:4px 8px;font-size:13px;z-index:301;';
+    el.textContent = 'Connection lost — reconnecting\u2026';
+    document.body.appendChild(el);
+  } else if (!show && el) {
+    el.remove();
+  }
+}
+
 function connectSSE() {
   if (_eventSource) return;
 
   _eventSource = new EventSource('/api/events');
 
   _eventSource.onopen = () => {
-    if (S._sseConnected) {
+    const wasDisconnected = S._sseConnected && _reconnectCount > 0;
+    S._sseConnected = true;
+    _reconnectCount = 0;
+    _showSSEDisconnected(false);
+    if (wasDisconnected) {
       // Reconnection — silently refresh data without blanking the page
       _silentRefresh();
     }
-    S._sseConnected = true;
-    _reconnectCount = 0;
   };
 
   _eventSource.onerror = () => {
     _reconnectCount++;
-    // After 10 consecutive failures, close and stop reconnecting
-    // (EventSource auto-reconnects, but we cap runaway reconnection)
+    // After 10 consecutive failures, back off with exponential delay then retry
     if (_reconnectCount > 10) {
       _eventSource.close();
       _eventSource = null;
       S._sseConnected = false;
-      console.warn('SSE: too many reconnect failures, giving up. Reload to reconnect.');
+      const delay = Math.min(30000, 1000 * Math.pow(2, _reconnectCount - 10));
+      console.warn(`SSE: reconnect backoff ${delay}ms (attempt ${_reconnectCount})`);
+      _showSSEDisconnected(true);
+      _backoffReconnectTimer = setTimeout(() => {
+        _backoffReconnectTimer = null;
+        connectSSE();
+      }, delay);
     }
   };
 

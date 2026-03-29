@@ -4,45 +4,62 @@
 
 // Check auth status on load
 async function checkAuth() {
-  const res = await fetch('/auth/me');
-  const data = await res.json();
-  S.isAdmin = data.admin;
-  S.adminEmail = data.email || null;
-  updateAuthUI();
+  try {
+    const res = await fetch('/auth/me');
+    if (!res.ok) return;
+    const data = await res.json();
+    S.isAdmin = data.admin;
+    S.adminEmail = data.email || null;
+    updateAuthUI();
+  } catch (e) {
+    console.warn('Auth check failed:', e.message);
+  }
 }
 
 // Dev mode: one-click admin login
 async function devLogin() {
-  const res = await fetch('/auth/dev-login', { method: 'POST' });
-  const data = await res.json();
-  S.isAdmin = data.admin;
-  S.adminEmail = data.email;
-  updateAuthUI();
-  renderCurrentScreen();
-  toast('Logged in as dev admin');
+  try {
+    const res = await fetch('/auth/dev-login', { method: 'POST' });
+    if (!res.ok) { toast('Login failed', 'error'); return; }
+    const data = await res.json();
+    S.isAdmin = data.admin;
+    S.adminEmail = data.email;
+    updateAuthUI();
+    renderCurrentScreen();
+    toast('Logged in as dev admin');
+  } catch (e) {
+    toast('Login failed — server unreachable', 'error');
+  }
 }
 
 // Google Sign-In callback
 async function handleGoogleCredential(response) {
-  const res = await fetch('/auth/google', {
-    method: 'POST',
-    headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({ credential: response.credential })
-  });
-  const data = await res.json();
-  if (data.admin) {
-    S.isAdmin = true;
-    S.adminEmail = data.email;
-    updateAuthUI();
-    renderCurrentScreen();
-    toast('Logged in as admin');
-  } else {
-    toast('Not an admin account', 'error');
+  try {
+    const res = await fetch('/auth/google', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ credential: response.credential })
+    });
+    if (!res.ok) { toast('Login failed', 'error'); return; }
+    const data = await res.json();
+    if (data.admin) {
+      S.isAdmin = true;
+      S.adminEmail = data.email;
+      updateAuthUI();
+      renderCurrentScreen();
+      toast('Logged in as admin');
+    } else {
+      toast('Not an admin account', 'error');
+    }
+  } catch (e) {
+    toast('Login failed — server unreachable', 'error');
   }
 }
 
 async function logout() {
-  await fetch('/auth/logout', { method: 'POST' });
+  try {
+    await fetch('/auth/logout', { method: 'POST' });
+  } catch (e) { /* continue logout regardless */ }
   S.isAdmin = false;
   S.adminEmail = null;
   updateAuthUI();

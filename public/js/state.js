@@ -45,7 +45,7 @@ const _stateData = {
   screen: 'dashboard',
   isAdmin: false,
   adminEmail: null,
-  visitorName: localStorage.getItem('sering_visitor_name') || '',
+  visitorName: (() => { try { return localStorage.getItem('sering_visitor_name') || ''; } catch { return ''; } })(),
   devMode: false,
   googleClientId: '',
 

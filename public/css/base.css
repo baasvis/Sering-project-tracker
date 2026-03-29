@@ -27,7 +27,7 @@
   --bg-card-hover: #FAFAF7;
   --text-primary: var(--sering-olive);
   --text-secondary: rgba(73, 76, 26, 0.7);
-  --text-muted: rgba(73, 76, 26, 0.45);
+  --text-muted: rgba(73, 76, 26, 0.65);
   --accent: var(--sering-red);
   --accent-hover: #E63800;
   --success: var(--sering-olive);
@@ -37,7 +37,7 @@
   --color-danger: #cc0000;
 
   /* Status colours */
-  --status-todo: rgba(73, 76, 26, 0.4);
+  --status-todo: rgba(73, 76, 26, 0.6);
   --status-progress: var(--sering-red);
   --status-done: var(--sering-olive);
 
@@ -480,7 +480,7 @@ label {
 }
 
 /* ---- Utility ---- */
-.sr-only { position: absolute; width: 1px; height: 1px; overflow: hidden; clip: rect(0,0,0,0); }
+.sr-only { position: absolute; width: 1px; height: 1px; overflow: hidden; clip-path: inset(50%); white-space: nowrap; }
 .text-muted { color: var(--text-muted); }
 .text-sm { font-size: var(--font-size-sm); }
 .text-xs { font-size: var(--font-size-xs); }
@@ -606,4 +606,43 @@ label {
 @keyframes screen-in {
   from { opacity: 0.6; }
   to { opacity: 1; }
+}
+
+/* ---- Focus-visible for keyboard accessibility ---- */
+.btn:focus-visible,
+.btn-small:focus-visible,
+.btn-ghost:focus-visible,
+.btn-danger:focus-visible,
+.btn-icon:focus-visible,
+.card-clickable:focus-visible,
+#nav-links a:focus-visible,
+.task-status-btn:focus-visible,
+.carousel-btn:focus-visible,
+.voice-note-btn:focus-visible,
+.media-delete-btn:focus-visible,
+.tag:focus-visible,
+.budget-project-header:focus-visible {
+  outline: 2px solid var(--accent);
+  outline-offset: 2px;
+}
+
+/* ---- Reduced motion ---- */
+@media (prefers-reduced-motion: reduce) {
+  *, *::before, *::after {
+    animation-duration: 0.01ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.01ms !important;
+  }
+}
+
+/* ---- Modal ARIA ---- */
+.modal-backdrop[role="dialog"] {
+  /* Ensure focus trapping styles */
+}
+
+/* ---- Disabled button state ---- */
+.btn:disabled, .btn-primary:disabled, .btn-secondary:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+  pointer-events: none;
 }

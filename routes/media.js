@@ -82,6 +82,16 @@ router.post('/', upload.single('file'), asyncHandler(async (req, res) => {
     throw err;
   }
 
+  // Verify parent entity exists
+  const parentModel = { task: 'task', project: 'project', announcement: 'announcement', comment: 'comment' }[parsed.parentType];
+  if (parentModel) {
+    const parent = await prisma[parentModel].findUnique({ where: { id: parsed.parentId }, select: { id: true } });
+    if (!parent) {
+      cleanupFile(req.file);
+      return sendError(res, 'NOT_FOUND', `Parent ${parsed.parentType} not found`);
+    }
+  }
+
   // Enforce voice note size limit
   if (req.file.mimetype.startsWith('audio/') && req.file.size > MAX_VOICE_SIZE_BYTES) {
     cleanupFile(req.file);
@@ -204,13 +214,14 @@ router.delete('/:id', validateId, requireAdmin, asyncHandler(async (req, res) =>
   const media = await prisma.media.findUnique({ where: { id: req.params.id } });
   if (!media) return sendError(res, 'NOT_FOUND', 'Media not found');
 
+  await prisma.media.delete({ where: { id: req.params.id } });
+
+  // Delete file from disk after DB record is removed
   deleteMediaFile(media);
 
   if (cachedStorageUsed !== null) {
     cachedStorageUsed = Math.max(0, cachedStorageUsed - media.sizeBytes);
   }
-
-  await prisma.media.delete({ where: { id: req.params.id } });
   res.json({ ok: true });
 }));
 
