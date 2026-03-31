@@ -2,16 +2,20 @@
   "name": "sering-project-tracker",
   "version": "1.0.0",
   "description": "Project tracker for De Sering community kitchen",
-  "main": "server.js",
+  "main": "dist/server.js",
   "scripts": {
-    "start": "node server.js",
-    "dev": "node --watch server.js",
+    "build": "tsc --build",
+    "build:backend": "tsc -p tsconfig.backend.json",
+    "build:frontend": "tsc -p tsconfig.frontend.json",
+    "start": "node dist/start.js",
+    "dev": "tsx --watch src/start.ts",
     "postinstall": "prisma generate",
     "db:migrate": "npx prisma migrate dev",
     "db:push": "npx prisma db push",
     "db:studio": "npx prisma studio",
     "test": "vitest run",
-    "test:watch": "vitest"
+    "test:watch": "vitest",
+    "typecheck": "tsc --build --noEmit"
   },
   "keywords": [],
   "author": "",
@@ -19,7 +23,7 @@
   "engines": {
     "node": ">=18.0.0"
   },
-  "type": "commonjs",
+  "type": "module",
   "dependencies": {
     "@prisma/client": "^6.19.2",
     "archiver": "^7.0.1",
@@ -39,7 +43,19 @@
     "zod": "^4.3.6"
   },
   "devDependencies": {
+    "@types/archiver": "^7.0.0",
+    "@types/compression": "^1.8.1",
+    "@types/connect-pg-simple": "^7.0.3",
+    "@types/cookie-parser": "^1.4.10",
+    "@types/express": "^5.0.6",
+    "@types/express-session": "^1.18.2",
+    "@types/morgan": "^1.9.10",
+    "@types/multer": "^2.1.0",
+    "@types/sanitize-html": "^2.16.1",
+    "@types/supertest": "^7.2.0",
     "supertest": "^7.2.2",
+    "tsx": "^4.21.0",
+    "typescript": "^6.0.2",
     "vitest": "^4.1.2"
   }
 }

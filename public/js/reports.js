@@ -1,23 +1,23 @@
+"use strict";
 /* ========================================
    Reports — Problem/comment report button
    ======================================== */
-
 // Insert floating report button into the DOM
 function initReportButton() {
-  if (document.getElementById('report-fab')) return;
-  const btn = document.createElement('button');
-  btn.id = 'report-fab';
-  btn.className = 'report-fab';
-  btn.title = 'Report a problem';
-  btn.textContent = '!';
-  btn.addEventListener('click', showReportModal);
-  document.body.appendChild(btn);
+    if (document.getElementById('report-fab'))
+        return;
+    var btn = document.createElement('button');
+    btn.id = 'report-fab';
+    btn.className = 'report-fab';
+    btn.title = 'Report a problem';
+    btn.textContent = '!';
+    btn.addEventListener('click', showReportModal);
+    document.body.appendChild(btn);
 }
-
 async function showReportModal() {
-  const backdrop = document.createElement('div');
-  backdrop.className = 'modal-backdrop';
-  backdrop.innerHTML = html`<div class="modal report-modal">
+    var backdrop = document.createElement('div');
+    backdrop.className = 'modal-backdrop';
+    backdrop.innerHTML = html `<div class="modal report-modal">
     <h2>Report a Problem</h2>
     <p class="text-muted text-sm">Describe the issue and a screenshot of the current page will be attached automatically.</p>
     <div class="form-group">
@@ -36,72 +36,70 @@ async function showReportModal() {
       <button class="btn btn-primary" id="report-submit-btn" data-action="submitReport" disabled>Send Report</button>
     </div>
   </div>`;
-  backdrop.addEventListener('click', e => { if (e.target === backdrop) closeModal(backdrop); });
-  openModal(backdrop, 'Report a Problem');
-
-  // Focus the textarea
-  document.getElementById('report-description').focus();
-
-  // Capture screenshot (hide the modal while capturing)
-  const modal = backdrop.querySelector('.modal');
-  modal.style.visibility = 'hidden';
-  backdrop.style.background = 'transparent';
-
-  try {
-    const canvas = await html2canvas(document.body, {
-      scale: 0.7,
-      useCORS: true,
-      logging: false,
-      ignoreElements: el => el.classList.contains('modal-backdrop') || el.id === 'toast-container'
-    });
-    window._reportScreenshot = canvas.toDataURL('image/jpeg', 0.6);
-
-    const preview = document.getElementById('report-screenshot-preview');
-    if (preview) {
-      preview.innerHTML = html`<img src="${safeDataImageSrc(window._reportScreenshot)}" alt="Screenshot preview">`;
+    backdrop.addEventListener('click', (e) => { if (e.target === backdrop)
+        closeModal(backdrop); });
+    openModal(backdrop, 'Report a Problem');
+    // Focus the textarea
+    document.getElementById('report-description').focus();
+    // Capture screenshot (hide the modal while capturing)
+    var modal = backdrop.querySelector('.modal');
+    modal.style.visibility = 'hidden';
+    backdrop.style.background = 'transparent';
+    try {
+        var canvas = await html2canvas(document.body, {
+            scale: 0.7,
+            useCORS: true,
+            logging: false,
+            ignoreElements: (el) => el.classList.contains('modal-backdrop') || el.id === 'toast-container'
+        });
+        window._reportScreenshot = canvas.toDataURL('image/jpeg', 0.6);
+        var preview = document.getElementById('report-screenshot-preview');
+        if (preview) {
+            preview.innerHTML = html `<img src="${safeDataImageSrc(window._reportScreenshot)}" alt="Screenshot preview">`;
+        }
     }
-  } catch (err) {
-    console.warn('Screenshot capture failed:', err);
-    window._reportScreenshot = null;
-    const preview = document.getElementById('report-screenshot-preview');
-    if (preview) {
-      preview.innerHTML = '<span class="text-muted text-sm">Screenshot capture failed — report will be sent without it.</span>';
+    catch (err) {
+        console.warn('Screenshot capture failed:', err);
+        window._reportScreenshot = null;
+        var preview = document.getElementById('report-screenshot-preview');
+        if (preview) {
+            preview.innerHTML = '<span class="text-muted text-sm">Screenshot capture failed — report will be sent without it.</span>';
+        }
     }
-  }
-
-  modal.style.visibility = '';
-  backdrop.style.background = '';
-  document.getElementById('report-submit-btn').disabled = false;
+    modal.style.visibility = '';
+    backdrop.style.background = '';
+    document.getElementById('report-submit-btn').disabled = false;
 }
-
 async function submitReport() {
-  const description = document.getElementById('report-description').value.trim();
-  if (!description) return toast('Please describe the problem', 'error');
-
-  const reporterName = S.isAdmin ? (S.adminEmail || 'Admin') : S.visitorName;
-  if (!reporterName) return toast('Please set your name first', 'error');
-
-  const btn = document.getElementById('report-submit-btn');
-  btn.disabled = true;
-  btn.textContent = 'Sending...';
-
-  try {
-    await apiPost('/api/reports', {
-      description,
-      screenshotData: window._reportScreenshot || null,
-      reporterName,
-      currentPage: window.location.hash || '#dashboard'
-    });
-
-    { const bd = document.querySelector('.modal-backdrop'); if (bd) closeModal(bd); }
-    window._reportScreenshot = null;
-    toast('Report sent — thank you!', 'success');
-  } catch (err) {
-    toast(err.message, 'error');
-    btn.disabled = false;
-    btn.textContent = 'Send Report';
-  }
+    var description = document.getElementById('report-description').value.trim();
+    if (!description)
+        return toast('Please describe the problem', 'error');
+    var reporterName = S.isAdmin ? (S.adminEmail || 'Admin') : S.visitorName;
+    if (!reporterName)
+        return toast('Please set your name first', 'error');
+    var btn = document.getElementById('report-submit-btn');
+    btn.disabled = true;
+    btn.textContent = 'Sending...';
+    try {
+        await apiPost('/api/reports', {
+            description,
+            screenshotData: window._reportScreenshot || null,
+            reporterName,
+            currentPage: window.location.hash || '#dashboard'
+        });
+        {
+            var bd = document.querySelector('.modal-backdrop');
+            if (bd)
+                closeModal(bd);
+        }
+        window._reportScreenshot = null;
+        toast('Report sent — thank you!', 'success');
+    }
+    catch (err) {
+        toast(err.message, 'error');
+        btn.disabled = false;
+        btn.textContent = 'Send Report';
+    }
 }
-
 // ---- onAction registrations ----
 onAction('submitReport', () => submitReport());

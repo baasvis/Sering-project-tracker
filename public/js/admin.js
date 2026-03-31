@@ -1,30 +1,28 @@
+"use strict";
 /* ========================================
    Admin Panel — Group management
    ======================================== */
-
 async function renderAdmin() {
-  const app = document.getElementById('app');
-  showLoading();
-
-  if (!S.isAdmin) {
-    app.innerHTML = '<div class="empty-state"><h3>Admin access required</h3><p>Log in as admin to manage groups and settings.</p></div>';
-    return;
-  }
-
-  let reports = [];
-  try {
-    const [groups, reportsData] = await Promise.all([
-      apiGet('/api/groups'),
-      apiGet('/api/reports?resolved=false').catch(() => [])
-    ]);
-    S.groups = groups;
-    reports = reportsData;
-  } catch (err) {
-    app.innerHTML = html`<p class="text-muted">Could not load admin data.</p>`;
-    return;
-  }
-
-  app.innerHTML = html`
+    var app = document.getElementById('app');
+    showLoading();
+    if (!S.isAdmin) {
+        app.innerHTML = '<div class="empty-state"><h3>Admin access required</h3><p>Log in as admin to manage groups and settings.</p></div>';
+        return;
+    }
+    var reports = [];
+    try {
+        var [groups, reportsData] = await Promise.all([
+            apiGet('/api/groups'),
+            apiGet('/api/reports?resolved=false').catch(() => [])
+        ]);
+        S.groups = groups;
+        reports = reportsData;
+    }
+    catch (err) {
+        app.innerHTML = html `<p class="text-muted">Could not load admin data.</p>`;
+        return;
+    }
+    app.innerHTML = html `
     <div class="admin-panel">
       <h1 class="mb-lg">Admin</h1>
 
@@ -35,11 +33,11 @@ async function renderAdmin() {
         </div>
         <ul class="admin-list mt-md">
           ${raw(S.groups.length === 0
-            ? '<p class="text-muted">No groups yet. Create one to start organising projects.</p>'
-            : S.groups.map(g => {
-              window._groupCache = window._groupCache || {};
-              window._groupCache[g.id] = g;
-              return html`
+        ? '<p class="text-muted">No groups yet. Create one to start organising projects.</p>'
+        : S.groups.map((g) => {
+            window._groupCache = window._groupCache || {};
+            window._groupCache[g.id] = g;
+            return html `
               <li class="admin-list-item">
                 <div>
                   <strong>${g.name}</strong>
@@ -50,7 +48,7 @@ async function renderAdmin() {
                   <button class="btn btn-danger btn-small" data-action="deleteGroup" data-id="${g.id}">Delete</button>
                 </div>
               </li>`;
-            }).join(''))}
+        }).join(''))}
         </ul>
       </div>
 
@@ -64,46 +62,45 @@ async function renderAdmin() {
 
       <div class="admin-section">
         <div class="flex-between">
-          <h2>Reports ${raw(reports.length > 0 ? html`<span class="report-badge">${reports.length}</span>` : '')}</h2>
+          <h2>Reports ${raw(reports.length > 0 ? html `<span class="report-badge">${reports.length}</span>` : '')}</h2>
           <button class="btn btn-ghost btn-small" data-action="toggleResolvedReports">Show resolved</button>
         </div>
         <div id="admin-reports-list" class="mt-md">
           ${raw(reports.length === 0
-            ? '<p class="text-muted">No open reports.</p>'
-            : reports.map(r => {
-              window._reportCache = window._reportCache || {};
-              window._reportCache[r.id] = r;
-              return html`
+        ? '<p class="text-muted">No open reports.</p>'
+        : reports.map((r) => {
+            window._reportCache = window._reportCache || {};
+            window._reportCache[r.id] = r;
+            return html `
               <div class="report-card">
                 <div class="report-card-header">
                   <strong>${r.reporterName}</strong>
                   <span class="text-muted text-xs">${raw(timeAgo(r.createdAt))}${raw(r.currentPage ? ' · ' + esc(r.currentPage) : '')}</span>
                 </div>
                 <p class="report-card-desc">${r.description}</p>
-                ${raw(r.hasScreenshot ? html`<button class="btn btn-ghost btn-small" data-action="viewReportScreenshot" data-id="${r.id}">View screenshot</button>` : '')}
+                ${raw(r.hasScreenshot ? html `<button class="btn btn-ghost btn-small" data-action="viewReportScreenshot" data-id="${r.id}">View screenshot</button>` : '')}
                 <div class="report-card-actions">
                   <button class="btn btn-primary btn-small" data-action="resolveReport" data-id="${r.id}">Resolve</button>
                   <button class="btn btn-danger btn-small" data-action="deleteReport" data-id="${r.id}">Delete</button>
                 </div>
               </div>`;
-            }).join(''))}
+        }).join(''))}
         </div>
       </div>
 
       <div class="admin-section">
         <h2>Data Export</h2>
-        <p class="text-muted text-sm mt-sm">Download all data as CSVs — open in Google Sheets via File → Import.</p>
-        <a href="/api/export" class="btn btn-ghost mt-md" download>↓ Export all data</a>
+        <p class="text-muted text-sm mt-sm">Download all data as CSVs — open in Google Sheets via File \u2192 Import.</p>
+        <a href="/api/export" class="btn btn-ghost mt-md" download>\u2193 Export all data</a>
       </div>
     </div>`;
 }
-
 // Group modal
 function showGroupModal(existing) {
-  const isEdit = !!existing;
-  const backdrop = document.createElement('div');
-  backdrop.className = 'modal-backdrop';
-  backdrop.innerHTML = html`<div class="modal">
+    var isEdit = !!existing;
+    var backdrop = document.createElement('div');
+    backdrop.className = 'modal-backdrop';
+    backdrop.innerHTML = html `<div class="modal">
     <h2>${isEdit ? 'Edit' : 'New'} Group</h2>
     <div class="form-group">
       <label>Name</label>
@@ -124,141 +121,148 @@ function showGroupModal(existing) {
       </button>
     </div>
   </div>`;
-  backdrop.addEventListener('click', e => { if (e.target === backdrop) closeModal(backdrop); });
-  openModal(backdrop, (isEdit ? 'Edit' : 'New') + ' Group');
-  createRichEditor('group-description-editor', existing?.description || '');
+    backdrop.addEventListener('click', (e) => { if (e.target === backdrop)
+        closeModal(backdrop); });
+    openModal(backdrop, (isEdit ? 'Edit' : 'New') + ' Group');
+    createRichEditor('group-description-editor', existing?.description || '');
 }
-
 async function saveGroup(id) {
-  const name = document.getElementById('group-name').value.trim();
-  const description = getRichEditorHTML('group-description-editor');
-  const mattermostChannel = document.getElementById('group-mattermost').value.trim() || null;
-  if (!name) return toast('Name is required', 'error');
-
-  try {
-    if (id) {
-      await apiPatch(`/api/groups/${id}`, { name, description, mattermostChannel });
-    } else {
-      await apiPost('/api/groups', { name, description, mattermostChannel });
+    var name = document.getElementById('group-name').value.trim();
+    var description = getRichEditorHTML('group-description-editor');
+    var mattermostChannel = document.getElementById('group-mattermost').value.trim() || null;
+    if (!name)
+        return toast('Name is required', 'error');
+    try {
+        if (id) {
+            await apiPatch(`/api/groups/${id}`, { name, description, mattermostChannel });
+        }
+        else {
+            await apiPost('/api/groups', { name, description, mattermostChannel });
+        }
+        {
+            var bd = document.querySelector('.modal-backdrop');
+            if (bd)
+                closeModal(bd);
+        }
+        renderAdmin();
+        toast(id ? 'Group updated' : 'Group created', 'success');
     }
-    { const bd = document.querySelector('.modal-backdrop'); if (bd) closeModal(bd); }
-    renderAdmin();
-    toast(id ? 'Group updated' : 'Group created', 'success');
-  } catch (err) {
-    toast(err.message, 'error');
-  }
+    catch (err) {
+        toast(err.message, 'error');
+    }
 }
-
 async function deleteGroup(id) {
-  if (!confirm('Delete this group? Only works if it has no projects.')) return;
-  try {
-    await apiDelete(`/api/groups/${id}`);
-    renderAdmin();
-    toast('Group deleted');
-  } catch (err) {
-    toast(err.message, 'error');
-  }
+    if (!confirm('Delete this group? Only works if it has no projects.'))
+        return;
+    try {
+        await apiDelete(`/api/groups/${id}`);
+        renderAdmin();
+        toast('Group deleted');
+    }
+    catch (err) {
+        toast(err.message, 'error');
+    }
 }
-
 // ---- Reports management ----
-
 async function viewReportScreenshot(id) {
-  try {
-    const report = await apiGet(`/api/reports/${id}`);
-    if (!report.screenshotData) return toast('No screenshot available', 'error');
-
-    const backdrop = document.createElement('div');
-    backdrop.className = 'modal-backdrop';
-    backdrop.innerHTML = html`<div class="modal report-screenshot-modal">
+    try {
+        var report = await apiGet(`/api/reports/${id}`);
+        if (!report.screenshotData)
+            return toast('No screenshot available', 'error');
+        var backdrop = document.createElement('div');
+        backdrop.className = 'modal-backdrop';
+        backdrop.innerHTML = html `<div class="modal report-screenshot-modal">
       <div class="flex-between mb-md">
         <h2>Screenshot</h2>
         <button class="btn btn-ghost btn-small" data-action="closeModal">Close</button>
       </div>
       <img src="${safeDataImageSrc(report.screenshotData)}" alt="Report screenshot" class="report-screenshot-full">
     </div>`;
-    backdrop.addEventListener('click', e => { if (e.target === backdrop) closeModal(backdrop); });
-    openModal(backdrop, 'Report Screenshot');
-  } catch (err) {
-    toast(err.message, 'error');
-  }
-}
-
-async function resolveReport(id) {
-  try {
-    await apiPatch(`/api/reports/${id}`, { resolved: true });
-    renderAdmin();
-    toast('Report resolved', 'success');
-  } catch (err) {
-    toast(err.message, 'error');
-  }
-}
-
-async function deleteReport(id) {
-  if (!confirm('Delete this report permanently?')) return;
-  try {
-    await apiDelete(`/api/reports/${id}`);
-    renderAdmin();
-    toast('Report deleted');
-  } catch (err) {
-    toast(err.message, 'error');
-  }
-}
-
-async function toggleResolvedReports() {
-  try {
-    const reports = await apiGet('/api/reports');
-    const container = document.getElementById('admin-reports-list');
-    if (!container) return;
-
-    if (reports.length === 0) {
-      container.innerHTML = '<p class="text-muted">No reports at all.</p>';
-      return;
+        backdrop.addEventListener('click', (e) => { if (e.target === backdrop)
+            closeModal(backdrop); });
+        openModal(backdrop, 'Report Screenshot');
     }
-
-    container.innerHTML = reports.map(r => {
-      window._reportCache = window._reportCache || {};
-      window._reportCache[r.id] = r;
-      return html`
+    catch (err) {
+        toast(err.message, 'error');
+    }
+}
+async function resolveReport(id) {
+    try {
+        await apiPatch(`/api/reports/${id}`, { resolved: true });
+        renderAdmin();
+        toast('Report resolved', 'success');
+    }
+    catch (err) {
+        toast(err.message, 'error');
+    }
+}
+async function deleteReport(id) {
+    if (!confirm('Delete this report permanently?'))
+        return;
+    try {
+        await apiDelete(`/api/reports/${id}`);
+        renderAdmin();
+        toast('Report deleted');
+    }
+    catch (err) {
+        toast(err.message, 'error');
+    }
+}
+async function toggleResolvedReports() {
+    try {
+        var reports = await apiGet('/api/reports');
+        var container = document.getElementById('admin-reports-list');
+        if (!container)
+            return;
+        if (reports.length === 0) {
+            container.innerHTML = '<p class="text-muted">No reports at all.</p>';
+            return;
+        }
+        container.innerHTML = reports.map((r) => {
+            window._reportCache = window._reportCache || {};
+            window._reportCache[r.id] = r;
+            return html `
       <div class="report-card ${r.resolved ? 'report-resolved' : ''}">
         <div class="report-card-header">
           <strong>${r.reporterName}</strong>
-          <span class="text-muted text-xs">${raw(r.resolved ? 'Resolved · ' : '')}${raw(timeAgo(r.createdAt))}${raw(r.currentPage ? ' · ' + esc(r.currentPage) : '')}</span>
+          <span class="text-muted text-xs">${raw(r.resolved ? 'Resolved \u00B7 ' : '')}${raw(timeAgo(r.createdAt))}${raw(r.currentPage ? ' \u00B7 ' + esc(r.currentPage) : '')}</span>
         </div>
         <p class="report-card-desc">${r.description}</p>
-        ${raw(r.hasScreenshot ? html`<button class="btn btn-ghost btn-small" data-action="viewReportScreenshot" data-id="${r.id}">View screenshot</button>` : '')}
+        ${raw(r.hasScreenshot ? html `<button class="btn btn-ghost btn-small" data-action="viewReportScreenshot" data-id="${r.id}">View screenshot</button>` : '')}
         <div class="report-card-actions">
           ${raw(r.resolved
-            ? html`<button class="btn btn-ghost btn-small" data-action="unresolveReport" data-id="${r.id}">Reopen</button>`
-            : html`<button class="btn btn-primary btn-small" data-action="resolveReport" data-id="${r.id}">Resolve</button>`)}
+                ? html `<button class="btn btn-ghost btn-small" data-action="unresolveReport" data-id="${r.id}">Reopen</button>`
+                : html `<button class="btn btn-primary btn-small" data-action="resolveReport" data-id="${r.id}">Resolve</button>`)}
           <button class="btn btn-danger btn-small" data-action="deleteReport" data-id="${r.id}">Delete</button>
         </div>
       </div>`;
-    }).join('');
-  } catch (err) {
-    toast(err.message, 'error');
-  }
+        }).join('');
+    }
+    catch (err) {
+        toast(err.message, 'error');
+    }
 }
-
 async function unresolveReport(id) {
-  try {
-    await apiPatch(`/api/reports/${id}`, { resolved: false });
-    renderAdmin();
-    toast('Report reopened');
-  } catch (err) {
-    toast(err.message, 'error');
-  }
+    try {
+        await apiPatch(`/api/reports/${id}`, { resolved: false });
+        renderAdmin();
+        toast('Report reopened');
+    }
+    catch (err) {
+        toast(err.message, 'error');
+    }
 }
-
 // Re-render just the groups list from current S.groups (no API fetch)
 function rerenderAdminGroups() {
-  const list = document.querySelector('.admin-list');
-  if (!list) return;
-  window._groupCache = window._groupCache || {};
-  list.innerHTML = S.groups.length === 0
-    ? '<p class="text-muted">No groups yet. Create one to start organising projects.</p>'
-    : S.groups.map(g => {
-        window._groupCache[g.id] = g;
-        return html`
+    var list = document.querySelector('.admin-list');
+    if (!list)
+        return;
+    window._groupCache = window._groupCache || {};
+    list.innerHTML = S.groups.length === 0
+        ? '<p class="text-muted">No groups yet. Create one to start organising projects.</p>'
+        : S.groups.map((g) => {
+            window._groupCache[g.id] = g;
+            return html `
         <li class="admin-list-item">
           <div>
             <strong>${g.name}</strong>
@@ -269,9 +273,8 @@ function rerenderAdminGroups() {
             <button class="btn btn-danger btn-small" data-action="deleteGroup" data-id="${g.id}">Delete</button>
           </div>
         </li>`;
-      }).join('');
+        }).join('');
 }
-
 // ---- onAction registrations ----
 onAction('showGroupModal', () => showGroupModal());
 onAction('editGroup', (el) => showGroupModal(window._groupCache[el.dataset.id]));
@@ -283,10 +286,9 @@ onAction('viewReportScreenshot', (el) => viewReportScreenshot(el.dataset.id));
 onAction('resolveReport', (el) => resolveReport(el.dataset.id));
 onAction('deleteReport', (el) => deleteReport(el.dataset.id));
 onAction('unresolveReport', (el) => unresolveReport(el.dataset.id));
-
 // ---- Reactive subscriptions ----
-
 S.subscribe('groups', () => {
-  if (S.screen !== 'admin') return;
-  rerenderAdminGroups();
+    if (S.screen !== 'admin')
+        return;
+    rerenderAdminGroups();
 });

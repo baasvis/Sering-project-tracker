@@ -17,26 +17,32 @@ This codebase is being rewritten phase-by-phase. The API contract and database m
 - [x] Phase 5b: Frontend screens (dashboard, projects)
 - [x] Phase 5c: Frontend remaining (shopping, budget, admin, reports, sse, init)
 - [x] Phase 6: Integration tests + hardening
+- [x] Phase 7: TypeScript migration (backend ESM + frontend module:None)
 
 ---
 
-## Stack (unchanged)
-- Node.js / Express 5, vanilla JS frontend (NO build step, NO bundler)
-- PostgreSQL via Prisma ORM
+## Stack
+- **TypeScript** throughout (backend + frontend), compiled with `tsc`
+- Node.js / Express 5 (ESM, `"type": "module"`)
+- Frontend TypeScript compiled with `module: "None"` — outputs standalone JS files, NO bundler
+- PostgreSQL via Prisma ORM (with generated types)
+- Zod validation with `z.infer<>` type exports
 - Google Sign-In for admin auth; visitors enter a name (no login)
 - Quill.js rich text editor (CDN)
 - sanitize-html on server
 - SSE for real-time (no socket.io, no external deps)
 - Railway hosting (auto-deploy, Postgres plugin)
+- Dev via `tsx --watch`, production via `node dist/start.js`
 
 ## Hard Rules — Do Not Break These
-- **No build step or bundler.** No webpack, vite, esbuild, rollup. Ever.
-- **No import/export in frontend files.** All frontend JS uses `<script>` tags, all functions are global.
+- **No bundler.** No webpack, vite, esbuild, rollup. `tsc` is the only build step.
+- **No import/export in frontend TS files.** Frontend source is in `src/frontend/`, compiled to `public/js/` with `module: "None"`. All declarations are global. Use `var` for top-level declarations.
 - **No new npm dependencies** without explicit approval. The dep list is intentionally small.
 - **Every Prisma schema change requires a migration.** Use `npx prisma migrate dev --name <descriptive_name>`.
 - **Never remove `asyncHandler()` wrapping** from route handlers.
 - **Never bypass `sanitize()`** for user-provided HTML content.
 - **Script load order in index.html must be preserved:** `state.js` -> `events.js` -> `auth.js` -> `utils.js` -> `media.js` -> `comments.js` -> `dashboard.js` -> `projects.js` -> `shopping.js` -> `budget.js` -> `reports.js` -> `admin.js` -> `sse.js` -> `init.js`
+- **Always run `npm run build` after editing TS files.** Backend compiles to `dist/`, frontend compiles to `public/js/`.
 
 ---
 
@@ -46,12 +52,12 @@ This codebase is being rewritten phase-by-phase. The API contract and database m
 
 #### Validation: Use Zod
 - Add `zod` as a dependency (the ONE allowed new dep).
-- Define schemas in `lib/schemas.js` — one `create` and one `update` schema per entity.
+- Define schemas in `src/lib/schemas.ts` — one `create` and one `update` schema per entity.
 - Schemas must match Prisma enums exactly. Single source of truth.
 - All route handlers validate with `schema.parse(req.body)` inside a try/catch that returns 400 on ZodError.
-- `lib/validate.js` still provides UUID validation and `stripTags()` used across routes.
+- `src/lib/validate.ts` still provides UUID validation and `stripTags()` used across routes.
 
-#### CRUD Factory: `lib/crud.js`
+#### CRUD Factory: `src/lib/crud.ts`
 - Create a factory function: `makeCrud({ model, createSchema, updateSchema, include?, broadcast? })`
 - Factory returns standard Express handlers: `list`, `getById`, `create`, `update`, `softDelete`, `approve`
 - Every `list` handler supports pagination: `?cursor=<id>&limit=50` (cursor-based, default 50, max 200).
@@ -65,7 +71,7 @@ This codebase is being rewritten phase-by-phase. The API contract and database m
 - Export endpoint must stream rows, not load all into memory.
 - Use transactions for multi-step mutations (approve + update, reorder, group delete with checks).
 
-#### Config: Centralize in `lib/config.js`
+#### Config: Centralize in `src/lib/config.ts`
 - All magic numbers become named constants: `RATE_LIMIT_GENERAL`, `RATE_LIMIT_WRITES`, `MAX_IMAGE_SIZE_MB`, `SSE_HEARTBEAT_MS`, `MAX_SSE_CONNECTIONS`, etc.
 - `SESSION_SECRET` must **crash the process** in production if not set. No fallback.
 - `DEV_MODE` must check `NODE_ENV !== 'production'` AND `!GOOGLE_CLIENT_ID`. Both conditions required.
@@ -142,7 +148,7 @@ The API contract does not change. Frontend expects the same JSON shapes. Enum va
 ### Setup
 - Add `vitest` + `supertest` as dev dependencies.
 - Add `"test": "vitest run"` and `"test:watch": "vitest"` to package.json scripts.
-- Test files go next to the source: `routes/tasks.test.js`, `lib/crud.test.js`, etc.
+- Test files go next to the source: `src/routes/tasks.test.ts`, `src/lib/crud.test.ts`, etc.
 
 ### What to Test
 - Every Zod schema: valid input, invalid input, edge cases.
@@ -158,63 +164,80 @@ The API contract does not change. Frontend expects the same JSON shapes. Enum va
 
 ---
 
-## Project Structure (Target)
+## Project Structure
 ```
-server.js                 — Express app, middleware, route mounting
-lib/
-  config.js               — All env vars + named constants (centralized)
-  db.js                   — Prisma client instance
-  schemas.js              — Zod validation schemas (one per entity)
-  crud.js                 — CRUD factory (list/get/create/update/delete/approve)
-  errors.js               — Custom error classes (AppError, NotFoundError, etc.)
-  sanitize.js             — HTML sanitization (sanitize-html allowlist)
-  validate.js             — Legacy validation helpers (UUID, stripTags, etc.)
-  async-handler.js        — Wraps async route handlers
-  media-utils.js          — File deletion utility
-  sse.js                  — SSE broadcast hub (connection management, heartbeat)
-  audit.js                — Audit logging (fire-and-forget to DB)
-routes/
-  auth.js                 — Google Sign-In, dev login, requireAdmin middleware
-  groups.js               — Group CRUD (uses crud factory)
-  projects.js             — Project CRUD + task counts via _count
-  tasks.js                — Task CRUD within projects
-  announcements.js        — Announcement CRUD (admin only)
-  comments.js             — Comment CRUD (anyone posts, admin deletes)
-  shopping.js             — Shopping list CRUD (items + costs)
-  media.js                — File upload/serve/delete
-  reports.js              — Problem reports
-  export.js               — Streaming CSV export (admin only)
-  health.js               — Health check
-  *.test.js               — Co-located test files
+tsconfig.json                  — Project references root
+tsconfig.backend.json          — ES2022, Node16, outDir: dist/
+tsconfig.frontend.json         — ES2020, module: None, outDir: public/js/
+tsconfig.test.json             — Extends backend, includes vitest/globals types
+vitest.config.ts               — Test configuration
+src/
+  server.ts                    — Express app, middleware, route mounting (exports app)
+  start.ts                     — app.listen() entry point
+  types/
+    express-session.d.ts       — Session augmentation (admin, email, name)
+  lib/
+    config.ts                  — All env vars + named constants (centralized)
+    db.ts                      — Prisma client instance
+    schemas.ts                 — Zod validation schemas + z.infer<> type exports
+    crud.ts                    — CRUD factory (list/get/create/update/delete/approve)
+    errors.ts                  — Error helpers (sendError, handleZodError)
+    sanitize.ts                — HTML sanitization (sanitize-html allowlist)
+    validate.ts                — UUID validation, stripTags, validateId middleware
+    async-handler.ts           — Wraps async route handlers
+    media-utils.ts             — File deletion utility
+    sse.ts                     — SSE broadcast hub (connection management, heartbeat)
+    audit.ts                   — Audit logging (fire-and-forget to DB)
+  routes/
+    auth.ts                    — Google Sign-In, dev login, requireAdmin middleware
+    groups.ts                  — Group CRUD (uses crud factory)
+    projects.ts                — Project CRUD + task counts via _count
+    tasks.ts                   — Task CRUD within projects
+    announcements.ts           — Announcement CRUD (admin only)
+    comments.ts                — Comment CRUD (anyone posts, admin deletes)
+    shopping.ts                — Shopping list CRUD (items + costs)
+    media.ts                   — File upload/serve/delete
+    reports.ts                 — Problem reports
+    export.ts                  — Streaming CSV export (admin only)
+    health.ts                  — Health check
+    _test-helpers.ts           — Shared test utilities
+    *.test.ts                  — Co-located test files
+  frontend/
+    globals.d.ts               — External lib declarations (Quill, google, html2canvas)
+    state.ts                   — Global S with subscribe() reactivity
+    events.ts                  — Custom event bus (EventTarget-based pub/sub)
+    auth.ts                    — Google Sign-In, dev login, name overlay
+    utils.ts                   — html`` tagged template, apiFetch, toast, helpers
+    media.ts                   — Photo upload, voice recording, lightbox
+    comments.ts                — Comment rendering + posting
+    dashboard.ts               — Dashboard screen
+    projects.ts                — Project list + detail
+    shopping.ts                — Shopping list UI
+    budget.ts                  — Budget overview
+    reports.ts                 — Report button + modal
+    admin.ts                   — Admin panel
+    sse.ts                     — SSE handlers (update S only, no direct DOM)
+    init.ts                    — Navigation, routing, bootstrap (LAST)
+dist/                          — Compiled backend (gitignored)
 public/
-  index.html              — Shell HTML + name overlay
-  css/                    — Same structure, no changes planned
-  js/
-    state.js              — Global S with subscribe() reactivity
-    events.js             — Custom event bus (EventTarget-based pub/sub)
-    auth.js               — Google Sign-In, dev login, name overlay
-    utils.js              — html`` tagged template, apiFetch, toast, helpers
-    media.js              — Photo upload, voice recording, lightbox
-    comments.js           — Comment rendering + posting
-    dashboard.js          — Dashboard screen
-    projects.js           — Project list + detail
-    shopping.js           — Shopping list UI
-    budget.js             — Budget overview
-    reports.js            — Report button + modal
-    admin.js              — Admin panel
-    sse.js                — SSE handlers (update S only, no direct DOM)
-    init.js               — Navigation, routing, bootstrap (LAST)
+  index.html                   — Shell HTML + name overlay
+  css/                         — Stylesheets
+  js/                          — Compiled frontend (output from src/frontend/)
+  fonts/                       — Self-hosted Overused Grotesk variable font
 prisma/
-  schema.prisma           — Database schema with enums
-  migrations/             — Prisma migrations
+  schema.prisma                — Database schema with enums
+  migrations/                  — Prisma migrations
+uploads/                       — User-uploaded media (gitignored)
 ```
 
 ## Running
 ```bash
-npm run dev           # port 3001 with --watch
-npm start             # production
-npm test              # vitest
-npm run test:watch    # vitest in watch mode
+npm run build         # tsc --build (compiles backend + frontend)
+npm run dev           # tsx --watch src/start.ts (port 3001)
+npm start             # node dist/start.js (production)
+npm run typecheck     # tsc --build --noEmit
+npm test              # vitest run
+npm run test:watch    # vitest
 ```
 
 ### Required Environment Variables

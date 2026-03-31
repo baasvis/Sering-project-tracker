@@ -1,6 +1,6 @@
 # Sering Project Tracker — Design Document
 
-*Last updated: 2026-03-29*
+*Last updated: 2026-03-31*
 *Master reference for any AI assistant working on this codebase.*
 
 ---
@@ -377,17 +377,17 @@ Media files stored on disk (Railway volume) at `/uploads/{parentType}/{parentId}
 
 | Layer | Choice | Rationale |
 |-------|--------|-----------|
-| Frontend | Vanilla JS | No build step. Consistent with food planner. Simple enough for this app. |
-| Backend | Node.js + Express | Same as food planner. Known, stable, Claude-friendly. |
+| Frontend | TypeScript (compiled to vanilla JS via `tsc`, `module: "None"`) | Type safety without bundler. Outputs standalone `<script>` files to `public/js/`. |
+| Backend | TypeScript + Node.js + Express 5 (ESM) | Full type safety with Prisma-generated types and Zod `z.infer<>`. |
 | Database | PostgreSQL + Prisma | Relational data (groups → projects → tasks), media metadata, comments. |
 | File storage | Local disk (Railway volume) | Start simple. Move to S3/R2 if storage grows beyond Railway limits. |
 | Auth | Google Sign-In (admin only) | Only 3 admins need real auth. Everyone else just enters a name. |
 | Hosting | Railway | Same platform as food planner. Auto-deploy, Postgres plugin, persistent volumes. |
 | Voice recording | MediaRecorder API | Built into modern browsers. Records WebM/Opus audio. |
 
-### Why Vanilla JS Again?
+### Why TypeScript Without a Bundler?
 
-This app has ~6 screens with relatively simple interactions. The most complex parts are media upload and voice recording, which are browser APIs — no framework needed. Vanilla JS keeps the stack identical to the food planner, meaning Daan (and Claude) can move between projects without context-switching.
+This app has ~6 screens with relatively simple interactions. TypeScript adds compile-time safety (Prisma types, Zod inference, Express session augmentation) without introducing bundler complexity. Frontend TS compiles 1:1 to standalone JS files via `tsc` with `module: "None"` — the `<script>` tag loading pattern is unchanged. No webpack, vite, or esbuild.
 
 ---
 
@@ -456,56 +456,43 @@ This app has ~6 screens with relatively simple interactions. The most complex pa
 
 ---
 
-## 10. File Structure (planned)
+## 10. File Structure
 
 ```
-server.js                — Express entry point
-lib/
-  config.js              — Env vars, admin email list
-  db.js                  — Prisma client
-prisma/
-  schema.prisma          — Database schema
-routes/
-  auth.js                — Google Sign-In, session, requireAdmin middleware
-  groups.js              — Group CRUD
-  projects.js            — Project CRUD
-  tasks.js               — Task CRUD
-  announcements.js       — Announcement CRUD
-  comments.js            — Comment CRUD
-  media.js               — File upload/serve/delete
-  reports.js             — Problem reports (submit + admin manage)
-  health.js              — Health check
+tsconfig.json                  — Project references root
+tsconfig.backend.json          — Backend: ES2022, Node16, outDir: dist/
+tsconfig.frontend.json         — Frontend: ES2020, module: None, outDir: public/js/
+src/
+  server.ts                    — Express app (exports app for testing)
+  start.ts                     — app.listen() entry point
+  types/
+    express-session.d.ts       — Session type augmentation
+  lib/
+    config.ts, db.ts, schemas.ts, crud.ts, errors.ts,
+    sanitize.ts, validate.ts, async-handler.ts,
+    media-utils.ts, sse.ts, audit.ts
+  routes/
+    auth.ts, groups.ts, projects.ts, tasks.ts,
+    announcements.ts, comments.ts, shopping.ts,
+    media.ts, reports.ts, export.ts, health.ts
+    _test-helpers.ts, *.test.ts
+  frontend/
+    globals.d.ts               — External lib declarations (Quill, google, html2canvas)
+    state.ts, events.ts, auth.ts, utils.ts, media.ts,
+    comments.ts, dashboard.ts, projects.ts, shopping.ts,
+    budget.ts, reports.ts, admin.ts, sse.ts, init.ts
+dist/                          — Compiled backend (gitignored)
 public/
-  index.html             — HTML shell
-  css/
-    base.css             — Variables, resets, layout, brand styles
-    dashboard.css        — Dashboard + announcements
-    projects.css         — Project list + detail
-    tasks.css            — Task list + detail
-    comments.css         — Comment threads
-    media.css            — Media display, voice recorder
-    admin.css            — Admin panel
-    mobile.css           — Responsive overrides
-  js/
-    state.js             — App state, constants, reactive S object
-    events.js            — Custom event bus (EventTarget-based pub/sub)
-    auth.js              — Google Sign-In (admin), name entry (visitors)
-    utils.js             — API helpers, toast, html`` tagged template, helpers
-    dashboard.js         — Dashboard screen
-    projects.js          — Project list + detail screens
-    comments.js          — Comment threads, media-in-comments
-    media.js             — Photo upload, voice recorder, lightbox
-    shopping.js          — Shopping list UI per project
-    budget.js            — Budget overview screen
-    reports.js           — Floating report button, screenshot capture modal
-    admin.js             — Admin panel (incl. report management)
-    sse.js               — SSE event handlers (real-time updates)
-    init.js              — Router, navigation, app init (LAST)
-  fonts/                 — Self-hosted Overused Grotesk variable font
-uploads/                 — User-uploaded media (gitignored)
-data/                    — Any server-side JSON config (gitignored)
-DESIGN.md                — This document
-CLAUDE.md                — Claude Code instructions
+  index.html                   — HTML shell
+  css/                         — Stylesheets (base, dashboard, projects, etc.)
+  js/                          — Compiled frontend JS (output from src/frontend/)
+  fonts/                       — Self-hosted Overused Grotesk variable font
+prisma/
+  schema.prisma                — Database schema with enums
+  migrations/                  — Prisma migrations
+uploads/                       — User-uploaded media (gitignored)
+DESIGN.md                      — This document
+CLAUDE.md                      — Claude Code instructions
 ```
 
 ---
@@ -564,6 +551,7 @@ Implemented protections for a public-facing app:
 - **Accessibility**: `:focus-visible` on all interactive elements, `prefers-reduced-motion`, WCAG AA contrast, `<noscript>` fallback
 - **Database enums**: `Project.status`, `Task.status`, `ShoppingItem.type` enforced as PostgreSQL enums (not text)
 - **Decimal money fields**: `ShoppingItem.pricePerItem` and `amount` use `Decimal(10,2)` to avoid floating-point errors
+- **TypeScript strict mode**: Compile-time type safety across backend and frontend, with Prisma-generated types and Zod schema inference
 - **Report validation**: screenshot must be `data:image/*` data URL (max 2MB), description/name HTML-stripped, UUID validation on all `:id` params
 
 ---
