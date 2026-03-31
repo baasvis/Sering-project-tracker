@@ -113,7 +113,7 @@ function getCsrfToken() {
 // ─── API helpers ────────────────────────────────────────────────────────────
 
 async function apiFetch(method, url, body) {
-  const opts = { method };
+  const opts = { method, cache: 'no-cache' };
   const headers = {};
   if (body !== undefined) {
     headers['Content-Type'] = 'application/json';
