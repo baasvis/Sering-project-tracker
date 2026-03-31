@@ -58,11 +58,10 @@ router.get('/summary', asyncHandler(async (req, res) => {
       id: true, name: true,
       group: { select: { name: true } },
       shoppingItems: {
-        where: { approved: true },
         select: {
           id: true, type: true, name: true, link: true,
           pricePerItem: true, quantity: true, amount: true,
-          purchased: true, suggestedBy: true, order: true
+          purchased: true, suggestedBy: true, approved: true, order: true
         },
         orderBy: { order: 'asc' }
       }
@@ -81,8 +80,10 @@ router.get('/summary', asyncHandler(async (req, res) => {
   if (hasMore) projects.pop();
 
   const summary = projects.map(p => {
-    let productTotal = 0, costTotal = 0;
+    let productTotal = 0, costTotal = 0, itemCount = 0;
     for (const i of p.shoppingItems) {
+      if (!i.approved) continue; // pending items excluded from totals and count
+      itemCount++;
       // Prisma Decimal values need explicit conversion to Number
       const price = Number(i.pricePerItem) || 0;
       const qty = i.quantity || 1;
@@ -93,7 +94,7 @@ router.get('/summary', asyncHandler(async (req, res) => {
     return {
       id: p.id, name: p.name,
       groupName: p.group?.name || '',
-      itemCount: p.shoppingItems.length,
+      itemCount,
       productTotal, costTotal,
       total: productTotal + costTotal,
       items: p.shoppingItems
