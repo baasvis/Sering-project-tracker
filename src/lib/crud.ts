@@ -4,8 +4,9 @@ import prisma from './db.js';
 import asyncHandler from './async-handler.js';
 import { broadcast, getMutationId } from './sse.js';
 import { logAction } from './audit.js';
-import { sendError, handleZodError } from './errors.js';
+import { sendError, handleZodError, isPrismaNotFound } from './errors.js';
 import { PAGINATION_DEFAULT_LIMIT, PAGINATION_MAX_LIMIT } from './config.js';
+import type { PrismaModelName } from './db.js';
 
 interface CrudDeps {
   db?: Record<string, any>;
@@ -15,7 +16,7 @@ interface CrudDeps {
 }
 
 interface CrudOptions {
-  model: string;
+  model: PrismaModelName;
   entityName: string;
   createSchema: ZodType;
   updateSchema: ZodType;
@@ -24,12 +25,12 @@ interface CrudOptions {
   orderBy?: Record<string, string> | Array<Record<string, string>>;
   defaultWhere?: Record<string, unknown>;
   buildWhere?: (req: Request) => Record<string, unknown> | null;
-  beforeCreate?: (data: any, req: Request) => Promise<any>;
-  beforeUpdate?: (data: any, req: Request) => Promise<any>;
-  afterCreate?: (record: any, req: Request) => Promise<void>;
-  afterUpdate?: (record: any, req: Request) => Promise<void>;
+  beforeCreate?: (data: Record<string, unknown>, req: Request) => Promise<Record<string, unknown> | null>;
+  beforeUpdate?: (data: Record<string, unknown>, req: Request) => Promise<Record<string, unknown> | null>;
+  afterCreate?: (record: Record<string, unknown>, req: Request) => Promise<void>;
+  afterUpdate?: (record: Record<string, unknown>, req: Request) => Promise<void>;
   afterDelete?: (id: string, req: Request) => Promise<void>;
-  mapListItem?: (item: any) => any;
+  mapListItem?: (item: Record<string, unknown>) => Record<string, unknown>;
   _deps?: CrudDeps;
 }
 
@@ -55,6 +56,7 @@ export function makeCrud(opts: CrudOptions) {
     _deps,
   } = opts;
 
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any -- dynamic model access is inherent to the factory pattern
   const _db: any = _deps?.db || prisma;
   const _broadcast = _deps?.broadcast || broadcast;
   const _getMutationId = _deps?.getMutationId || getMutationId;
@@ -92,13 +94,13 @@ export function makeCrud(opts: CrudOptions) {
       findArgs.skip = 1; // skip the cursor item itself
     }
 
-    const items: any[] = await prismaModel.findMany(findArgs);
+    const items: Array<Record<string, unknown>> = await prismaModel.findMany(findArgs);
 
     const hasMore = items.length > limit;
     if (hasMore) items.pop();
 
     const result = mapListItem ? items.map(mapListItem) : items;
-    const nextCursor = hasMore && items.length > 0 ? items[items.length - 1].id : null;
+    const nextCursor = hasMore && items.length > 0 ? (items[items.length - 1] as { id: string }).id : null;
 
     res.json({ data: result, nextCursor, hasMore });
   });
@@ -119,17 +121,18 @@ export function makeCrud(opts: CrudOptions) {
   // ─── CREATE ─────────────────────────────────────────────────────────────
 
   const create = asyncHandler(async (req: Request, res: Response) => {
-    let data: any;
+    let data: Record<string, unknown>;
     try {
-      data = createSchema.parse(req.body);
-    } catch (err) {
+      data = createSchema.parse(req.body) as Record<string, unknown>;
+    } catch (err: unknown) {
       if (handleZodError(err, res)) return;
       throw err;
     }
 
     if (beforeCreate) {
-      data = await beforeCreate(data, req);
-      if (!data) return; // beforeCreate sent a response
+      const result = await beforeCreate(data, req);
+      if (!result) return; // beforeCreate sent a response
+      data = result;
     }
 
     const createArgs: Record<string, unknown> = { data };
@@ -147,17 +150,18 @@ export function makeCrud(opts: CrudOptions) {
   // ─── UPDATE ─────────────────────────────────────────────────────────────
 
   const update = asyncHandler(async (req: Request, res: Response) => {
-    let data: any;
+    let data: Record<string, unknown>;
     try {
-      data = updateSchema.parse(req.body);
-    } catch (err) {
+      data = updateSchema.parse(req.body) as Record<string, unknown>;
+    } catch (err: unknown) {
       if (handleZodError(err, res)) return;
       throw err;
     }
 
     if (beforeUpdate) {
-      data = await beforeUpdate(data, req);
-      if (!data) return;
+      const result = await beforeUpdate(data, req);
+      if (!result) return;
+      data = result;
     }
 
     const updateArgs: Record<string, unknown> = {
@@ -171,8 +175,8 @@ export function makeCrud(opts: CrudOptions) {
       res.json(record);
       _broadcast(`${entityName}:updated`, { [entityName]: record }, _getMutationId(req));
       if (afterUpdate) await afterUpdate(record, req);
-    } catch (err: any) {
-      if (err.code === 'P2025') return sendError(res, 'NOT_FOUND', `${entityName} not found`);
+    } catch (err: unknown) {
+      if (isPrismaNotFound(err)) return sendError(res, 'NOT_FOUND', `${entityName} not found`);
       throw err;
     }
   });
@@ -190,8 +194,8 @@ export function makeCrud(opts: CrudOptions) {
       } else {
         await prismaModel.delete({ where: { id } });
       }
-    } catch (err: any) {
-      if (err.code === 'P2025') return sendError(res, 'NOT_FOUND', `${entityName} not found`);
+    } catch (err: unknown) {
+      if (isPrismaNotFound(err)) return sendError(res, 'NOT_FOUND', `${entityName} not found`);
       throw err;
     }
 
@@ -216,8 +220,8 @@ export function makeCrud(opts: CrudOptions) {
       res.json(record);
       _logAction(req, `${entityName}:approved`, entityName, record.id, { name: record.name || record.title });
       _broadcast(`${entityName}:approved`, { [entityName]: record }, _getMutationId(req));
-    } catch (err: any) {
-      if (err.code === 'P2025') return sendError(res, 'NOT_FOUND', `${entityName} not found`);
+    } catch (err: unknown) {
+      if (isPrismaNotFound(err)) return sendError(res, 'NOT_FOUND', `${entityName} not found`);
       throw err;
     }
   });

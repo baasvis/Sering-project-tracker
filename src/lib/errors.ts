@@ -29,3 +29,13 @@ export function handleZodError(err: unknown, res: Response): boolean {
   }
   return false;
 }
+
+// Type-narrow a Prisma "record not found" error (P2025)
+export function isPrismaNotFound(err: unknown): boolean {
+  return (
+    err != null &&
+    typeof err === 'object' &&
+    'code' in err &&
+    (err as { code: unknown }).code === 'P2025'
+  );
+}

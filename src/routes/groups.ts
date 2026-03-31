@@ -1,17 +1,36 @@
 import { Router } from 'express';
 import type { Request, Response } from 'express';
 import prisma from '../lib/db.js';
+import type { TransactionClient } from '../lib/db.js';
 import { requireAdmin } from './auth.js';
 import { sanitize } from '../lib/sanitize.js';
 import asyncHandler from '../lib/async-handler.js';
 import { validateId } from '../lib/validate.js';
 import { broadcast, getMutationId } from '../lib/sse.js';
 import { logAction } from '../lib/audit.js';
-import { sendError, handleZodError } from '../lib/errors.js';
+import { sendError, handleZodError, isPrismaNotFound } from '../lib/errors.js';
 import { groupCreate, groupUpdate } from '../lib/schemas.js';
+import type { GroupCreate, GroupUpdate } from '../lib/schemas.js';
 import { PAGINATION_DEFAULT_LIMIT, PAGINATION_MAX_LIMIT } from '../lib/config.js';
 
 const router = Router();
+
+interface TaskCountMap { [projectId: string]: Record<string, number> }
+
+async function batchTaskCounts(projectIds: string[]): Promise<TaskCountMap> {
+  const result: TaskCountMap = {};
+  if (projectIds.length === 0) return result;
+  const statusCounts = await prisma.task.groupBy({
+    by: ['projectId', 'status'],
+    where: { projectId: { in: projectIds }, approved: true, deletedAt: null },
+    _count: true,
+  });
+  for (const row of statusCounts) {
+    if (!result[row.projectId]) result[row.projectId] = { todo: 0, in_progress: 0, done: 0 };
+    result[row.projectId]![row.status] = row._count;
+  }
+  return result;
+}
 
 // List all groups with project counts and task status counts (paginated)
 router.get('/', asyncHandler(async (req: Request, res: Response) => {
@@ -21,10 +40,11 @@ router.get('/', asyncHandler(async (req: Request, res: Response) => {
   );
   const cursor = req.query.cursor as string | undefined;
 
-  const findArgs: any = {
+  const groups = await prisma.group.findMany({
     where: { deletedAt: null },
     orderBy: { order: 'asc' },
     take: limit + 1,
+    ...(cursor ? { cursor: { id: cursor }, skip: 1 } : {}),
     include: {
       _count: { select: { projects: true } },
       projects: {
@@ -35,35 +55,17 @@ router.get('/', asyncHandler(async (req: Request, res: Response) => {
         },
       },
     },
-  };
-  if (cursor) {
-    findArgs.cursor = { id: cursor };
-    findArgs.skip = 1;
-  }
-
-  const groups = await prisma.group.findMany(findArgs);
+  });
 
   const hasMore = groups.length > limit;
   if (hasMore) groups.pop();
 
-  // Batch-fetch task status counts for all projects in one query
-  const allProjectIds = groups.flatMap((g: any) => g.projects.map((p: any) => p.id));
-  const taskCountsByProject: Record<string, Record<string, number>> = {};
-  if (allProjectIds.length > 0) {
-    const statusCounts = await prisma.task.groupBy({
-      by: ['projectId', 'status'],
-      where: { projectId: { in: allProjectIds }, approved: true, deletedAt: null },
-      _count: true,
-    });
-    for (const row of statusCounts) {
-      if (!taskCountsByProject[row.projectId]) taskCountsByProject[row.projectId] = { todo: 0, in_progress: 0, done: 0 };
-      taskCountsByProject[row.projectId]![row.status] = row._count;
-    }
-  }
+  const allProjectIds = groups.flatMap(g => g.projects.map(p => p.id));
+  const taskCountsByProject = await batchTaskCounts(allProjectIds);
 
-  const data = groups.map((g: any) => ({
+  const data = groups.map(g => ({
     ...g,
-    projects: g.projects.map((p: any) => ({
+    projects: g.projects.map(p => ({
       ...p,
       taskCounts: taskCountsByProject[p.id] || { todo: 0, in_progress: 0, done: 0 },
     })),
@@ -75,7 +77,7 @@ router.get('/', asyncHandler(async (req: Request, res: Response) => {
 
 // Get single group
 router.get('/:id', validateId, asyncHandler(async (req: Request, res: Response) => {
-  const group: any = await prisma.group.findUnique({
+  const group = await prisma.group.findUnique({
     where: { id: req.params.id },
     include: {
       projects: {
@@ -89,24 +91,12 @@ router.get('/:id', validateId, asyncHandler(async (req: Request, res: Response) 
   });
   if (!group || group.deletedAt) return sendError(res, 'NOT_FOUND', 'Group not found');
 
-  // Batch-fetch task status counts
-  const projectIds = group.projects.map((p: any) => p.id);
-  const taskCountsByProject: Record<string, Record<string, number>> = {};
-  if (projectIds.length > 0) {
-    const statusCounts = await prisma.task.groupBy({
-      by: ['projectId', 'status'],
-      where: { projectId: { in: projectIds }, approved: true, deletedAt: null },
-      _count: true,
-    });
-    for (const row of statusCounts) {
-      if (!taskCountsByProject[row.projectId]) taskCountsByProject[row.projectId] = { todo: 0, in_progress: 0, done: 0 };
-      taskCountsByProject[row.projectId]![row.status] = row._count;
-    }
-  }
+  const projectIds = group.projects.map(p => p.id);
+  const taskCountsByProject = await batchTaskCounts(projectIds);
 
   const result = {
     ...group,
-    projects: group.projects.map((p: any) => ({
+    projects: group.projects.map(p => ({
       ...p,
       taskCounts: taskCountsByProject[p.id] || { todo: 0, in_progress: 0, done: 0 },
     })),
@@ -117,10 +107,10 @@ router.get('/:id', validateId, asyncHandler(async (req: Request, res: Response) 
 
 // Create group (admin)
 router.post('/', requireAdmin, asyncHandler(async (req: Request, res: Response) => {
-  let data: any;
+  let data: GroupCreate;
   try {
     data = groupCreate.parse(req.body);
-  } catch (err) {
+  } catch (err: unknown) {
     if (handleZodError(err, res)) return;
     throw err;
   }
@@ -128,7 +118,7 @@ router.post('/', requireAdmin, asyncHandler(async (req: Request, res: Response) 
   if (data.description) data.description = sanitize(data.description);
 
   // Atomic order assignment inside a transaction to prevent duplicates
-  const group = await prisma.$transaction(async (tx: any) => {
+  const group = await prisma.$transaction(async (tx: TransactionClient) => {
     const maxOrder = await tx.group.aggregate({ _max: { order: true } });
     return tx.group.create({
       data: {
@@ -146,10 +136,10 @@ router.post('/', requireAdmin, asyncHandler(async (req: Request, res: Response) 
 
 // Update group (admin)
 router.patch('/:id', validateId, requireAdmin, asyncHandler(async (req: Request, res: Response) => {
-  let data: any;
+  let data: GroupUpdate;
   try {
     data = groupUpdate.parse(req.body);
-  } catch (err) {
+  } catch (err: unknown) {
     if (handleZodError(err, res)) return;
     throw err;
   }
@@ -160,8 +150,8 @@ router.patch('/:id', validateId, requireAdmin, asyncHandler(async (req: Request,
     const group = await prisma.group.update({ where: { id: req.params.id, deletedAt: null }, data });
     res.json(group);
     broadcast('group:updated', { group }, getMutationId(req));
-  } catch (err: any) {
-    if (err.code === 'P2025') return sendError(res, 'NOT_FOUND', 'Group not found');
+  } catch (err: unknown) {
+    if (isPrismaNotFound(err)) return sendError(res, 'NOT_FOUND', 'Group not found');
     throw err;
   }
 }));

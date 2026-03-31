@@ -20,4 +20,26 @@ const prisma = new PrismaClient({
 // Note: Prisma disconnect is handled by server.ts gracefulShutdown()
 // to ensure it runs after server.close() completes
 
+// Typed delegate lookup — eliminates (prisma as any)[model] casts
+const prismaModelMap = {
+  group: prisma.group,
+  project: prisma.project,
+  task: prisma.task,
+  announcement: prisma.announcement,
+  comment: prisma.comment,
+  shoppingItem: prisma.shoppingItem,
+  media: prisma.media,
+  report: prisma.report,
+  auditLog: prisma.auditLog,
+} as const;
+
+export type PrismaModelName = keyof typeof prismaModelMap;
+
+export function getPrismaDelegate(name: PrismaModelName) {
+  return prismaModelMap[name];
+}
+
+// Transaction client type — use for typed $transaction callbacks
+export type TransactionClient = Parameters<Parameters<typeof prisma.$transaction>[0]>[0];
+
 export default prisma;

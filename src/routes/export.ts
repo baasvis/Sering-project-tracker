@@ -19,12 +19,17 @@ function escapeCSV(val: unknown): string {
   return str;
 }
 
+// A Prisma delegate with findMany — matches all model delegates
+interface PrismaFindManyDelegate {
+  findMany(args: { orderBy: Record<string, string>; take: number; cursor?: { id: string }; skip?: number }): Promise<Array<Record<string, unknown>>>;
+}
+
 // Stream CSV rows from a Prisma model using cursor-based pagination
 // Yields rows in chunks to avoid loading entire tables into memory
 async function* streamCSVRows(
-  model: any,
+  model: PrismaFindManyDelegate,
   orderBy: Record<string, string>,
-  transformRow: (row: any) => any,
+  transformRow: (row: Record<string, unknown>) => Record<string, unknown>,
 ): AsyncGenerator<string> {
   const BATCH_SIZE = 500;
   let cursor: string | undefined = undefined;
@@ -32,7 +37,7 @@ async function* streamCSVRows(
   let headers: string[] | null = null;
 
   while (true) {
-    const findArgs: any = {
+    const findArgs: { orderBy: Record<string, string>; take: number; cursor?: { id: string }; skip?: number } = {
       orderBy,
       take: BATCH_SIZE,
     };
@@ -41,11 +46,11 @@ async function* streamCSVRows(
       findArgs.skip = 1;
     }
 
-    const rows: any[] = await model.findMany(findArgs);
+    const rows = await model.findMany(findArgs);
     if (rows.length === 0) break;
 
     for (const row of rows) {
-      const transformed = transformRow ? transformRow(row) : row;
+      const transformed = transformRow(row);
       if (isFirst) {
         headers = Object.keys(transformed);
         yield headers.map(escapeCSV).join(',') + '\n';
@@ -55,14 +60,14 @@ async function* streamCSVRows(
     }
 
     if (rows.length < BATCH_SIZE) break;
-    cursor = rows[rows.length - 1].id;
+    cursor = rows[rows.length - 1].id as string;
   }
 
   // Handle empty tables — yield empty string so archiver doesn't error
   if (isFirst) yield '';
 }
 
-function csvReadable(model: any, orderBy: Record<string, string>, transformRow: (row: any) => any) {
+function csvReadable(model: PrismaFindManyDelegate, orderBy: Record<string, string>, transformRow: (row: Record<string, unknown>) => Record<string, unknown>) {
   const generator = streamCSVRows(model, orderBy, transformRow);
   return Readable.from(generator);
 }
@@ -85,20 +90,20 @@ router.get('/', requireAdmin, asyncHandler(async (_req: Request, res: Response) 
   });
   archive.pipe(res);
 
-  const identity = (r: any) => r;
-  const stripScreenshot = ({ screenshotData, ...rest }: any) => ({
+  const identity = (r: Record<string, unknown>) => r;
+  const stripScreenshot = ({ screenshotData, ...rest }: Record<string, unknown>) => ({
     ...rest,
     hasScreenshot: !!screenshotData,
   });
 
-  archive.append(csvReadable(prisma.group, { order: 'asc' }, identity), { name: 'groups.csv' });
-  archive.append(csvReadable(prisma.project, { createdAt: 'asc' }, identity), { name: 'projects.csv' });
-  archive.append(csvReadable(prisma.task, { createdAt: 'asc' }, identity), { name: 'tasks.csv' });
-  archive.append(csvReadable(prisma.announcement, { createdAt: 'asc' }, identity), { name: 'announcements.csv' });
-  archive.append(csvReadable(prisma.comment, { createdAt: 'asc' }, identity), { name: 'comments.csv' });
-  archive.append(csvReadable(prisma.shoppingItem, { createdAt: 'asc' }, identity), { name: 'shopping_items.csv' });
-  archive.append(csvReadable(prisma.media, { createdAt: 'asc' }, identity), { name: 'media.csv' });
-  archive.append(csvReadable(prisma.report, { createdAt: 'asc' }, stripScreenshot), { name: 'reports.csv' });
+  archive.append(csvReadable(prisma.group as unknown as PrismaFindManyDelegate, { order: 'asc' }, identity), { name: 'groups.csv' });
+  archive.append(csvReadable(prisma.project as unknown as PrismaFindManyDelegate, { createdAt: 'asc' }, identity), { name: 'projects.csv' });
+  archive.append(csvReadable(prisma.task as unknown as PrismaFindManyDelegate, { createdAt: 'asc' }, identity), { name: 'tasks.csv' });
+  archive.append(csvReadable(prisma.announcement as unknown as PrismaFindManyDelegate, { createdAt: 'asc' }, identity), { name: 'announcements.csv' });
+  archive.append(csvReadable(prisma.comment as unknown as PrismaFindManyDelegate, { createdAt: 'asc' }, identity), { name: 'comments.csv' });
+  archive.append(csvReadable(prisma.shoppingItem as unknown as PrismaFindManyDelegate, { createdAt: 'asc' }, identity), { name: 'shopping_items.csv' });
+  archive.append(csvReadable(prisma.media as unknown as PrismaFindManyDelegate, { createdAt: 'asc' }, identity), { name: 'media.csv' });
+  archive.append(csvReadable(prisma.report as unknown as PrismaFindManyDelegate, { createdAt: 'asc' }, stripScreenshot), { name: 'reports.csv' });
 
   await archive.finalize();
 }));
