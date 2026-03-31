@@ -24,14 +24,17 @@ async function renderBudget(): Promise<void> {
   }
 
   var grandTotal = summary.reduce((sum: number, p: any) => sum + p.total, 0);
+  var grandSpent = summary.reduce((sum: number, p: any) => sum + p.spent, 0);
+  var grandRemaining = summary.reduce((sum: number, p: any) => sum + p.remaining, 0);
 
   app.innerHTML = html`
     <div class="budget-page">
       <div class="flex-between mb-lg">
         <h1>Budget</h1>
         <div class="budget-grand-total">
-          <span class="text-muted">Total across all projects</span>
-          <span class="budget-grand-total-value">${raw(formatEuro(grandTotal))}</span>
+          <div class="budget-summary-line"><span class="text-muted">Total:</span> <span class="budget-grand-total-value">${raw(formatEuro(grandTotal))}</span></div>
+          <div class="budget-summary-line"><span class="text-muted">Spent:</span> <span class="budget-spent-value">${raw(formatEuro(grandSpent))}</span></div>
+          <div class="budget-summary-line"><span class="text-muted">Remaining:</span> <span class="budget-remaining-value">${raw(formatEuro(grandRemaining))}</span></div>
         </div>
       </div>
 
@@ -47,7 +50,11 @@ async function renderBudget(): Promise<void> {
                   <span class="text-muted text-sm">${p.itemCount} item${raw(p.itemCount !== 1 ? 's' : '')}</span>
                 </div>
                 <div class="budget-project-total">
-                  <span>${raw(formatEuro(p.total))}</span>
+                  <div class="budget-project-totals-grid">
+                    <span class="text-muted text-sm">Total:</span> <span>${raw(formatEuro(p.total))}</span>
+                    <span class="text-muted text-sm">Spent:</span> <span>${raw(formatEuro(p.spent))}</span>
+                    <span class="text-muted text-sm">Remaining:</span> <span>${raw(formatEuro(p.remaining))}</span>
+                  </div>
                   <span class="budget-chevron" id="chevron-${p.id}">&#9654;</span>
                 </div>
               </div>

@@ -245,8 +245,11 @@ Single task view (could be a modal or full page):
 ### Screen: Budget
 
 Visible to everyone (between Projects and Admin in nav):
-- **Header**: "Budget" with grand total across all active projects
-- **Project rows**: Each shows project name, group tag, approved total cost, approved item count
+- **Header**: "Budget" with grand totals across all active projects:
+  - **Total**: sum of all approved item costs
+  - **Spent**: sum of costs for items marked "Got it"
+  - **Remaining**: sum of costs for items not yet purchased
+- **Project rows**: Each shows project name, group tag, approved item count, and per-project Total/Spent/Remaining breakdown
 - **Fold-out**: Click a project row to expand and see its shopping items inline
   - Same item list as project detail (approved products + costs)
   - Pending suggestions also appear in the fold-out for all users (with "Pending approval" badge for visitors; Approve/Reject buttons for admins)

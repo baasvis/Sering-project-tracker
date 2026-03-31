@@ -75,6 +75,7 @@ router.get('/summary', asyncHandler(async (req: Request, res: Response) => {
 
   const summary = projects.map(p => {
     let productTotal = 0, costTotal = 0, itemCount = 0;
+    let spentTotal = 0;
     for (const i of p.shoppingItems) {
       if (!i.approved) continue; // pending items excluded from totals and count
       itemCount++;
@@ -82,15 +83,18 @@ router.get('/summary', asyncHandler(async (req: Request, res: Response) => {
       const price = Number(i.pricePerItem) || 0;
       const qty = i.quantity || 1;
       const amt = Number(i.amount) || 0;
-      if (i.type === 'product') productTotal += price * qty;
-      else if (i.type === 'cost') costTotal += amt;
+      let itemCost = 0;
+      if (i.type === 'product') { itemCost = price * qty; productTotal += itemCost; }
+      else if (i.type === 'cost') { itemCost = amt; costTotal += itemCost; }
+      if (i.purchased) spentTotal += itemCost;
     }
+    const total = productTotal + costTotal;
     return {
       id: p.id, name: p.name,
       groupName: p.group?.name || '',
       itemCount,
       productTotal, costTotal,
-      total: productTotal + costTotal,
+      total, spent: spentTotal, remaining: total - spentTotal,
       items: p.shoppingItems,
     };
   });
