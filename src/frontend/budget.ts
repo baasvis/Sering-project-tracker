@@ -4,6 +4,15 @@
 
 async function renderBudget(): Promise<void> {
   var app = document.getElementById('app')!;
+
+  // Snapshot which foldouts are open before the re-render wipes the DOM
+  const openFoldouts = new Set<string>();
+  app.querySelectorAll('.budget-foldout').forEach(el => {
+    if ((el as HTMLElement).style.display !== 'none') {
+      openFoldouts.add(el.id.replace('foldout-', ''));
+    }
+  });
+
   app.innerHTML = '<div class="loading-spinner">Loading budget\u2026</div>';
 
   var summary: any[];
@@ -49,6 +58,14 @@ async function renderBudget(): Promise<void> {
           `).join(''))}
         </div>`)}
     </div>`;
+
+  // Restore previously open foldouts after DOM replacement
+  openFoldouts.forEach(projectId => {
+    const foldout = document.getElementById(`foldout-${projectId}`);
+    const chevron = document.getElementById(`chevron-${projectId}`);
+    if (foldout) foldout.style.display = 'block';
+    if (chevron) chevron.innerHTML = '&#9660;';
+  });
 }
 
 function toggleBudgetFoldout(projectId: string): void {

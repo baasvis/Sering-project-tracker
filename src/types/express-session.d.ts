@@ -1,5 +1,5 @@
 import 'express-session';
-import 'express';
+import 'express-serve-static-core';
 
 declare module 'express-session' {
   interface SessionData {
@@ -9,9 +9,9 @@ declare module 'express-session' {
   }
 }
 
-// Make req.params.id always string (validated by middleware)
-declare module 'express' {
+// Override Express 5 params — validateId middleware ensures id is always a string
+declare module 'express-serve-static-core' {
   interface ParamsDictionary {
-    [key: string]: string;
+    id: string;
   }
 }

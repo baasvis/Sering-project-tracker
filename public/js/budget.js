@@ -4,6 +4,13 @@
    ======================================== */
 async function renderBudget() {
     var app = document.getElementById('app');
+    // Snapshot which foldouts are open before the re-render wipes the DOM
+    const openFoldouts = new Set();
+    app.querySelectorAll('.budget-foldout').forEach(el => {
+        if (el.style.display !== 'none') {
+            openFoldouts.add(el.id.replace('foldout-', ''));
+        }
+    });
     app.innerHTML = '<div class="loading-spinner">Loading budget\u2026</div>';
     var summary;
     try {
@@ -47,6 +54,15 @@ async function renderBudget() {
           `).join(''))}
         </div>`)}
     </div>`;
+    // Restore previously open foldouts after DOM replacement
+    openFoldouts.forEach(projectId => {
+        const foldout = document.getElementById(`foldout-${projectId}`);
+        const chevron = document.getElementById(`chevron-${projectId}`);
+        if (foldout)
+            foldout.style.display = 'block';
+        if (chevron)
+            chevron.innerHTML = '&#9660;';
+    });
 }
 function toggleBudgetFoldout(projectId) {
     var foldout = document.getElementById(`foldout-${projectId}`);

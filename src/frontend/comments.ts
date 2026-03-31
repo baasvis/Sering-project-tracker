@@ -51,8 +51,9 @@ function renderComment(c: any): string {
 
 async function postComment(targetType: string, targetId: string): Promise<void> {
   return withDedup(`postComment-${targetId}`, async () => {
-    const input = document.getElementById(`comment-input-${targetId}`) as HTMLTextAreaElement;
-    const body = input.value.trim();
+    // Extract value as a plain string before the await — do not hold DOM refs across async boundaries.
+    const inputEl = document.getElementById(`comment-input-${targetId}`) as HTMLTextAreaElement | null;
+    const body = inputEl ? inputEl.value.trim() : '';
     if (!body) return;
 
     const authorName = S.isAdmin ? (S.adminEmail || 'Admin') : S.visitorName;
@@ -62,11 +63,33 @@ async function postComment(targetType: string, targetId: string): Promise<void> 
     }
 
     try {
-      await apiPost('/api/comments', { targetType, targetId, authorName, body });
-      input.value = '';
-      // Re-render comments
-      const container = input.closest('.comments-section')!.parentElement!;
-      await renderComments(targetType, targetId, container);
+      const created = await apiPost('/api/comments', { targetType, targetId, authorName, body });
+
+      // Re-query the input fresh after the await — the prior reference may be detached
+      // if an SSE event triggered a re-render during the network round-trip.
+      const freshInput = document.getElementById(`comment-input-${targetId}`) as HTMLTextAreaElement | null;
+      if (freshInput) freshInput.value = '';
+
+      const commentList = freshInput
+        ? freshInput.closest('.comments-section')?.querySelector('.comment-list')
+        : null;
+
+      if (commentList) {
+        // Remove the "No comments yet" placeholder if present.
+        commentList.querySelector('p.text-muted')?.remove();
+        // Immediately append the new comment using the server response — no extra fetch needed.
+        commentList.insertAdjacentHTML('beforeend', renderComment({ ...created, media: created.media || [] }));
+        // Update the "Comments (N)" heading.
+        const heading = commentList.closest('.comments-section')?.querySelector('h3');
+        if (heading) {
+          const current = parseInt(heading.textContent!.replace(/\D/g, ''), 10) || 0;
+          heading.textContent = `Comments (${current + 1})`;
+        }
+      }
+      // If commentList is null, the container was replaced by an unrelated SSE re-render
+      // while we were awaiting. That re-render fetched server data which already includes
+      // the committed comment, so it is already visible.
+
       toast('Comment posted', 'success');
     } catch (err: any) {
       toast(err.message, 'error');

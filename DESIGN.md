@@ -246,12 +246,14 @@ Single task view (could be a modal or full page):
 
 Visible to everyone (between Projects and Admin in nav):
 - **Header**: "Budget" with grand total across all active projects
-- **Project rows**: Each shows project name, group tag, total cost, item count
+- **Project rows**: Each shows project name, group tag, approved total cost, approved item count
 - **Fold-out**: Click a project row to expand and see its shopping items inline
-  - Same item list as project detail (products + costs)
-  - Admins can add/edit/delete items from this view
+  - Same item list as project detail (approved products + costs)
+  - Pending suggestions also appear in the fold-out for all users (with "Pending approval" badge for visitors; Approve/Reject buttons for admins)
+  - Admins can approve/reject pending suggestions, and add/edit/delete items directly from this view
+  - Fold-out stays open after an action (e.g. approving an item) to show the updated state
   - Click again to collapse
-- Only projects with shopping items are shown
+- Only projects with at least one approved shopping item are shown
 
 ### Screen: Admin Panel
 

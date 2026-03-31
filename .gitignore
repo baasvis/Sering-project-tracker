@@ -6,6 +6,7 @@ data/
 *.log
 .DS_Store
 .claude/launch.json
+.claude/worktrees/
 dist/
 *.tsbuildinfo
 public/js/*.d.ts
