@@ -3,6 +3,10 @@
    ======================================== */
 
 async function renderDashboard(): Promise<void> {
+  if (S.currentAnnouncementId) {
+    return renderAnnouncementDetail();
+  }
+
   const app = document.getElementById('app')!;
   showLoading();
   S._expandedProjects = {};
@@ -140,7 +144,119 @@ function goToSlide(annId: string, index: number): void {
 
 function toggleAnnouncement(id: string): void {
   const card = document.querySelector(`.announcement-card[data-ann-id="${id}"]`);
-  if (card) card.classList.toggle('expanded');
+  if (!card) return;
+  if (card.classList.contains('expanded')) {
+    // Second click — navigate to full detail page
+    S.currentAnnouncementId = id;
+    window.location.hash = `announcement/${id}`;
+    return;
+  }
+  card.classList.add('expanded');
+}
+
+async function renderAnnouncementDetail(): Promise<void> {
+  const app = document.getElementById('app')!;
+  showLoading();
+
+  // Find in cached state first, otherwise fetch the list
+  let announcement = S.announcements.find((a: any) => a.id === S.currentAnnouncementId);
+  if (!announcement) {
+    try {
+      const list = await apiGet('/api/announcements');
+      S.announcements = list;
+      announcement = list.find((a: any) => a.id === S.currentAnnouncementId);
+    } catch (err: any) {
+      app.innerHTML = html`<p class="text-muted">Could not load announcement: ${err.message}</p>`;
+      return;
+    }
+  }
+
+  if (!announcement) {
+    app.innerHTML = html`<p class="text-muted">Announcement not found.</p>`;
+    return;
+  }
+
+  const a = announcement;
+  const media = a.media || [];
+  const photos = media.filter((m: any) => m.type === 'photo');
+  const voiceNotes = media.filter((m: any) => m.type === 'voice');
+
+  app.innerHTML = html`
+    <div class="announcement-detail">
+      <button class="btn btn-secondary btn-small mb-lg" data-action="backToDashboard">${raw('&larr;')} Back</button>
+
+      <div class="announcement-detail-header">
+        <div class="announcement-meta">
+          ${raw(a.pinned ? '<span class="tag tag-group">Pinned</span>' : '')}
+          <span>${raw(timeAgo(a.createdAt))}</span>
+        </div>
+        <h1>${a.title}</h1>
+        ${raw(S.isAdmin ? html`<div class="announcement-admin">
+          <button class="btn btn-secondary btn-small" data-action="editAnnouncement" data-id="${a.id}">Edit</button>
+          <button class="btn btn-secondary btn-small" data-action="deleteAnnouncement" data-id="${a.id}">Delete</button>
+        </div>` : '')}
+      </div>
+
+      ${raw(photos.length > 0 ? html`<div class="announcement-carousel" id="ann-detail-carousel-${a.id}" data-slide="0" data-total="${photos.length}">
+        <div class="carousel-track" id="ann-detail-track-${a.id}">
+          ${raw(photos.map((p: any) => html`<img src="/api/media/${p.id}/file" alt="${p.originalName}" data-action="openLightbox" data-src="/api/media/${p.id}/file">`).join(''))}
+        </div>
+        ${raw(photos.length > 1 ? html`
+          <button class="carousel-btn prev" data-action="slideDetailCarousel" data-ann-id="${a.id}" data-direction="-1">${raw('&#8249;')}</button>
+          <button class="carousel-btn next" data-action="slideDetailCarousel" data-ann-id="${a.id}" data-direction="1">${raw('&#8250;')}</button>
+          <div class="carousel-dots">
+            ${raw(photos.map((_: any, i: number) => html`<button class="carousel-dot${raw(i === 0 ? ' active' : '')}" data-action="goToDetailSlide" data-ann-id="${a.id}" data-index="${i}"></button>`).join(''))}
+          </div>` : '')}
+      </div>` : '')}
+
+      <div class="announcement-detail-body">
+        ${raw(renderDescription(a.body))}
+      </div>
+
+      ${raw(voiceNotes.length > 0 ? html`<div class="announcement-detail-voice">${raw(renderMediaItems(voiceNotes))}</div>` : '')}
+
+      ${raw(S.isAdmin ? html`<div class="announcement-detail-media-upload mb-lg">${raw(renderMediaUploadButtons('announcement', a.id))}</div>` : '')}
+
+      <div id="announcement-comments"></div>
+    </div>`;
+
+  // Load comments
+  const commentsEl = document.getElementById('announcement-comments');
+  if (commentsEl) renderComments('announcement', a.id, commentsEl);
+}
+
+function backToDashboard(): void {
+  S.currentAnnouncementId = null;
+  window.location.hash = 'dashboard';
+}
+
+function slideDetailCarousel(annId: string, direction: number): void {
+  const carousel = document.getElementById(`ann-detail-carousel-${annId}`);
+  if (!carousel) return;
+  const total = parseInt(carousel.dataset.total!);
+  let current = parseInt(carousel.dataset.slide!);
+  current = (current + direction + total) % total;
+  carousel.dataset.slide = String(current);
+
+  const track = document.getElementById(`ann-detail-track-${annId}`);
+  if (track) track.style.transform = `translateX(-${current * 100}%)`;
+
+  carousel.querySelectorAll('.carousel-dot').forEach((dot, i) => {
+    dot.classList.toggle('active', i === current);
+  });
+}
+
+function goToDetailSlide(annId: string, index: number): void {
+  const carousel = document.getElementById(`ann-detail-carousel-${annId}`);
+  if (!carousel) return;
+  carousel.dataset.slide = String(index);
+
+  const track = document.getElementById(`ann-detail-track-${annId}`);
+  if (track) track.style.transform = `translateX(-${index * 100}%)`;
+
+  carousel.querySelectorAll('.carousel-dot').forEach((dot, i) => {
+    dot.classList.toggle('active', i === index);
+  });
 }
 
 function renderAnnouncementCard(a: any): string {
@@ -383,6 +499,9 @@ onAction('toggleProjectCard', (el: HTMLElement) => toggleProjectCard(el.dataset.
 onAction('navigateToProject', (el: HTMLElement) => navigateToProject(el.dataset.projectId!));
 onAction('slideCarousel', (el: HTMLElement) => slideCarousel(el.dataset.annId!, parseInt(el.dataset.direction!)));
 onAction('goToSlide', (el: HTMLElement) => goToSlide(el.dataset.annId!, parseInt(el.dataset.index!)));
+onAction('backToDashboard', () => backToDashboard());
+onAction('slideDetailCarousel', (el: HTMLElement) => slideDetailCarousel(el.dataset.annId!, parseInt(el.dataset.direction!)));
+onAction('goToDetailSlide', (el: HTMLElement) => goToDetailSlide(el.dataset.annId!, parseInt(el.dataset.index!)));
 // deleteMedia action is registered in media.js — uses data-id
 onAction('closeModal', (el: HTMLElement) => closeModal(el.closest('.modal-backdrop')!));
 onAction('saveAnnouncement', (el: HTMLElement) => saveAnnouncement(el.dataset.id || null));

@@ -59,6 +59,7 @@ var _stateData: Record<string, any> = {
   selectedGroupId: null,
   currentProjectId: null,
   currentProject: null,
+  currentAnnouncementId: null,
 
   // Internal caches
   _taskCache: {},

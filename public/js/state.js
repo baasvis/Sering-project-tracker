@@ -53,6 +53,7 @@ var _stateData = {
     selectedGroupId: null,
     currentProjectId: null,
     currentProject: null,
+    currentAnnouncementId: null,
     // Internal caches
     _taskCache: {},
     _expandedCardId: null,

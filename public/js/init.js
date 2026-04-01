@@ -20,6 +20,7 @@ function buildNav() {
             e.preventDefault();
             S.currentProjectId = null;
             S.currentProject = null;
+            S.currentAnnouncementId = null;
             window.location.hash = a.dataset.screen;
         });
     });
@@ -46,13 +47,21 @@ function handleRoute() {
     if (hash.startsWith('project/')) {
         S.screen = 'projects';
         S.currentProjectId = hash.split('/')[1];
+        S.currentAnnouncementId = null;
+    }
+    else if (hash.startsWith('announcement/')) {
+        S.screen = 'dashboard';
+        S.currentAnnouncementId = hash.split('/')[1];
+        S.currentProjectId = null;
     }
     else if (hash) {
         S.screen = hash;
         S.currentProjectId = null;
+        S.currentAnnouncementId = null;
     }
     else {
         S.screen = 'dashboard';
+        S.currentAnnouncementId = null;
     }
 }
 // Close all modals on Escape + clean up Quill instances
