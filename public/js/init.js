@@ -27,6 +27,7 @@ function buildNav() {
     document.querySelector('.nav-logo').onclick = (e) => {
         e.preventDefault();
         S.currentProjectId = null;
+        S.currentAnnouncementId = null;
         window.location.hash = 'dashboard';
     };
 }

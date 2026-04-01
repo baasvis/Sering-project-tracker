@@ -143,7 +143,9 @@ function goToSlide(annId: string, index: number): void {
 }
 
 function toggleAnnouncement(id: string): void {
-  const card = document.querySelector(`.announcement-card[data-ann-id="${id}"]`);
+  // Use dataset lookup instead of interpolating id into a CSS selector (injection safety)
+  const card = Array.from(document.querySelectorAll('.announcement-card'))
+    .find((el) => (el as HTMLElement).dataset.annId === id) as HTMLElement | undefined;
   if (!card) return;
   if (card.classList.contains('expanded')) {
     // Second click — navigate to full detail page
@@ -202,10 +204,10 @@ async function renderAnnouncementDetail(): Promise<void> {
           ${raw(photos.map((p: any) => html`<img src="/api/media/${p.id}/file" alt="${p.originalName}" data-action="openLightbox" data-src="/api/media/${p.id}/file">`).join(''))}
         </div>
         ${raw(photos.length > 1 ? html`
-          <button class="carousel-btn prev" data-action="slideDetailCarousel" data-ann-id="${a.id}" data-direction="-1">${raw('&#8249;')}</button>
-          <button class="carousel-btn next" data-action="slideDetailCarousel" data-ann-id="${a.id}" data-direction="1">${raw('&#8250;')}</button>
+          <button class="carousel-btn prev" data-action="slideDetailCarousel" data-ann-id="${a.id}" data-direction="-1" aria-label="Previous photo">${raw('&#8249;')}</button>
+          <button class="carousel-btn next" data-action="slideDetailCarousel" data-ann-id="${a.id}" data-direction="1" aria-label="Next photo">${raw('&#8250;')}</button>
           <div class="carousel-dots">
-            ${raw(photos.map((_: any, i: number) => html`<button class="carousel-dot${raw(i === 0 ? ' active' : '')}" data-action="goToDetailSlide" data-ann-id="${a.id}" data-index="${i}"></button>`).join(''))}
+            ${raw(photos.map((_: any, i: number) => html`<button class="carousel-dot${raw(i === 0 ? ' active' : '')}" data-action="goToDetailSlide" data-ann-id="${a.id}" data-index="${i}" aria-label="Photo ${i + 1} of ${photos.length}"></button>`).join(''))}
           </div>` : '')}
       </div>` : '')}
 
@@ -274,7 +276,8 @@ function renderAnnouncementCard(a: any): string {
       <h3>${a.title}</h3>
       <p class="announcement-preview">${raw(esc(extractPreviewText(a.body)))}</p>
       <div class="announcement-body">${raw(renderDescription(a.body))}</div>
-      <div class="announcement-expand-hint">Click to read more</div>
+      <div class="announcement-expand-hint announcement-hint-collapsed">Click to read more</div>
+      <div class="announcement-expand-hint announcement-hint-expanded">Click again to open full page</div>
     </div>
     ${raw(S.isAdmin ? html`<div class="announcement-admin">
       <button class="comment-delete" data-action="editAnnouncement" data-id="${a.id}">edit</button>
@@ -464,6 +467,7 @@ async function saveAnnouncement(id: string | null): Promise<void> {
       }
       const bd = document.querySelector('.modal-backdrop') as HTMLElement | null;
       if (bd) closeModal(bd);
+      S.currentAnnouncementId = null;
       renderDashboard();
       toast(id ? 'Announcement updated' : 'Announcement posted', 'success');
     } catch (err: any) {
@@ -481,6 +485,7 @@ async function deleteAnnouncement(id: string): Promise<void> {
   if (!confirm('Delete this announcement?')) return;
   try {
     await apiDelete(`/api/announcements/${id}`);
+    S.currentAnnouncementId = null;
     renderDashboard();
     toast('Announcement deleted');
   } catch (err: any) {
@@ -514,7 +519,7 @@ S.subscribe('groups', () => {
 });
 
 S.subscribe('announcements', () => {
-  if (S.screen !== 'dashboard') return;
+  if (S.screen !== 'dashboard' || S.currentAnnouncementId) return;
   const grid = document.getElementById('announcements-list');
   if (!grid) return;
   grid.innerHTML = S.announcements.length === 0

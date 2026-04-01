@@ -133,4 +133,13 @@
   .budget-grand-total {
     align-items: flex-start;
   }
+
+  /* Announcement detail responsive */
+  .announcement-detail {
+    padding: var(--space-md) var(--space-sm);
+  }
+
+  .announcement-detail .announcement-carousel img {
+    height: 220px;
+  }
 }

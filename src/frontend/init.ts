@@ -31,6 +31,7 @@ function buildNav(): void {
   (document.querySelector('.nav-logo') as HTMLElement).onclick = (e: Event) => {
     e.preventDefault();
     S.currentProjectId = null;
+    S.currentAnnouncementId = null;
     window.location.hash = 'dashboard';
   };
 }

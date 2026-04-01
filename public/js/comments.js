@@ -127,4 +127,9 @@ S.subscribe('_commentUpdate', (update) => {
         if (container)
             renderComments('task', update.targetId, container);
     }
+    if (update.targetType === 'announcement' && S.currentAnnouncementId === update.targetId) {
+        const container = document.getElementById('announcement-comments');
+        if (container)
+            renderComments('announcement', update.targetId, container);
+    }
 });

@@ -173,8 +173,16 @@
   margin-top: var(--space-xs);
 }
 
-.announcement-card.expanded .announcement-expand-hint {
+.announcement-hint-expanded {
   display: none;
+}
+
+.announcement-card.expanded .announcement-hint-collapsed {
+  display: none;
+}
+
+.announcement-card.expanded .announcement-hint-expanded {
+  display: block;
 }
 
 .announcement-preview {

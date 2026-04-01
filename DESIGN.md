@@ -200,7 +200,9 @@ The landing page. Two sections:
 **Announcements** (top)
 - Reverse-chronological list of admin-posted announcements
 - Each announcement: title, preview text (first ~150 characters of body), optional media (photos/voice), timestamp, author
-- Click to expand and read full body; click again to collapse
+- **First click**: expands the card inline to show more content ("Click to read more" hint)
+- **Second click**: navigates to a full announcement detail page at `#announcement/:id` ("Click again to open full page" hint shown when expanded)
+- Full detail page: complete rich-text body, photo carousel, voice notes, comments section, admin edit/delete/upload buttons; back button returns to dashboard
 - "Post announcement" button (admin only)
 
 **Tier filter buttons** (between announcements and projects)

@@ -219,7 +219,7 @@ src/
     utils.ts                   — html`` tagged template, apiFetch, toast, helpers
     media.ts                   — Photo upload, voice recording, lightbox
     comments.ts                — Comment rendering + posting
-    dashboard.ts               — Dashboard screen
+    dashboard.ts               — Dashboard screen + announcement detail page (#announcement/:id)
     projects.ts                — Project list + detail
     shopping.ts                — Shopping list UI
     budget.ts                  — Budget overview
@@ -264,6 +264,16 @@ Without `GOOGLE_CLIENT_ID` AND with `NODE_ENV !== 'production'`, the app runs in
 The API contract stays the same. Same endpoints, same JSON shapes, same SSE events. The only additions are:
 - Pagination params (`?cursor=<id>&limit=50`) on all list endpoints
 - Consistent error response shape (`{ error, code }`)
+
+## Frontend Hash Routing
+Hash routes handled in `init.ts → handleRoute()`:
+- `#dashboard` — dashboard screen (announcements + project overview)
+- `#projects` — project list screen
+- `#project/:id` — project detail (sets `S.currentProjectId`, renders via `renderProjects()`)
+- `#announcement/:id` — announcement detail (sets `S.currentAnnouncementId`, renders via `renderDashboard() → renderAnnouncementDetail()`)
+- `#budget`, `#admin` — other screens
+
+State keys to clear on navigation: `currentProjectId`, `currentProject`, `currentAnnouncementId`.
 
 ## Security Checklist
 - [x] Helmet (CSP, HSTS, X-Frame-Options, nosniff)

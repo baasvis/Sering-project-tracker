@@ -130,4 +130,8 @@ S.subscribe('_commentUpdate', (update: any) => {
     const container = document.getElementById(`task-comments-${update.targetId}`);
     if (container) renderComments('task', update.targetId, container);
   }
+  if (update.targetType === 'announcement' && S.currentAnnouncementId === update.targetId) {
+    const container = document.getElementById('announcement-comments');
+    if (container) renderComments('announcement', update.targetId, container);
+  }
 });
