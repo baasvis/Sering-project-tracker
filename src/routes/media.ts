@@ -49,8 +49,14 @@ const upload = multer({
   limits: { fileSize: MAX_IMAGE_SIZE_BYTES },
   fileFilter: (_req, file, cb) => {
     const ext = path.extname(file.originalname).toLowerCase();
+    // Block dangerous MIME types that pass startsWith('image/') — SVG can embed JavaScript
+    const BLOCKED_MIMES = new Set(['image/svg+xml', 'image/svg', 'text/xml', 'application/xml']);
+    if (BLOCKED_MIMES.has(file.mimetype)) {
+      return cb(new Error('SVG and XML files are not allowed'));
+    }
     const mimeOk = file.mimetype.startsWith('image/') || file.mimetype.startsWith('audio/');
-    const extOk = ALLOWED_EXTENSIONS.has(ext);
+    // Allow files with no extension (common on mobile) if MIME type is valid
+    const extOk = ext === '' || ALLOWED_EXTENSIONS.has(ext);
     if (mimeOk && extOk) {
       cb(null, true);
     } else {
@@ -58,6 +64,22 @@ const upload = multer({
     }
   },
 });
+
+// Wraps multer to return proper 400 errors instead of letting them fall through to the 500 handler
+function handleUpload(req: Request, res: Response, next: (err?: unknown) => void) {
+  upload.single('file')(req, res, (err: unknown) => {
+    if (err instanceof multer.MulterError) {
+      if (err.code === 'LIMIT_FILE_SIZE') {
+        return sendError(res, 'VALIDATION_ERROR', `File too large (max ${MAX_IMAGE_SIZE_BYTES / 1024 / 1024}MB)`);
+      }
+      return sendError(res, 'VALIDATION_ERROR', err.message);
+    }
+    if (err instanceof Error) {
+      return sendError(res, 'VALIDATION_ERROR', err.message);
+    }
+    next();
+  });
+}
 
 // Map parentType values to Prisma delegate names
 const parentModelMap: Record<string, PrismaModelName> = {
@@ -88,7 +110,7 @@ function cleanupFile(file: Express.Multer.File | undefined) {
 }
 
 // Upload media — requires admin session OR uploaderName in body
-router.post('/', upload.single('file'), asyncHandler(async (req: Request, res: Response) => {
+router.post('/', handleUpload, asyncHandler(async (req: Request, res: Response) => {
   const file = req.file;
   if (!file) return sendError(res, 'VALIDATION_ERROR', 'No file uploaded');
 
@@ -231,10 +253,17 @@ router.get('/:id/file', validateId, asyncHandler(async (req: Request, res: Respo
   if (!filePath) return sendError(res, 'NOT_FOUND', 'File not found on disk');
 
   res.set('Cache-Control', 'public, max-age=604800, immutable');
-  res.set('Content-Type', media.mimeType);
   res.set('X-Content-Type-Options', 'nosniff');
-  const safeInline = media.mimeType.startsWith('image/') || media.mimeType.startsWith('audio/');
-  res.set('Content-Disposition', safeInline ? 'inline' : 'attachment');
+  // Defense-in-depth: never serve SVG/XML inline (XSS vector)
+  const dangerousMime = media.mimeType.includes('svg') || media.mimeType.includes('xml');
+  if (dangerousMime) {
+    res.set('Content-Type', 'application/octet-stream');
+    res.set('Content-Disposition', 'attachment');
+  } else {
+    res.set('Content-Type', media.mimeType);
+    const safeInline = media.mimeType.startsWith('image/') || media.mimeType.startsWith('audio/');
+    res.set('Content-Disposition', safeInline ? 'inline' : 'attachment');
+  }
   const stream = fs.createReadStream(filePath);
   stream.on('error', () => {
     if (!res.headersSent) res.status(500).json({ error: 'Failed to serve file', code: 'INTERNAL_ERROR' });

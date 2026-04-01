@@ -550,7 +550,7 @@ Implemented protections for a public-facing app:
 - **Media upload validation**: parent entity must exist before upload is accepted (prevents orphaned files)
 - **UUID validation**: all route params and query params validated as UUID format before Prisma queries
 - **Comment spam protection**: min 2 / max 2000 chars, duplicate detection within 5-minute window, name validation (1-50 chars)
-- **Media upload restrictions**: requires identity (admin session or visitor name), photos max 5MB, voice notes max 2MB (~60 seconds), auto-stop recording at 60s, client-side size check before upload
+- **Media upload restrictions**: requires identity (admin session or visitor name), photos max 5MB, voice notes max 2MB (~60 seconds), auto-stop recording at 60s, client-side size check before upload. SVG/XML MIME types blocked (XSS vector). Multer errors return proper 400 responses (not 500). Files without extensions accepted if MIME type is valid (mobile compatibility).
 - **Global storage cap**: 100MB total uploads — prevents abuse as free storage. Returns 507 when full.
 - **Admin-only moderation**: only admins can delete comments and media
 - **Soft-delete protection**: PATCH endpoints reject updates to soft-deleted records

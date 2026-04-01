@@ -288,6 +288,7 @@ State keys to clear on navigation: `currentProjectId`, `currentProject`, `curren
 - [x] Atomic storage cap checks (serializable transaction in media upload)
 - [x] Comment body HTML stripped server-side
 - [x] Media upload validates parent entity exists
+- [x] Media upload blocks SVG/XML MIME types (XSS vector) and returns proper 400 errors
 - [x] Soft-deleted records cannot be updated via PATCH
 - [x] SSE graceful shutdown (clears heartbeat, closes connections, orders Prisma disconnect)
 - [x] SSE reconnects with exponential backoff (never gives up permanently)
