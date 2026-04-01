@@ -350,18 +350,22 @@ function renderTaskItem(task: any): string {
   var statusClass = task.status;
   var statusIcon = task.status === 'done' ? '&#10003;' : (task.status === 'in_progress' ? '&#9679;' : '');
   var nameClass = task.status === 'done' ? 'done' : '';
+  var preview = task.description ? truncateDescription(task.description) : '';
+  var hasFullDescription = task.description && task.description.trim().length > 0;
 
-  return html`<div class="task-item" data-action="showTaskDetail" data-id="${task.id}">
+  return html`<div class="task-item" data-action="toggleTaskExpand" data-id="${task.id}">
     ${raw(S.isAdmin ? html`<button class="task-status-btn ${raw(statusClass)}"
       data-action="cycleTaskStatus" data-id="${task.id}" data-status="${task.status}" data-stop>${raw(statusIcon)}</button>` :
       html`<div class="task-status-btn ${raw(statusClass)}" style="cursor:default">${raw(statusIcon)}</div>`)}
     <div class="task-content">
       <div class="task-name ${raw(nameClass)}">${task.name}</div>
+      ${raw(preview ? html`<div class="task-description-preview">${preview}</div>` : '')}
       <div class="task-meta">
         ${raw(task.assignee ? html`<span>&#128100; ${task.assignee}</span>` : '')}
         ${raw(task.deadline ? html`<span class="deadline ${raw(isOverdue(task.deadline) && task.status !== 'done' ? 'overdue' : '')}">&#128197; ${formatDate(task.deadline)}</span>` : '')}
         <span class="tag tag-status-${task.status}">${TASK_STATUSES[task.status]?.label || task.status}</span>
       </div>
+      ${raw(hasFullDescription ? html`<div class="task-description-full" id="task-full-${task.id}" style="display:none">${raw(renderDescription(task.description))}<div class="task-expand-actions"><button class="btn btn-small btn-ghost" data-action="showTaskDetail" data-id="${task.id}" data-stop>Open full detail</button></div></div>` : '')}
     </div>
   </div>`;
 }
@@ -871,6 +875,26 @@ onAction('showTaskModal', () => showTaskModal());
 onAction('showSuggestTaskModal', () => showSuggestTaskModal());
 onAction('approveSuggestedTask', (el: HTMLElement) => approveSuggestedTask(el.dataset.id!));
 onAction('showTaskDetail', (el: HTMLElement) => showTaskDetail(el.dataset.id!));
+onAction('toggleTaskExpand', (el: HTMLElement) => {
+  var taskId = el.dataset.id!;
+  var fullEl = document.getElementById('task-full-' + taskId);
+  var previewEl = el.querySelector('.task-description-preview') as HTMLElement | null;
+  if (!fullEl) {
+    // No description to expand — open detail modal directly
+    showTaskDetail(taskId);
+    return;
+  }
+  var isExpanded = fullEl.style.display !== 'none';
+  if (isExpanded) {
+    fullEl.style.display = 'none';
+    if (previewEl) previewEl.style.display = '';
+    el.classList.remove('expanded');
+  } else {
+    fullEl.style.display = '';
+    if (previewEl) previewEl.style.display = 'none';
+    el.classList.add('expanded');
+  }
+});
 onAction('cycleTaskStatus', (el: HTMLElement) => cycleTaskStatus(el.dataset.id!, el.dataset.status!));
 onAction('editTaskFromDetail', (el: HTMLElement) => {
   { var bd = document.querySelector('.modal-backdrop') as HTMLElement | null; if (bd) closeModal(bd); }

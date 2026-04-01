@@ -153,6 +153,40 @@
 .task-meta .deadline { color: var(--accent); font-weight: 500; }
 .task-meta .deadline.overdue { color: var(--color-danger); }
 
+/* ---- Task description preview & expand ---- */
+.task-description-preview {
+  margin-top: var(--space-xs);
+  font-size: var(--font-size-sm);
+  color: var(--text-primary);
+  opacity: 0.75;
+  line-height: 1.4;
+  display: -webkit-box;
+  -webkit-line-clamp: 3;
+  -webkit-box-orient: vertical;
+  overflow: hidden;
+}
+
+.task-description-full {
+  margin-top: var(--space-sm);
+  padding-top: var(--space-sm);
+  border-top: 1px solid var(--border-light, #eee);
+  font-size: var(--font-size-sm);
+  line-height: 1.5;
+}
+
+.task-description-full .rich-content {
+  margin-bottom: var(--space-sm);
+}
+
+.task-expand-actions {
+  margin-top: var(--space-sm);
+}
+
+.task-item.expanded {
+  background: var(--bg-card);
+  box-shadow: var(--shadow-sm);
+}
+
 /* ---- Task detail modal ---- */
 .task-detail-header {
   display: flex;

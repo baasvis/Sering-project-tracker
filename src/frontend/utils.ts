@@ -290,6 +290,22 @@ function renderDescription(descHtml: string): string {
   return html`<div class="rich-content">${raw(descHtml)}</div>`;
 }
 
+// Extract plain text from HTML and truncate to ~2-3 sentences for preview
+function truncateDescription(descHtml: string, maxSentences: number = 3): string {
+  if (!descHtml) return '';
+  var div = document.createElement('div');
+  // Insert space between block-level elements so list items don't concatenate
+  div.innerHTML = descHtml.replace(/<(\/?(li|p|div|br|h[1-6])[^>]*)>/gi, ' <$1>');
+  var text = (div.textContent || div.innerText || '').replace(/\s+/g, ' ').trim();
+  if (!text) return '';
+  // Split on sentence-ending punctuation followed by space or end
+  var sentences = text.match(/[^.!?]*[.!?]+/g);
+  if (!sentences) return text.length > 200 ? text.slice(0, 200) + '…' : text;
+  var preview = sentences.slice(0, maxSentences).join(' ').trim();
+  if (sentences.length > maxSentences) preview += '…';
+  return preview;
+}
+
 // ─── Tier filter buttons ────────────────────────────────────────────────────
 
 function renderTierButtons(): string {
