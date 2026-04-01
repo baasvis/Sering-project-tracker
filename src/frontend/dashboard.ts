@@ -27,8 +27,8 @@ async function renderDashboard(): Promise<void> {
 
   app.innerHTML = html`
     <div class="dashboard-header">
-      <h1>De Sering Projects</h1>
-      <p>Where community grows through food.</p>
+      <h1>Sering Centraal Projects</h1>
+      <p>Let's build Summer Sering!</p>
     </div>
 
     <div class="announcements-section">

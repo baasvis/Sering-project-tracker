@@ -1,5 +1,6 @@
 import { Router } from 'express';
 import type { Request, Response } from 'express';
+import type { Prisma } from '@prisma/client';
 import prisma from '../lib/db.js';
 import { requireAdmin } from './auth.js';
 import { sanitize } from '../lib/sanitize.js';
@@ -7,25 +8,26 @@ import asyncHandler from '../lib/async-handler.js';
 import { validateId, isValidUuid } from '../lib/validate.js';
 import { broadcast, getMutationId } from '../lib/sse.js';
 import { logAction } from '../lib/audit.js';
-import { sendError, handleZodError } from '../lib/errors.js';
+import { sendError, handleZodError, isPrismaNotFound } from '../lib/errors.js';
 import { projectCreate, projectUpdate, ProjectStatus } from '../lib/schemas.js';
+import type { ProjectCreate, ProjectUpdate } from '../lib/schemas.js';
 import { PAGINATION_DEFAULT_LIMIT, PAGINATION_MAX_LIMIT } from '../lib/config.js';
 
 const router = Router();
 
 // List projects (optional ?groupId= filter, ?status= filter, paginated)
 router.get('/', asyncHandler(async (req: Request, res: Response) => {
-  const where: any = { deletedAt: null };
+  const where: Prisma.ProjectWhereInput = { deletedAt: null };
 
   if (req.query.groupId) {
     if (!isValidUuid(req.query.groupId as string)) return sendError(res, 'VALIDATION_ERROR', 'Invalid groupId format');
-    where.groupId = req.query.groupId;
+    where.groupId = req.query.groupId as string;
   }
   if (req.query.status) {
     try { ProjectStatus.parse(req.query.status); } catch {
       return sendError(res, 'VALIDATION_ERROR', 'Invalid status filter');
     }
-    where.status = req.query.status;
+    where.status = req.query.status as Prisma.ProjectWhereInput['status'];
   }
 
   const limit = Math.min(
@@ -34,27 +36,22 @@ router.get('/', asyncHandler(async (req: Request, res: Response) => {
   );
   const cursor = req.query.cursor as string | undefined;
 
-  const findArgs: any = {
+  const projects = await prisma.project.findMany({
     where,
     orderBy: { createdAt: 'desc' },
     take: limit + 1,
+    ...(cursor ? { cursor: { id: cursor }, skip: 1 } : {}),
     include: {
       group: { select: { id: true, name: true } },
       _count: { select: { tasks: true } },
     },
-  };
-  if (cursor) {
-    findArgs.cursor = { id: cursor };
-    findArgs.skip = 1;
-  }
-
-  const projects = await prisma.project.findMany(findArgs);
+  });
 
   const hasMore = projects.length > limit;
   if (hasMore) projects.pop();
 
   // Batch-fetch task status counts in one query
-  const projectIds = projects.map((p: any) => p.id);
+  const projectIds = projects.map(p => p.id);
   const taskCountsByProject: Record<string, Record<string, number>> = {};
   if (projectIds.length > 0) {
     const statusCounts = await prisma.task.groupBy({
@@ -68,7 +65,7 @@ router.get('/', asyncHandler(async (req: Request, res: Response) => {
     }
   }
 
-  const data = projects.map((p: any) => ({
+  const data = projects.map(p => ({
     ...p,
     taskCounts: taskCountsByProject[p.id] || { todo: 0, in_progress: 0, done: 0 },
   }));
@@ -92,10 +89,10 @@ router.get('/:id', validateId, asyncHandler(async (req: Request, res: Response) 
 
 // Create project — admin creates immediately; visitor suggestion goes to pending
 router.post('/', asyncHandler(async (req: Request, res: Response) => {
-  let data: any;
+  let data: ProjectCreate;
   try {
     data = projectCreate.parse(req.body);
-  } catch (err) {
+  } catch (err: unknown) {
     if (handleZodError(err, res)) return;
     throw err;
   }
@@ -131,10 +128,10 @@ router.post('/', asyncHandler(async (req: Request, res: Response) => {
 
 // Update project (admin)
 router.patch('/:id', validateId, requireAdmin, asyncHandler(async (req: Request, res: Response) => {
-  let data: any;
+  let data: ProjectUpdate;
   try {
     data = projectUpdate.parse(req.body);
-  } catch (err) {
+  } catch (err: unknown) {
     if (handleZodError(err, res)) return;
     throw err;
   }
@@ -153,9 +150,10 @@ router.patch('/:id', validateId, requireAdmin, asyncHandler(async (req: Request,
       include: { group: { select: { id: true, name: true } } },
     });
     res.json(project);
+    logAction(req, 'project:updated', 'project', project.id, { name: project.name });
     broadcast('project:updated', { project }, getMutationId(req));
-  } catch (err: any) {
-    if (err.code === 'P2025') return sendError(res, 'NOT_FOUND', 'Project not found');
+  } catch (err: unknown) {
+    if (isPrismaNotFound(err)) return sendError(res, 'NOT_FOUND', 'Project not found');
     throw err;
   }
 }));
@@ -171,8 +169,8 @@ router.patch('/:id/approve', validateId, requireAdmin, asyncHandler(async (req: 
     res.json(project);
     logAction(req, 'project:approved', 'project', project.id, { name: project.name });
     broadcast('project:approved', { project }, getMutationId(req));
-  } catch (err: any) {
-    if (err.code === 'P2025') return sendError(res, 'NOT_FOUND', 'Project not found');
+  } catch (err: unknown) {
+    if (isPrismaNotFound(err)) return sendError(res, 'NOT_FOUND', 'Project not found');
     throw err;
   }
 }));
@@ -181,8 +179,8 @@ router.patch('/:id/approve', validateId, requireAdmin, asyncHandler(async (req: 
 router.delete('/:id', validateId, requireAdmin, asyncHandler(async (req: Request, res: Response) => {
   try {
     await prisma.project.update({ where: { id: req.params.id }, data: { deletedAt: new Date() } });
-  } catch (err: any) {
-    if (err.code === 'P2025') return sendError(res, 'NOT_FOUND', 'Project not found');
+  } catch (err: unknown) {
+    if (isPrismaNotFound(err)) return sendError(res, 'NOT_FOUND', 'Project not found');
     throw err;
   }
   const id = req.params.id as string;

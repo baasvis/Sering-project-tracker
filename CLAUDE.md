@@ -18,6 +18,7 @@ This codebase is being rewritten phase-by-phase. The API contract and database m
 - [x] Phase 5c: Frontend remaining (shopping, budget, admin, reports, sse, init)
 - [x] Phase 6: Integration tests + hardening
 - [x] Phase 7: TypeScript migration (backend ESM + frontend module:None)
+- [x] Phase 8: Type safety hardening (eliminate `any`, typed error handling, audit logging gaps)
 
 ---
 
@@ -90,6 +91,14 @@ This codebase is being rewritten phase-by-phase. The API contract and database m
 { "error": "Human readable message", "code": "VALIDATION_ERROR" }
 ```
 Use codes: `VALIDATION_ERROR`, `NOT_FOUND`, `UNAUTHORIZED`, `FORBIDDEN`, `RATE_LIMITED`, `INTERNAL_ERROR`.
+
+#### Error Handling: Type-Safe Patterns
+- All `catch` blocks use `catch (err: unknown)` — never `catch (err: any)`.
+- Use `isPrismaNotFound(err)` from `errors.ts` to check for Prisma P2025 (record not found).
+- Use `handleZodError(err, res)` for Zod validation errors.
+- Dynamic Prisma model access uses `getPrismaDelegate(name)` from `db.ts` — never `(prisma as any)[model]`.
+- Transaction callbacks use `TransactionClient` type from `db.ts` — never `tx: any`.
+- All mutation endpoints must call `logAction()` for audit trail.
 
 ### Frontend
 
@@ -178,10 +187,10 @@ src/
     express-session.d.ts       — Session augmentation (admin, email, name)
   lib/
     config.ts                  — All env vars + named constants (centralized)
-    db.ts                      — Prisma client instance
+    db.ts                      — Prisma client, getPrismaDelegate(), TransactionClient type
     schemas.ts                 — Zod validation schemas + z.infer<> type exports
     crud.ts                    — CRUD factory (list/get/create/update/delete/approve)
-    errors.ts                  — Error helpers (sendError, handleZodError)
+    errors.ts                  — Error helpers (sendError, handleZodError, isPrismaNotFound)
     sanitize.ts                — HTML sanitization (sanitize-html allowlist)
     validate.ts                — UUID validation, stripTags, validateId middleware
     async-handler.ts           — Wraps async route handlers

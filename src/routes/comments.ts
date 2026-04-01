@@ -1,6 +1,7 @@
 import { Router } from 'express';
 import type { Request, Response } from 'express';
-import prisma from '../lib/db.js';
+import prisma, { getPrismaDelegate } from '../lib/db.js';
+import type { PrismaModelName } from '../lib/db.js';
 import { requireAdmin } from './auth.js';
 import asyncHandler from '../lib/async-handler.js';
 import { deleteMediaFile } from '../lib/media-utils.js';
@@ -9,9 +10,18 @@ import { broadcast, getMutationId } from '../lib/sse.js';
 import { logAction } from '../lib/audit.js';
 import { sendError, handleZodError } from '../lib/errors.js';
 import { commentCreate } from '../lib/schemas.js';
+import type { CommentCreate } from '../lib/schemas.js';
 import { COMMENT_COOLDOWN_WINDOW_MS, COMMENT_COOLDOWN_MAX, PAGINATION_DEFAULT_LIMIT, PAGINATION_MAX_LIMIT } from '../lib/config.js';
 
 const router = Router();
+
+// Map comment targetType values to Prisma delegate names
+const targetModelMap: Record<string, PrismaModelName> = {
+  group: 'group',
+  project: 'project',
+  task: 'task',
+  announcement: 'announcement',
+};
 
 // List comments for a target (paginated)
 router.get('/', asyncHandler(async (req: Request, res: Response) => {
@@ -21,10 +31,10 @@ router.get('/', asyncHandler(async (req: Request, res: Response) => {
   }
 
   // Validate via schema enums
-  let parsed: any;
+  let parsed: Pick<CommentCreate, 'targetType' | 'targetId'>;
   try {
     parsed = commentCreate.pick({ targetType: true, targetId: true }).parse({ targetType, targetId });
-  } catch (err) {
+  } catch (err: unknown) {
     if (handleZodError(err, res)) return;
     throw err;
   }
@@ -35,22 +45,17 @@ router.get('/', asyncHandler(async (req: Request, res: Response) => {
   );
   const cursor = req.query.cursor as string | undefined;
 
-  const findArgs: any = {
+  const comments = await prisma.comment.findMany({
     where: { targetType: parsed.targetType, targetId: parsed.targetId },
     orderBy: { createdAt: 'asc' },
     take: limit + 1,
-  };
-  if (cursor) {
-    findArgs.cursor = { id: cursor };
-    findArgs.skip = 1;
-  }
-
-  const comments = await prisma.comment.findMany(findArgs);
+    ...(cursor ? { cursor: { id: cursor }, skip: 1 } : {}),
+  });
 
   // Filter out comments whose target entity has been soft-deleted
   if (['project', 'task'].includes(parsed.targetType)) {
-    const targetModel = parsed.targetType as 'project' | 'task';
-    const target = await (prisma[targetModel] as any).findFirst({
+    const delegate = getPrismaDelegate(parsed.targetType as PrismaModelName);
+    const target = await (delegate as typeof prisma.project).findFirst({
       where: { id: parsed.targetId, deletedAt: null },
       select: { id: true },
     });
@@ -63,20 +68,20 @@ router.get('/', asyncHandler(async (req: Request, res: Response) => {
   if (hasMore) comments.pop();
 
   // Batch-fetch media for all comments in one query
-  const commentIds = comments.map((c: any) => c.id);
+  const commentIds = comments.map(c => c.id);
   const media = commentIds.length > 0
     ? await prisma.media.findMany({
         where: { parentType: 'comment', parentId: { in: commentIds } },
       })
     : [];
 
-  const mediaByComment: Record<string, any[]> = {};
+  const mediaByComment: Record<string, typeof media> = {};
   for (const m of media) {
     if (!mediaByComment[m.parentId]) mediaByComment[m.parentId] = [];
     mediaByComment[m.parentId]!.push(m);
   }
 
-  const data = comments.map((c: any) => ({
+  const data = comments.map(c => ({
     ...c,
     media: mediaByComment[c.id] || [],
   }));
@@ -87,10 +92,10 @@ router.get('/', asyncHandler(async (req: Request, res: Response) => {
 
 // Create comment (anyone — requires authorName)
 router.post('/', asyncHandler(async (req: Request, res: Response) => {
-  let data: any;
+  let data: CommentCreate;
   try {
     data = commentCreate.parse(req.body);
-  } catch (err) {
+  } catch (err: unknown) {
     if (handleZodError(err, res)) return;
     throw err;
   }
@@ -115,15 +120,14 @@ router.post('/', asyncHandler(async (req: Request, res: Response) => {
   if (duplicate) return sendError(res, 'CONFLICT', 'Duplicate comment — you already posted this');
 
   // Verify target entity exists (and is not soft-deleted)
-  const targetModelMap: Record<string, string> = { group: 'group', project: 'project', task: 'task', announcement: 'announcement' };
-  const targetModel = targetModelMap[data.targetType];
-  if (targetModel) {
-    const where: any = { id: data.targetId };
-    // Projects, tasks, and groups use soft-delete
-    if (['project', 'task', 'group'].includes(data.targetType)) {
-      where.deletedAt = null;
-    }
-    const target = await (prisma as any)[targetModel].findFirst({ where, select: { id: true } });
+  const modelName = targetModelMap[data.targetType];
+  if (modelName) {
+    const delegate = getPrismaDelegate(modelName);
+    const hasSoftDelete = ['project', 'task', 'group'].includes(data.targetType);
+    const where = hasSoftDelete
+      ? { id: data.targetId, deletedAt: null }
+      : { id: data.targetId };
+    const target = await (delegate as typeof prisma.project).findFirst({ where, select: { id: true } });
     if (!target) {
       return sendError(res, 'NOT_FOUND', `${data.targetType} not found`);
     }
@@ -138,6 +142,7 @@ router.post('/', asyncHandler(async (req: Request, res: Response) => {
     },
   });
   res.status(201).json(comment);
+  logAction(req, 'comment:created', 'comment', comment.id, { authorName: comment.authorName });
   broadcast('comment:created', { comment }, getMutationId(req));
 }));
 

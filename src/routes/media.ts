@@ -1,28 +1,22 @@
 import { Router } from 'express';
 import type { Request, Response } from 'express';
 import multer from 'multer';
-
-// Multer file type for req.file
-interface MulterFile {
-  fieldname: string;
-  originalname: string;
-  mimetype: string;
-  size: number;
-  filename: string;
-  path: string;
-  destination: string;
-}
 import path from 'path';
 import fs from 'fs';
 import crypto from 'crypto';
 import { fileURLToPath } from 'url';
-import prisma from '../lib/db.js';
+import prisma, { getPrismaDelegate } from '../lib/db.js';
+import type { PrismaModelName, TransactionClient } from '../lib/db.js';
 import { requireAdmin } from './auth.js';
 import asyncHandler from '../lib/async-handler.js';
 import { deleteMediaFile } from '../lib/media-utils.js';
 import { validateId } from '../lib/validate.js';
 import { sendError, handleZodError } from '../lib/errors.js';
+import { logAction } from '../lib/audit.js';
+import { broadcast, getMutationId } from '../lib/sse.js';
+import { z } from 'zod';
 import { mediaCreate, mediaBatch } from '../lib/schemas.js';
+import type { MediaCreate, MediaParentTypeType } from '../lib/schemas.js';
 import {
   MAX_IMAGE_SIZE_BYTES, MAX_VOICE_SIZE_BYTES, MAX_STORAGE_BYTES,
 } from '../lib/config.js';
@@ -37,8 +31,8 @@ const uploadsDir = path.join(__dirname, '..', '..', 'uploads');
 if (!fs.existsSync(uploadsDir)) fs.mkdirSync(uploadsDir, { recursive: true });
 
 const storage = multer.diskStorage({
-  destination: (_req: any, _file: any, cb: any) => cb(null, uploadsDir),
-  filename: (_req: any, _file: any, cb: any) => {
+  destination: (_req, _file, cb) => cb(null, uploadsDir),
+  filename: (_req, _file, cb) => {
     const ext = path.extname(_file.originalname) || '';
     cb(null, `${crypto.randomUUID()}${ext}`);
   },
@@ -53,7 +47,7 @@ const ALLOWED_EXTENSIONS = new Set([
 const upload = multer({
   storage,
   limits: { fileSize: MAX_IMAGE_SIZE_BYTES },
-  fileFilter: (_req: any, file: any, cb: any) => {
+  fileFilter: (_req, file, cb) => {
     const ext = path.extname(file.originalname).toLowerCase();
     const mimeOk = file.mimetype.startsWith('image/') || file.mimetype.startsWith('audio/');
     const extOk = ALLOWED_EXTENSIONS.has(ext);
@@ -64,6 +58,14 @@ const upload = multer({
     }
   },
 });
+
+// Map parentType values to Prisma delegate names
+const parentModelMap: Record<string, PrismaModelName> = {
+  task: 'task',
+  project: 'project',
+  announcement: 'announcement',
+  comment: 'comment',
+};
 
 // In-memory storage cache — initialized from DB on first use, re-synced periodically
 let cachedStorageUsed: number | null = null;
@@ -81,13 +83,13 @@ async function getTotalStorageUsed(): Promise<number> {
   return cachedStorageUsed;
 }
 
-function cleanupFile(file: MulterFile | undefined) {
+function cleanupFile(file: Express.Multer.File | undefined) {
   try { if (file?.path) fs.unlinkSync(file.path); } catch { /* ignore */ }
 }
 
 // Upload media — requires admin session OR uploaderName in body
 router.post('/', upload.single('file'), asyncHandler(async (req: Request, res: Response) => {
-  const file = (req as any).file as MulterFile | undefined;
+  const file = req.file;
   if (!file) return sendError(res, 'VALIDATION_ERROR', 'No file uploaded');
 
   const isAdmin = req.session?.admin;
@@ -99,20 +101,23 @@ router.post('/', upload.single('file'), asyncHandler(async (req: Request, res: R
   }
 
   // Validate parentType + parentId via Zod
-  let parsed: any;
+  let parsed: MediaCreate;
   try {
     parsed = mediaCreate.parse(req.body);
-  } catch (err) {
+  } catch (err: unknown) {
     cleanupFile(file);
     if (handleZodError(err, res)) return;
     throw err;
   }
 
   // Verify parent entity exists
-  const parentModelMap: Record<string, string> = { task: 'task', project: 'project', announcement: 'announcement', comment: 'comment' };
-  const parentModel = parentModelMap[parsed.parentType];
-  if (parentModel) {
-    const parent = await (prisma as any)[parentModel].findUnique({ where: { id: parsed.parentId }, select: { id: true } });
+  const modelName = parentModelMap[parsed.parentType];
+  if (modelName) {
+    const delegate = getPrismaDelegate(modelName);
+    const parent = await (delegate as typeof prisma.project).findUnique({
+      where: { id: parsed.parentId },
+      select: { id: true },
+    });
     if (!parent) {
       cleanupFile(file);
       return sendError(res, 'NOT_FOUND', `Parent ${parsed.parentType} not found`);
@@ -130,10 +135,10 @@ router.post('/', upload.single('file'), asyncHandler(async (req: Request, res: R
   // Atomic storage cap check + insert inside a serializable transaction
   let media;
   try {
-    media = await prisma.$transaction(async (tx: any) => {
+    media = await prisma.$transaction(async (tx: TransactionClient) => {
       const result = await tx.media.aggregate({ _sum: { sizeBytes: true } });
       const totalUsed = result._sum.sizeBytes || 0;
-      if (totalUsed + file.size > MAX_STORAGE_BYTES) {
+      if (Number(totalUsed) + file.size > MAX_STORAGE_BYTES) {
         throw new Error('STORAGE_LIMIT');
       }
       return tx.media.create({
@@ -148,8 +153,8 @@ router.post('/', upload.single('file'), asyncHandler(async (req: Request, res: R
         },
       });
     }, { isolationLevel: 'Serializable' });
-  } catch (err: any) {
-    if (err.message === 'STORAGE_LIMIT') {
+  } catch (err: unknown) {
+    if (err instanceof Error && err.message === 'STORAGE_LIMIT') {
       cleanupFile(file);
       return res.status(507).json({ error: 'Storage limit reached. Contact an admin.', code: 'INTERNAL_ERROR' });
     }
@@ -159,14 +164,16 @@ router.post('/', upload.single('file'), asyncHandler(async (req: Request, res: R
   if (cachedStorageUsed !== null) cachedStorageUsed += file.size;
 
   res.status(201).json(media);
+  logAction(req, 'media:uploaded', 'media', media.id, { parentType: parsed.parentType, parentId: parsed.parentId });
+  broadcast('media:created', { media, parentType: parsed.parentType, parentId: parsed.parentId }, getMutationId(req));
 }));
 
 // List media for a parent
 router.get('/', asyncHandler(async (req: Request, res: Response) => {
-  let parsed: any;
+  let parsed: MediaCreate;
   try {
     parsed = mediaCreate.parse({ parentType: req.query.parentType, parentId: req.query.parentId });
-  } catch (err) {
+  } catch (err: unknown) {
     if (handleZodError(err, res)) return;
     throw err;
   }
@@ -180,20 +187,20 @@ router.get('/', asyncHandler(async (req: Request, res: Response) => {
 
 // Batch-fetch media for multiple parents (avoids N+1 on dashboard)
 export const batchHandler = asyncHandler(async (req: Request, res: Response) => {
-  let parsed: any;
+  let parsed: z.infer<typeof mediaBatch>;
   try {
     parsed = mediaBatch.parse({ parentType: req.query.parentType, parentIds: req.query.parentIds || '' });
-  } catch (err) {
+  } catch (err: unknown) {
     if (handleZodError(err, res)) return;
     throw err;
   }
 
   const media = await prisma.media.findMany({
-    where: { parentType: parsed.parentType, parentId: { in: parsed.parentIds } },
+    where: { parentType: parsed.parentType as MediaParentTypeType, parentId: { in: parsed.parentIds } },
     orderBy: { createdAt: 'asc' },
   });
 
-  const grouped: Record<string, any[]> = {};
+  const grouped: Record<string, typeof media> = {};
   for (const m of media) {
     if (!grouped[m.parentId]) grouped[m.parentId] = [];
     grouped[m.parentId]!.push(m);
@@ -249,6 +256,8 @@ router.delete('/:id', validateId, requireAdmin, asyncHandler(async (req: Request
     cachedStorageUsed = Math.max(0, cachedStorageUsed - media.sizeBytes);
   }
   res.json({ ok: true });
+  logAction(req, 'media:deleted', 'media', req.params.id, { parentType: media.parentType, parentId: media.parentId });
+  broadcast('media:deleted', { mediaId: req.params.id, parentType: media.parentType, parentId: media.parentId }, getMutationId(req));
 }));
 
 export default router;

@@ -276,10 +276,36 @@
   gap: 2px;
 }
 
+.budget-summary-line {
+  display: flex;
+  justify-content: space-between;
+  gap: var(--space-md);
+}
+
 .budget-grand-total-value {
   font-size: 1.75rem;
   font-weight: 700;
   color: var(--sering-olive);
+}
+
+.budget-spent-value {
+  font-size: 1.1rem;
+  font-weight: 600;
+  color: var(--sering-olive);
+}
+
+.budget-remaining-value {
+  font-size: 1.1rem;
+  font-weight: 600;
+  color: var(--sering-red);
+}
+
+.budget-project-totals-grid {
+  display: grid;
+  grid-template-columns: auto auto;
+  gap: 0 var(--space-sm);
+  text-align: right;
+  font-variant-numeric: tabular-nums;
 }
 
 .budget-projects {

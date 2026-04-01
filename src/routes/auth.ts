@@ -2,6 +2,7 @@ import { Router } from 'express';
 import type { Request, Response, NextFunction } from 'express';
 import { OAuth2Client } from 'google-auth-library';
 import { ADMIN_EMAILS, DEV_MODE, GOOGLE_CLIENT_ID, IS_PRODUCTION } from '../lib/config.js';
+import { logAction } from '../lib/audit.js';
 import { sendError } from '../lib/errors.js';
 
 const router = Router();
@@ -56,8 +57,10 @@ router.post('/google', async (req: Request, res: Response) => {
       req.session.name = name;
       res.json({ admin: true, email });
     });
-  } catch (err: any) {
-    console.error('Google auth error:', err.message);
+    logAction(req, 'auth:google-login', 'auth', null, { email });
+  } catch (err: unknown) {
+    const message = err instanceof Error ? err.message : 'Unknown error';
+    console.error('Google auth error:', message);
     sendError(res, 'UNAUTHORIZED', 'Invalid credential');
   }
 });
@@ -77,6 +80,7 @@ router.post('/dev-login', (req: Request, res: Response) => {
     req.session.name = 'Dev Admin';
     res.json({ admin: true, email: 'dev@localhost' });
   });
+  logAction(req, 'auth:dev-login', 'auth', null, { email: 'dev@localhost' });
 });
 
 // Logout

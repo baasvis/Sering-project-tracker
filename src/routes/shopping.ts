@@ -1,12 +1,15 @@
 import { Router } from 'express';
 import type { Request, Response } from 'express';
 import prisma from '../lib/db.js';
+import type { TransactionClient } from '../lib/db.js';
 import { requireAdmin } from './auth.js';
 import asyncHandler from '../lib/async-handler.js';
 import { validateId, isValidUuid } from '../lib/validate.js';
 import { broadcast, getMutationId } from '../lib/sse.js';
-import { sendError, handleZodError } from '../lib/errors.js';
+import { logAction } from '../lib/audit.js';
+import { sendError, handleZodError, isPrismaNotFound } from '../lib/errors.js';
 import { shoppingItemCreate, shoppingItemUpdate } from '../lib/schemas.js';
+import type { ShoppingItemCreate, ShoppingItemUpdate } from '../lib/schemas.js';
 import { PAGINATION_DEFAULT_LIMIT, PAGINATION_MAX_LIMIT } from '../lib/config.js';
 
 const router = Router();
@@ -23,17 +26,12 @@ router.get('/', asyncHandler(async (req: Request, res: Response) => {
   );
   const cursor = req.query.cursor as string | undefined;
 
-  const findArgs: any = {
+  const items = await prisma.shoppingItem.findMany({
     where: { projectId },
     orderBy: { order: 'asc' },
     take: limit + 1,
-  };
-  if (cursor) {
-    findArgs.cursor = { id: cursor };
-    findArgs.skip = 1;
-  }
-
-  const items = await prisma.shoppingItem.findMany(findArgs);
+    ...(cursor ? { cursor: { id: cursor }, skip: 1 } : {}),
+  });
 
   const hasMore = items.length > limit;
   if (hasMore) items.pop();
@@ -50,7 +48,7 @@ router.get('/summary', asyncHandler(async (req: Request, res: Response) => {
   );
   const cursor = req.query.cursor as string | undefined;
 
-  const findArgs: any = {
+  const projects = await prisma.project.findMany({
     where: {
       status: 'active',
       shoppingItems: { some: { approved: true } },
@@ -69,19 +67,15 @@ router.get('/summary', asyncHandler(async (req: Request, res: Response) => {
     },
     orderBy: { name: 'asc' },
     take: limit + 1,
-  };
-  if (cursor) {
-    findArgs.cursor = { id: cursor };
-    findArgs.skip = 1;
-  }
-
-  const projects = await prisma.project.findMany(findArgs);
+    ...(cursor ? { cursor: { id: cursor }, skip: 1 } : {}),
+  });
 
   const hasMore = projects.length > limit;
   if (hasMore) projects.pop();
 
-  const summary = projects.map((p: any) => {
+  const summary = projects.map(p => {
     let productTotal = 0, costTotal = 0, itemCount = 0;
+    let spentTotal = 0;
     for (const i of p.shoppingItems) {
       if (!i.approved) continue; // pending items excluded from totals and count
       itemCount++;
@@ -89,15 +83,18 @@ router.get('/summary', asyncHandler(async (req: Request, res: Response) => {
       const price = Number(i.pricePerItem) || 0;
       const qty = i.quantity || 1;
       const amt = Number(i.amount) || 0;
-      if (i.type === 'product') productTotal += price * qty;
-      else if (i.type === 'cost') costTotal += amt;
+      let itemCost = 0;
+      if (i.type === 'product') { itemCost = price * qty; productTotal += itemCost; }
+      else if (i.type === 'cost') { itemCost = amt; costTotal += itemCost; }
+      if (i.purchased) spentTotal += itemCost;
     }
+    const total = productTotal + costTotal;
     return {
       id: p.id, name: p.name,
       groupName: p.group?.name || '',
       itemCount,
       productTotal, costTotal,
-      total: productTotal + costTotal,
+      total, spent: spentTotal, remaining: total - spentTotal,
       items: p.shoppingItems,
     };
   });
@@ -108,10 +105,10 @@ router.get('/summary', asyncHandler(async (req: Request, res: Response) => {
 
 // Create shopping item (anyone can suggest, admin auto-approved)
 router.post('/', asyncHandler(async (req: Request, res: Response) => {
-  let data: any;
+  let data: ShoppingItemCreate;
   try {
     data = shoppingItemCreate.parse(req.body);
-  } catch (err) {
+  } catch (err: unknown) {
     if (handleZodError(err, res)) return;
     throw err;
   }
@@ -128,7 +125,7 @@ router.post('/', asyncHandler(async (req: Request, res: Response) => {
   if (!project) return sendError(res, 'NOT_FOUND', 'Project not found');
 
   // Atomic order assignment inside a transaction to prevent duplicates
-  const item = await prisma.$transaction(async (tx: any) => {
+  const item = await prisma.$transaction(async (tx: TransactionClient) => {
     const maxOrder = await tx.shoppingItem.aggregate({ where: { projectId: data.projectId }, _max: { order: true } });
     return tx.shoppingItem.create({
       data: {
@@ -146,15 +143,16 @@ router.post('/', asyncHandler(async (req: Request, res: Response) => {
     });
   });
   res.status(201).json(item);
+  logAction(req, 'shopping:created', 'shoppingItem', item.id, { name: item.name });
   broadcast('shopping:created', { item, projectId: item.projectId }, getMutationId(req));
 }));
 
 // Update shopping item (admin)
 router.patch('/:id', validateId, requireAdmin, asyncHandler(async (req: Request, res: Response) => {
-  let data: any;
+  let data: ShoppingItemUpdate;
   try {
     data = shoppingItemUpdate.parse(req.body);
-  } catch (err) {
+  } catch (err: unknown) {
     if (handleZodError(err, res)) return;
     throw err;
   }
@@ -162,9 +160,10 @@ router.patch('/:id', validateId, requireAdmin, asyncHandler(async (req: Request,
   try {
     const item = await prisma.shoppingItem.update({ where: { id: req.params.id }, data });
     res.json(item);
+    logAction(req, 'shopping:updated', 'shoppingItem', item.id, { name: item.name });
     broadcast('shopping:updated', { item, projectId: item.projectId }, getMutationId(req));
-  } catch (err: any) {
-    if (err.code === 'P2025') return sendError(res, 'NOT_FOUND', 'Item not found');
+  } catch (err: unknown) {
+    if (isPrismaNotFound(err)) return sendError(res, 'NOT_FOUND', 'Item not found');
     throw err;
   }
 }));
@@ -177,26 +176,23 @@ router.patch('/:id/approve', validateId, requireAdmin, asyncHandler(async (req: 
       data: { approved: true },
     });
     res.json(item);
+    logAction(req, 'shopping:approved', 'shoppingItem', item.id, { name: item.name });
     broadcast('shopping:approved', { item, projectId: item.projectId }, getMutationId(req));
-  } catch (err: any) {
-    if (err.code === 'P2025') return sendError(res, 'NOT_FOUND', 'Item not found');
+  } catch (err: unknown) {
+    if (isPrismaNotFound(err)) return sendError(res, 'NOT_FOUND', 'Item not found');
     throw err;
   }
 }));
 
 // Delete shopping item (admin)
 router.delete('/:id', validateId, requireAdmin, asyncHandler(async (req: Request, res: Response) => {
-  try {
-    const existing = await prisma.shoppingItem.findUnique({ where: { id: req.params.id }, select: { projectId: true } });
-    if (!existing) return sendError(res, 'NOT_FOUND', 'Item not found');
+  const existing = await prisma.shoppingItem.findUnique({ where: { id: req.params.id }, select: { projectId: true, name: true } });
+  if (!existing) return sendError(res, 'NOT_FOUND', 'Item not found');
 
-    await prisma.shoppingItem.delete({ where: { id: req.params.id } });
-    res.json({ ok: true });
-    broadcast('shopping:deleted', { itemId: req.params.id, projectId: existing.projectId }, getMutationId(req));
-  } catch (err: any) {
-    if (err.code === 'P2025') return sendError(res, 'NOT_FOUND', 'Item not found');
-    throw err;
-  }
+  await prisma.shoppingItem.delete({ where: { id: req.params.id } });
+  res.json({ ok: true });
+  logAction(req, 'shopping:deleted', 'shoppingItem', req.params.id, { name: existing.name });
+  broadcast('shopping:deleted', { itemId: req.params.id, projectId: existing.projectId }, getMutationId(req));
 }));
 
 export default router;
