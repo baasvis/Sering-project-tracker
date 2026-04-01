@@ -90,6 +90,7 @@ model Project {
   updatedAt     DateTime  @updatedAt
   tasks         Task[]
   shoppingItems ShoppingItem[]
+  toolItems     ToolItem[]
 
   @@index([groupId, status])
 }
@@ -154,6 +155,22 @@ model ShoppingItem {
   order        Int      @default(0)
   createdAt    DateTime @default(now())
   updatedAt    DateTime @updatedAt
+
+  @@index([projectId, approved])
+}
+
+model ToolItem {
+  id          String   @id @default(uuid())
+  projectId   String
+  project     Project  @relation(fields: [projectId], references: [id], onDelete: Cascade)
+  name        String
+  quantity    Int      @default(1)
+  available   Boolean  @default(false)
+  suggestedBy String?
+  approved    Boolean  @default(false)
+  order       Int      @default(0)
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
 
   @@index([projectId, approved])
 }

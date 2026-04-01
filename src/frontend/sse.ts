@@ -94,6 +94,7 @@ function connectSSE(): void {
     'task:created', 'task:updated', 'task:approved', 'task:deleted',
     'project:created', 'project:updated', 'project:approved', 'project:deleted',
     'shopping:created', 'shopping:updated', 'shopping:approved', 'shopping:deleted',
+    'tool:created', 'tool:updated', 'tool:approved', 'tool:deleted',
     'comment:created', 'comment:deleted',
     'announcement:created', 'announcement:updated', 'announcement:deleted',
     'group:created', 'group:updated', 'group:deleted',
@@ -131,6 +132,10 @@ var SSE_HANDLERS: Record<string, (data: any) => void> = {
   'shopping:updated':  handleShoppingMutation,
   'shopping:approved': handleShoppingMutation,
   'shopping:deleted':  handleShoppingMutation,
+  'tool:created':      handleToolMutation,
+  'tool:updated':      handleToolMutation,
+  'tool:approved':     handleToolMutation,
+  'tool:deleted':      handleToolMutation,
   'comment:created':   handleCommentCreated,
   'comment:deleted':   handleCommentDeleted,
   'announcement:created':  handleAnnouncementMutation,
@@ -192,6 +197,12 @@ function handleShoppingMutation(data: any): void {
   var projectId = data.item?.projectId || data.projectId;
   if (!projectId) return;
   S._shoppingUpdate = { projectId, ts: Date.now() };
+}
+
+function handleToolMutation(data: any): void {
+  var projectId = data.item?.projectId || data.projectId;
+  if (!projectId) return;
+  S._toolsUpdate = { projectId, ts: Date.now() };
 }
 
 function handleCommentCreated(data: any): void {

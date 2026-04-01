@@ -29,6 +29,7 @@ const prismaModelMap = {
   comment: prisma.comment,
   shoppingItem: prisma.shoppingItem,
   media: prisma.media,
+  toolItem: prisma.toolItem,
   report: prisma.report,
   auditLog: prisma.auditLog,
 } as const;

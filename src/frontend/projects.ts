@@ -264,6 +264,8 @@ async function renderProjectDetail(): Promise<void> {
 
       <div id="shopping-container-${p.id}" class="mt-lg"></div>
 
+      <div id="tools-container-${p.id}" class="mt-lg"></div>
+
       <div id="project-comments"></div>
     </div>`;
 
@@ -278,8 +280,9 @@ async function renderProjectDetail(): Promise<void> {
     })
     .catch((e: any) => console.warn('Could not load project media:', e.message));
 
-  // Load shopping list
+  // Load shopping list and tools list
   loadShoppingSection(p.id, `shopping-container-${p.id}`);
+  loadToolsSection(p.id, `tools-container-${p.id}`);
 
   // Load comments in parallel with media
   var commentsPromise = renderComments('project', p.id, document.getElementById('project-comments')!);

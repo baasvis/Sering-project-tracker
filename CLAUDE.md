@@ -42,7 +42,7 @@ This codebase is being rewritten phase-by-phase. The API contract and database m
 - **Every Prisma schema change requires a migration.** Use `npx prisma migrate dev --name <descriptive_name>`.
 - **Never remove `asyncHandler()` wrapping** from route handlers.
 - **Never bypass `sanitize()`** for user-provided HTML content.
-- **Script load order in index.html must be preserved:** `state.js` -> `events.js` -> `auth.js` -> `utils.js` -> `media.js` -> `comments.js` -> `dashboard.js` -> `projects.js` -> `shopping.js` -> `budget.js` -> `reports.js` -> `admin.js` -> `sse.js` -> `init.js`
+- **Script load order in index.html must be preserved:** `state.js` -> `events.js` -> `auth.js` -> `utils.js` -> `media.js` -> `comments.js` -> `dashboard.js` -> `projects.js` -> `shopping.js` -> `tools.js` -> `budget.js` -> `reports.js` -> `admin.js` -> `sse.js` -> `init.js`
 - **Always run `npm run build` after editing TS files.** Backend compiles to `dist/`, frontend compiles to `public/js/`.
 
 ---
@@ -205,6 +205,7 @@ src/
     announcements.ts           — Announcement CRUD (admin only)
     comments.ts                — Comment CRUD (anyone posts, admin deletes)
     shopping.ts                — Shopping list CRUD (items + costs)
+    tools.ts                   — Required tools/items CRUD
     media.ts                   — File upload/serve/delete
     reports.ts                 — Problem reports
     export.ts                  — Streaming CSV export (admin only)
@@ -222,6 +223,7 @@ src/
     dashboard.ts               — Dashboard screen + announcement detail page (#announcement/:id)
     projects.ts                — Project list + detail
     shopping.ts                — Shopping list UI
+    tools.ts                   — Required tools/items checklist UI
     budget.ts                  — Budget overview
     reports.ts                 — Report button + modal
     admin.ts                   — Admin panel

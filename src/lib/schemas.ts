@@ -162,6 +162,25 @@ export const shoppingItemUpdate = z.object({
 export type ShoppingItemCreate = z.infer<typeof shoppingItemCreate>;
 export type ShoppingItemUpdate = z.input<typeof shoppingItemUpdate>;
 
+// ─── Tool Item ─────────────────────────────────────────────────────────────
+
+export const toolItemCreate = z.object({
+  projectId: uuid,
+  name: strippedString(MAX_NAME_LENGTH),
+  quantity: z.number().int().min(1).max(MAX_QUANTITY).optional().default(1),
+  authorName: strippedString(MAX_AUTHOR_LENGTH).optional(),
+});
+
+export const toolItemUpdate = z.object({
+  name: strippedString(MAX_NAME_LENGTH).optional(),
+  quantity: z.number().int().min(1).max(MAX_QUANTITY).optional(),
+  available: z.boolean().optional(),
+  order: z.number().int().min(0).optional(),
+}).refine(obj => Object.keys(obj).length > 0, { message: 'At least one field required' });
+
+export type ToolItemCreate = z.infer<typeof toolItemCreate>;
+export type ToolItemUpdate = z.input<typeof toolItemUpdate>;
+
 // ─── Media ──────────────────────────────────────────────────────────────────
 
 export const mediaCreate = z.object({
