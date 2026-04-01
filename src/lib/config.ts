@@ -41,7 +41,7 @@ export const SESSION_SECRET = SESSION_SECRET_RAW || crypto.randomBytes(32).toStr
 export const RATE_LIMIT_GENERAL = 100;      // requests per minute
 export const RATE_LIMIT_WRITES = 20;        // write requests per minute
 export const RATE_LIMIT_UPLOADS = 10;       // uploads per minute
-export const RATE_LIMIT_SSE = 5;            // SSE connections per minute
+export const RATE_LIMIT_SSE = 50;           // SSE connections per minute
 export const RATE_LIMIT_AUTH = 5;           // auth attempts per minute
 export const RATE_LIMIT_WINDOW_MS = 60_000; // 1 minute window
 
