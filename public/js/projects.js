@@ -378,25 +378,7 @@ async function cycleTaskStatus(taskId, currentStatus) {
     });
 }
 // ---- Task detail modal ----
-async function showTaskDetail(taskId) {
-    var task;
-    try {
-        task = await apiGet(`/api/tasks/${taskId}`);
-    }
-    catch (err) {
-        toast('Could not load task', 'error');
-        return;
-    }
-    // Cache for edit modal
-    cacheTask(task);
-    // Load media
-    var media = [];
-    try {
-        media = await apiGet(`/api/media?parentType=task&parentId=${taskId}`);
-    }
-    catch (e) {
-        console.warn('Could not load task media:', e.message);
-    }
+function openTaskDetailModal(task, media) {
     var backdrop = document.createElement('div');
     backdrop.className = 'modal-backdrop';
     backdrop.innerHTML = html `<div class="modal">
@@ -431,8 +413,10 @@ async function showTaskDetail(taskId) {
       <div style="${raw('margin-top:var(--space-xs)')}">${raw(renderDescription(task.description))}</div>
     </div>` : '')}
 
-    ${raw(renderMediaItems(media))}
-    ${raw(S.isAdmin ? renderMediaUploadButtons('task', task.id) : '')}
+    <div id="task-media-slot-${task.id}">
+      ${raw(renderMediaItems(media))}
+      ${raw(S.isAdmin ? renderMediaUploadButtons('task', task.id) : '')}
+    </div>
 
     ${raw(S.isAdmin ? html `<div class="flex gap-sm mt-md">
       <button class="btn btn-ghost" data-action="editTaskFromDetail" data-id="${task.id}">Edit</button>
@@ -448,9 +432,51 @@ async function showTaskDetail(taskId) {
     backdrop.addEventListener('click', (e) => { if (e.target === backdrop)
         closeModal(backdrop); });
     openModal(backdrop, 'Task: ' + task.name);
-    // Load task comments
-    var taskComments = document.getElementById(`task-comments-${task.id}`);
-    await renderComments('task', task.id, taskComments);
+}
+async function showTaskDetail(taskId) {
+    var cached = window._taskCache[taskId];
+    if (cached) {
+        // Show modal immediately from cached task data — no API wait
+        openTaskDetailModal(cached, []);
+        // Load media in background and fill in the slot once ready
+        apiGet(`/api/media?parentType=task&parentId=${taskId}`)
+            .then((media) => {
+            var slot = document.getElementById('task-media-slot-' + taskId);
+            if (slot) {
+                var newSlot = document.createElement('div');
+                newSlot.id = 'task-media-slot-' + taskId;
+                newSlot.innerHTML = renderMediaItems(media) + (S.isAdmin ? renderMediaUploadButtons('task', taskId) : '');
+                slot.replaceWith(newSlot);
+            }
+        })
+            .catch((e) => console.warn('Could not load task media:', e.message));
+        // Load comments asynchronously after modal is open
+        var taskComments = document.getElementById('task-comments-' + cached.id);
+        if (taskComments)
+            renderComments('task', cached.id, taskComments);
+        return;
+    }
+    // Fallback: task not in cache — fetch task + media in parallel
+    var task;
+    var media = [];
+    try {
+        [task, media] = await Promise.all([
+            apiGet(`/api/tasks/${taskId}`),
+            apiGet(`/api/media?parentType=task&parentId=${taskId}`).catch((e) => {
+                console.warn('Could not load task media:', e.message);
+                return [];
+            })
+        ]);
+    }
+    catch (err) {
+        toast('Could not load task', 'error');
+        return;
+    }
+    cacheTask(task);
+    openTaskDetailModal(task, media);
+    var taskComments = document.getElementById('task-comments-' + task.id);
+    if (taskComments)
+        await renderComments('task', task.id, taskComments);
 }
 // ---- Project modals ----
 function showProjectModal(existing) {
@@ -860,14 +886,14 @@ onAction('deleteProject', (el) => deleteProject(el.dataset.id));
 onAction('showTaskModal', () => showTaskModal());
 onAction('showSuggestTaskModal', () => showSuggestTaskModal());
 onAction('approveSuggestedTask', (el) => approveSuggestedTask(el.dataset.id));
-onAction('showTaskDetail', (el) => showTaskDetail(el.dataset.id));
+onAction('showTaskDetail', (el) => { withDedup('taskDetail-' + el.dataset.id, () => showTaskDetail(el.dataset.id)); });
 onAction('toggleTaskExpand', (el) => {
     var taskId = el.dataset.id;
     var fullEl = document.getElementById('task-full-' + taskId);
     var previewEl = el.querySelector('.task-description-preview');
     if (!fullEl) {
         // No description to expand — open detail modal directly
-        showTaskDetail(taskId);
+        withDedup('taskDetail-' + taskId, () => showTaskDetail(taskId));
         return;
     }
     var isExpanded = fullEl.style.display !== 'none';
