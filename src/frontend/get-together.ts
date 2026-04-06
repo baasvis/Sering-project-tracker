@@ -251,6 +251,11 @@ function gtRenderTimeline(container: HTMLElement, dayBlocks: any[]): void {
       : `${b.signupCount} signed up`;
     var isExpanded = _gtExpandedBlockId === b.id;
 
+    // Each card is followed by a detail slot; the expanded one gets the id
+    var detailSlot = isExpanded
+      ? '<div id="gt-block-detail" class="gt-block-detail-slot"></div>'
+      : '';
+
     return html`<div class="gt-timeline-card ${colorClass} ${isExpanded ? 'gt-card-expanded' : ''}"
       data-action="gtToggleBlock"
       data-block-id="${b.id}"
@@ -263,11 +268,10 @@ function gtRenderTimeline(container: HTMLElement, dayBlocks: any[]): void {
       </div>
       <div class="gt-card-title">${title}</div>
       <div class="gt-card-signup">${signupLabel}</div>
-    </div>`;
+    </div>${raw(detailSlot)}`;
   }).join('');
 
-  container.innerHTML = html`<div class="gt-timeline">${raw(cards)}</div>
-    <div id="gt-block-detail"></div>`;
+  container.innerHTML = html`<div class="gt-timeline">${raw(cards)}</div>`;
 }
 
 // ─── Block detail fold-out ──────────────────────────────────────────────────
@@ -461,21 +465,30 @@ function gtRenderPrep(): void {
 function gtRenderPrepDay(label: string, data: any): string {
   var tasksHtml = (data.tasks || []).map((t: any) => {
     var statusInfo = TASK_STATUSES[t.status] || { label: t.status, color: '#999' };
-    var assigneeHtml = t.assignee ? html` <span class="gt-assignee">— ${t.assignee}</span>` : '';
+    var assigneeHtml = t.assignee ? html`<span class="gt-prep-assignee">${t.assignee}</span>` : '';
     return html`<li class="gt-prep-item">
-      <a href="#project/${t.projectId}" class="gt-prep-link">${t.name}</a>
-      <span class="gt-prep-project">${t.projectName}</span>
-      <span class="status-pill" style="background:${statusInfo.color}">${statusInfo.label}</span>
-      ${raw(assigneeHtml)}
+      <div class="gt-prep-item-main">
+        <a href="#project/${t.projectId}" class="gt-prep-link">${t.name}</a>
+        ${raw(assigneeHtml)}
+      </div>
+      <div class="gt-prep-item-meta">
+        <span class="gt-prep-project">${t.projectName}</span>
+        <span class="status-pill" style="background:${statusInfo.color}">${statusInfo.label}</span>
+      </div>
     </li>`;
   }).join('');
 
   var shoppingHtml = (data.shoppingItems || []).map((item: any) => {
     var price = item.pricePerItem ? `€${Number(item.pricePerItem).toFixed(2)}` : '';
+    var qty = item.quantity ? 'x' + item.quantity : '';
     return html`<li class="gt-prep-item">
-      <a href="#project/${item.projectId}" class="gt-prep-link">${item.name}</a>
-      <span class="gt-prep-project">${item.projectName}</span>
-      <span class="gt-meta">${item.quantity ? 'x' + item.quantity : ''} ${price}</span>
+      <div class="gt-prep-item-main">
+        <a href="#project/${item.projectId}" class="gt-prep-link">${item.name}</a>
+        <span class="gt-prep-qty">${qty} ${price}</span>
+      </div>
+      <div class="gt-prep-item-meta">
+        <span class="gt-prep-project">${item.projectName}</span>
+      </div>
     </li>`;
   }).join('');
 
@@ -484,20 +497,33 @@ function gtRenderPrepDay(label: string, data: any): string {
       <label class="gt-tool-check">
         <input type="checkbox" ${item.available ? 'checked' : ''} data-on-change="gtToggleToolChange" data-tool-id="${item.id}">
       </label>
-      <a href="#project/${item.projectId}" class="gt-prep-link">${item.name}</a>
-      <span class="gt-prep-project">${item.projectName}</span>
-      <span class="gt-meta">${item.quantity > 1 ? 'x' + item.quantity : ''}</span>
+      <div class="gt-prep-item-main">
+        <a href="#project/${item.projectId}" class="gt-prep-link">${item.name}</a>
+        <span class="gt-prep-qty">${item.quantity > 1 ? 'x' + item.quantity : ''}</span>
+      </div>
+      <div class="gt-prep-item-meta">
+        <span class="gt-prep-project">${item.projectName}</span>
+      </div>
     </li>`
   ).join('');
 
-  var content = '';
-  if (tasksHtml) content += html`<h4>Tasks</h4><ul class="gt-prep-list">${raw(tasksHtml)}</ul>`;
-  if (shoppingHtml) content += html`<h4>Shopping</h4><ul class="gt-prep-list">${raw(shoppingHtml)}</ul>`;
-  if (toolsHtml) content += html`<h4>Tools & Items</h4><ul class="gt-prep-list">${raw(toolsHtml)}</ul>`;
+  var cards = '';
+  if (tasksHtml) cards += html`<div class="gt-prep-card">
+    <div class="gt-prep-card-header"><span class="gt-prep-card-icon">&#x2611;</span> Tasks</div>
+    <ul class="gt-prep-list">${raw(tasksHtml)}</ul>
+  </div>`;
+  if (shoppingHtml) cards += html`<div class="gt-prep-card">
+    <div class="gt-prep-card-header"><span class="gt-prep-card-icon">&#x1F6D2;</span> Shopping</div>
+    <ul class="gt-prep-list">${raw(shoppingHtml)}</ul>
+  </div>`;
+  if (toolsHtml) cards += html`<div class="gt-prep-card">
+    <div class="gt-prep-card-header"><span class="gt-prep-card-icon">&#x1F527;</span> Tools &amp; Items</div>
+    <ul class="gt-prep-list">${raw(toolsHtml)}</ul>
+  </div>`;
 
   return html`<div class="gt-prep-day">
     <h3>${label}</h3>
-    ${raw(content)}
+    <div class="gt-prep-cards">${raw(cards)}</div>
   </div>`;
 }
 
