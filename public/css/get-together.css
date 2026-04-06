@@ -129,7 +129,7 @@
   flex: 1;
   position: relative;
   display: flex;
-  min-width: 1200px;
+  min-width: 600px;
 }
 
 .gt-grid-header .gt-grid-cells {

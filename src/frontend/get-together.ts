@@ -20,14 +20,12 @@ var GT_DAYS: Record<string, { label: string; date: string }> = {
   day2: { label: 'Sunday April 12', date: '2026-04-12' },
 };
 
-// Time grid: 09:00–20:30 in 30-min columns = 24 columns
-var GT_TIME_SLOTS: string[] = [];
+// Time grid: hourly labels 9–20 (12 columns), blocks snap to 15-min precision
+var GT_HOURS: number[] = [];
 (function() {
-  for (var h = 9; h < 21; h++) {
-    GT_TIME_SLOTS.push(String(h).padStart(2, '0') + ':00');
-    GT_TIME_SLOTS.push(String(h).padStart(2, '0') + ':30');
-  }
+  for (var h = 9; h <= 20; h++) GT_HOURS.push(h);
 })();
+var GT_TOTAL_MINUTES = 720; // 09:00–21:00 = 12 hours
 
 // ─── Data fetching ──────────────────────────────────────────────────────────
 
@@ -165,7 +163,7 @@ function gtRenderSchedule(): void {
 // ─── Desktop Grid ───────────────────────────────────────────────────────────
 
 function gtRenderGrid(container: HTMLElement, dayBlocks: any[]): void {
-  var headerCells = GT_TIME_SLOTS.map((t: string) => html`<div class="gt-grid-header-cell">${t}</div>`).join('');
+  var headerCells = GT_HOURS.map((h: number) => html`<div class="gt-grid-header-cell">${h}:00</div>`).join('');
 
   // Group blocks by location
   var blocksByLocation: Record<string, any[]> = {};
@@ -202,9 +200,8 @@ function gtTimeToMinutes(time: string): number {
 function gtRenderGridBlock(block: any): string {
   var startMin = gtTimeToMinutes(block.startTime) - 540; // 540 = 9*60
   var endMin = gtTimeToMinutes(block.endTime) - 540;
-  var columnWidth = 100 / GT_TIME_SLOTS.length; // percentage per 30-min column
-  var left = (startMin / 30) * columnWidth;
-  var width = ((endMin - startMin) / 30) * columnWidth;
+  var left = (startMin / GT_TOTAL_MINUTES) * 100;
+  var width = ((endMin - startMin) / GT_TOTAL_MINUTES) * 100;
 
   var title = block.project ? block.project.name : (block.title || 'Untitled');
   var colorClass = block.projectId ? 'gt-block-project' : 'gt-block-custom';
