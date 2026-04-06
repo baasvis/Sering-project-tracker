@@ -409,64 +409,86 @@ function gtRenderPrep() {
   </div>`;
 }
 function gtRenderPrepDay(label, data) {
+    // Tasks — reuse .task-item pattern from projects
     var tasksHtml = (data.tasks || []).map((t) => {
         var statusInfo = TASK_STATUSES[t.status] || { label: t.status, color: '#999' };
-        var assigneeHtml = t.assignee ? html `<span class="gt-prep-assignee">${t.assignee}</span>` : '';
-        return html `<li class="gt-prep-item">
-      <div class="gt-prep-item-main">
-        <a href="#project/${t.projectId}" class="gt-prep-link">${t.name}</a>
-        ${raw(assigneeHtml)}
+        var statusIcon = t.status === 'done' ? '&#x2713;' : t.status === 'in_progress' ? '&#x25CF;' : '';
+        var assigneeHtml = t.assignee ? html `<span>&#x1F464; ${t.assignee}</span>` : '';
+        return html `<a href="#project/${t.projectId}" class="task-item gt-prep-task" style="text-decoration:none;color:inherit">
+      <div class="task-status-btn ${t.status}">${raw(statusIcon)}</div>
+      <div class="task-content">
+        <div class="task-name ${t.status === 'done' ? 'done' : ''}">${t.name}</div>
+        <div class="task-meta">
+          <span class="gt-prep-project">${t.projectName}</span>
+          ${raw(assigneeHtml)}
+        </div>
       </div>
-      <div class="gt-prep-item-meta">
-        <span class="gt-prep-project">${t.projectName}</span>
-        <span class="status-pill" style="background:${statusInfo.color}">${statusInfo.label}</span>
-      </div>
-    </li>`;
+    </a>`;
     }).join('');
-    var shoppingHtml = (data.shoppingItems || []).map((item) => {
-        var price = item.pricePerItem ? `€${Number(item.pricePerItem).toFixed(2)}` : '';
-        var qty = item.quantity ? 'x' + item.quantity : '';
-        return html `<li class="gt-prep-item">
-      <div class="gt-prep-item-main">
-        <a href="#project/${item.projectId}" class="gt-prep-link">${item.name}</a>
-        <span class="gt-prep-qty">${qty} ${price}</span>
+    // Shopping — reuse .shopping-row pattern
+    var shoppingHtml = '';
+    if (data.shoppingItems?.length) {
+        var shoppingRows = (data.shoppingItems || []).map((item) => {
+            var price = item.pricePerItem ? `€${Number(item.pricePerItem).toFixed(2)}` : '';
+            var total = (item.pricePerItem && item.quantity) ? `€${(Number(item.pricePerItem) * Number(item.quantity)).toFixed(2)}` : '';
+            return html `<div class="shopping-row">
+        <span class="sh-name"><a href="#project/${item.projectId}">${item.name}</a> <span class="gt-prep-project">${item.projectName}</span></span>
+        <span class="sh-price">${price}</span>
+        <span class="sh-qty">${item.quantity || ''}</span>
+        <span class="sh-total">${total}</span>
+      </div>`;
+        }).join('');
+        shoppingHtml = html `<div class="shopping-table">
+      <div class="shopping-table-head">
+        <span class="sh-name">Item</span>
+        <span class="sh-price">Price</span>
+        <span class="sh-qty">Qty</span>
+        <span class="sh-total">Total</span>
       </div>
-      <div class="gt-prep-item-meta">
-        <span class="gt-prep-project">${item.projectName}</span>
+      ${raw(shoppingRows)}
+    </div>`;
+    }
+    // Tools — reuse .shopping-row + .shopping-check pattern
+    var toolsHtml = '';
+    if (data.toolItems?.length) {
+        var toolRows = (data.toolItems || []).map((item) => {
+            var checked = item.available ? 'checked' : '';
+            return html `<div class="shopping-row" data-tool-id="${item.id}">
+        <span class="sh-status">
+          <button class="shopping-check ${checked}" data-action="gtToggleToolBtn" data-tool-id="${item.id}" data-stop>${raw(item.available ? '&#x2713;' : '')}</button>
+        </span>
+        <span class="sh-name"><a href="#project/${item.projectId}">${item.name}</a> <span class="gt-prep-project">${item.projectName}</span></span>
+        <span class="sh-qty">${item.quantity > 1 ? item.quantity : ''}</span>
+      </div>`;
+        }).join('');
+        toolsHtml = html `<div class="shopping-table">
+      <div class="shopping-table-head gt-tool-head">
+        <span class="sh-status">Have</span>
+        <span class="sh-name">Tool / Item</span>
+        <span class="sh-qty">Qty</span>
       </div>
-    </li>`;
-    }).join('');
-    var toolsHtml = (data.toolItems || []).map((item) => html `<li class="gt-prep-item gt-tool-item" data-tool-id="${item.id}">
-      <label class="gt-tool-check">
-        <input type="checkbox" ${item.available ? 'checked' : ''} data-on-change="gtToggleToolChange" data-tool-id="${item.id}">
-      </label>
-      <div class="gt-prep-item-main">
-        <a href="#project/${item.projectId}" class="gt-prep-link">${item.name}</a>
-        <span class="gt-prep-qty">${item.quantity > 1 ? 'x' + item.quantity : ''}</span>
-      </div>
-      <div class="gt-prep-item-meta">
-        <span class="gt-prep-project">${item.projectName}</span>
-      </div>
-    </li>`).join('');
-    var cards = '';
+      ${raw(toolRows)}
+    </div>`;
+    }
+    var sections = '';
     if (tasksHtml)
-        cards += html `<div class="gt-prep-card">
-    <div class="gt-prep-card-header"><span class="gt-prep-card-icon">&#x2611;</span> Tasks</div>
-    <ul class="gt-prep-list">${raw(tasksHtml)}</ul>
+        sections += html `<div class="gt-prep-category">
+    <h4>Tasks</h4>
+    <div class="gt-prep-tasks">${raw(tasksHtml)}</div>
   </div>`;
     if (shoppingHtml)
-        cards += html `<div class="gt-prep-card">
-    <div class="gt-prep-card-header"><span class="gt-prep-card-icon">&#x1F6D2;</span> Shopping</div>
-    <ul class="gt-prep-list">${raw(shoppingHtml)}</ul>
+        sections += html `<div class="gt-prep-category">
+    <h4>Shopping</h4>
+    ${raw(shoppingHtml)}
   </div>`;
     if (toolsHtml)
-        cards += html `<div class="gt-prep-card">
-    <div class="gt-prep-card-header"><span class="gt-prep-card-icon">&#x1F527;</span> Tools &amp; Items</div>
-    <ul class="gt-prep-list">${raw(toolsHtml)}</ul>
+        sections += html `<div class="gt-prep-category">
+    <h4>Tools &amp; Items</h4>
+    ${raw(toolsHtml)}
   </div>`;
     return html `<div class="gt-prep-day">
     <h3>${label}</h3>
-    <div class="gt-prep-cards">${raw(cards)}</div>
+    ${raw(sections)}
   </div>`;
 }
 async function gtToggleTool(toolItemId, available) {
@@ -788,7 +810,13 @@ onAction('gtAddLocation', () => gtAddLocation());
 onAction('gtRenameLocation', (el) => gtRenameLocation(el.dataset.locId));
 onAction('gtDeleteLocation', (el) => gtDeleteLocation(el.dataset.locId));
 onAction('gtMoveLocation', (el) => gtMoveLocation(el.dataset.locId, parseInt(el.dataset.dir)));
-onAction('gtToggleToolChange', (el) => gtToggleTool(el.dataset.toolId, el.checked));
+onAction('gtToggleToolBtn', (el) => {
+    var isChecked = el.classList.contains('checked');
+    gtToggleTool(el.dataset.toolId, !isChecked);
+    // Optimistic toggle
+    el.classList.toggle('checked');
+    el.innerHTML = isChecked ? '' : '&#x2713;';
+});
 // ─── SSE handlers ───────────────────────────────────────────────────────────
 function gtRegisterSSE() {
     // Clean up previous listeners

@@ -7,18 +7,64 @@
     --font-size-3xl: 32px;
     --font-size-2xl: 24px;
     --font-size-xl: 20px;
+    --nav-bottom-height: 52px;
+  }
+
+  /* Top bar: only logo + auth, no screen links */
+  #top-nav {
+    height: auto;
+    min-height: 44px;
+  }
+
+  .nav-inner {
+    padding: 6px var(--space-sm);
+    gap: 4px;
+  }
+
+  .nav-logo { font-size: var(--font-size-lg); margin-right: 4px; }
+
+  /* Hide screen links from top nav on mobile */
+  #nav-links {
+    position: fixed;
+    bottom: 0;
+    left: 0;
+    right: 0;
+    z-index: 100;
+    display: flex;
+    justify-content: space-around;
+    gap: 0;
+    background: #fff;
+    border-top: 1px solid var(--border-light);
+    padding: 6px 4px calc(6px + env(safe-area-inset-bottom, 0px));
+    height: var(--nav-bottom-height);
+    box-sizing: content-box;
+  }
+
+  #nav-links a {
+    font-size: 11px;
+    padding: 6px 4px 4px;
+    border-radius: 8px;
+    white-space: nowrap;
+    flex: 1;
+    text-align: center;
+    background: transparent;
+    min-width: 0;
+  }
+
+  #nav-links a:hover {
+    background: var(--sering-off-white);
+  }
+
+  #nav-links a.active {
+    background: var(--accent);
+    color: var(--sering-off-white);
   }
 
   #app {
     padding: var(--space-md) var(--space-sm);
-    padding-top: calc(var(--nav-height) + var(--space-md));
+    padding-top: calc(44px + var(--space-md));
+    padding-bottom: calc(var(--nav-bottom-height) + env(safe-area-inset-bottom, 0px) + var(--space-md));
   }
-
-  .nav-inner { padding: 0 var(--space-sm); gap: 4px; }
-  #nav-links { gap: 4px; overflow-x: auto; -webkit-overflow-scrolling: touch; scrollbar-width: none; }
-  #nav-links::-webkit-scrollbar { display: none; }
-  #nav-links a { font-size: var(--font-size-sm); padding: 3px 10px 5px; white-space: nowrap; flex-shrink: 0; }
-  .nav-logo { font-size: var(--font-size-lg); margin-right: 4px; }
 
   .project-cards { grid-template-columns: 1fr; }
   .announcements-grid { grid-template-columns: 1fr; }
@@ -101,9 +147,9 @@
     flex-wrap: wrap;
   }
 
-  /* Report FAB — smaller on mobile, away from toast */
+  /* Report FAB — above bottom nav + toast */
   .report-fab {
-    bottom: 72px;
+    bottom: calc(var(--nav-bottom-height) + env(safe-area-inset-bottom, 0px) + 16px);
     right: 16px;
     width: 42px;
     height: 42px;
