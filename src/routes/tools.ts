@@ -100,6 +100,27 @@ router.patch('/:id', validateId, requireAdmin, asyncHandler(async (req: Request,
   }
 }));
 
+// Toggle availability (anyone — for get-together prep section)
+router.patch('/:id/available', validateId, asyncHandler(async (req: Request, res: Response) => {
+  const { available } = req.body;
+  if (typeof available !== 'boolean') {
+    return sendError(res, 'VALIDATION_ERROR', 'available must be a boolean');
+  }
+
+  try {
+    const item = await prisma.toolItem.update({
+      where: { id: req.params.id },
+      data: { available },
+    });
+    res.json(item);
+    broadcast('tool:updated', { item, projectId: item.projectId }, getMutationId(req));
+    broadcast('get-together:tool-toggled', { toolItemId: item.id, available: item.available }, getMutationId(req));
+  } catch (err: unknown) {
+    if (isPrismaNotFound(err)) return sendError(res, 'NOT_FOUND', 'Tool item not found');
+    throw err;
+  }
+}));
+
 // Approve suggestion (admin)
 router.patch('/:id/approve', validateId, requireAdmin, asyncHandler(async (req: Request, res: Response) => {
   try {

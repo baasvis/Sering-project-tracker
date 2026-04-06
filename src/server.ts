@@ -30,6 +30,7 @@ import mediaRouter, { batchHandler } from './routes/media.js';
 import reportsRouter from './routes/reports.js';
 import exportRouter from './routes/export.js';
 import healthRouter from './routes/health.js';
+import getTogetherRouter from './routes/get-together.js';
 
 // ESM __dirname equivalent
 const __filename = fileURLToPath(import.meta.url);
@@ -260,6 +261,7 @@ app.patch('/api/shopping/:id/approve', writeLimiter);
 app.use('/api/shopping', shoppingRouter);
 app.post('/api/tools', writeLimiter);
 app.patch('/api/tools/:id', writeLimiter);
+app.patch('/api/tools/:id/available', writeLimiter);
 app.patch('/api/tools/:id/approve', writeLimiter);
 app.delete('/api/tools/:id', writeLimiter);
 app.use('/api/tools', toolsRouter);
@@ -278,6 +280,17 @@ app.use('/api/media', mediaRouter);
 
 app.post('/api/reports', writeLimiter);
 app.use('/api/reports', reportsRouter);
+
+app.post('/api/get-together/locations', writeLimiter);
+app.patch('/api/get-together/locations/:id', writeLimiter);
+app.delete('/api/get-together/locations/:id', writeLimiter);
+app.post('/api/get-together/blocks', writeLimiter);
+app.patch('/api/get-together/blocks/:id', writeLimiter);
+app.delete('/api/get-together/blocks/:id', writeLimiter);
+app.post('/api/get-together/blocks/:id/signup', writeLimiter);
+app.delete('/api/get-together/blocks/:id/signup', writeLimiter);
+app.post('/api/get-together/map', uploadLimiter);
+app.use('/api/get-together', getTogetherRouter);
 
 app.use('/api/export', exportRouter);
 app.use('/api', healthRouter);
