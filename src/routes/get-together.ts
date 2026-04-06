@@ -126,7 +126,7 @@ router.delete('/locations/:id', validateId, requireAdmin, asyncHandler(async (re
     if (isPrismaNotFound(err)) return sendError(res, 'NOT_FOUND', 'Location not found');
     throw err;
   }
-  res.status(204).end();
+  res.json({ ok: true });
   logAction(req, 'get-together:location-deleted', 'getTogetherLocation', req.params.id);
   broadcast('get-together:location-deleted', { locationId: req.params.id }, getMutationId(req));
 }));
@@ -338,7 +338,7 @@ router.delete('/blocks/:id', validateId, requireAdmin, asyncHandler(async (req: 
     if (isPrismaNotFound(err)) return sendError(res, 'NOT_FOUND', 'Block not found');
     throw err;
   }
-  res.status(204).end();
+  res.json({ ok: true });
   logAction(req, 'get-together:block-deleted', 'getTogetherBlock', req.params.id);
   broadcast('get-together:block-deleted', { blockId: req.params.id }, getMutationId(req));
 }));
@@ -423,7 +423,7 @@ router.delete('/blocks/:id/signup', validateId, asyncHandler(async (req: Request
 
   const signupCount = await prisma.getTogetherSignup.count({ where: { blockId: req.params.id } });
 
-  res.status(204).end();
+  res.json({ ok: true });
   broadcast('get-together:signup-removed', {
     blockId: req.params.id,
     name: parsed.name,

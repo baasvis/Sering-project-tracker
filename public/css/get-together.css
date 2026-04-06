@@ -151,7 +151,7 @@
 .gt-grid-row:not(.gt-grid-header) .gt-grid-cells {
   display: block;
   position: relative;
-  min-height: 48px;
+  min-height: 64px;
 }
 
 /* ─── Time Blocks (grid bars) ────────────────────────────────────────── */
@@ -161,11 +161,12 @@
   top: 4px;
   bottom: 4px;
   border-radius: 6px;
-  padding: 4px 8px;
+  padding: 6px 8px;
   cursor: pointer;
   display: flex;
   flex-direction: column;
   justify-content: center;
+  gap: 1px;
   overflow: hidden;
   font-size: 12px;
   line-height: 1.3;
