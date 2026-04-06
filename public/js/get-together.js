@@ -308,8 +308,11 @@ function gtRenderBlockDetail() {
       <button class="btn btn-small btn-danger" data-action="gtDeleteBlock" data-block-id="${b.id}">Delete</button>
     </div>`;
     }
+    var titleHtml = b.projectId && b.project
+        ? html `<a href="#project/${b.project.id}" class="gt-detail-project-link">${title}</a>`
+        : esc(title);
     container.innerHTML = html `<div class="gt-detail" data-block-id="${b.id}">
-    <h3>${title}</h3>
+    <h3>${raw(titleHtml)}</h3>
     <div class="gt-detail-meta">
       <span>${b.startTime} – ${b.endTime}</span>
       <span>${locationName}</span>

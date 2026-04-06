@@ -310,6 +310,16 @@
   margin-bottom: 8px;
 }
 
+.gt-detail-project-link {
+  color: inherit;
+  text-decoration: underline;
+  text-decoration-color: var(--sering-olive);
+  text-underline-offset: 2px;
+}
+.gt-detail-project-link:hover {
+  color: var(--sering-olive);
+}
+
 .gt-detail-meta {
   display: flex;
   gap: 12px;
