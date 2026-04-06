@@ -582,4 +582,16 @@ router.post('/map', requireAdmin, (req: Request, res: Response, next) => {
   logAction(req, 'get-together:map-uploaded', 'getTogetherMap', null, { filename: file.filename });
 }));
 
+// Delete map (admin)
+router.delete('/map', requireAdmin, asyncHandler(async (req: Request, res: Response) => {
+  if (!fs.existsSync(mapDir)) return res.json({ ok: true });
+  const files = fs.readdirSync(mapDir).filter(f => f.startsWith('floor-map'));
+  for (const f of files) {
+    try { fs.unlinkSync(path.join(mapDir, f)); } catch { /* ignore */ }
+  }
+  res.json({ ok: true });
+  logAction(req, 'get-together:map-deleted', 'getTogetherMap', null, {});
+  broadcast('get-together:map-deleted', {}, getMutationId(req));
+}));
+
 export default router;

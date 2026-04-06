@@ -290,6 +290,7 @@ app.delete('/api/get-together/blocks/:id', writeLimiter);
 app.post('/api/get-together/blocks/:id/signup', writeLimiter);
 app.delete('/api/get-together/blocks/:id/signup', writeLimiter);
 app.post('/api/get-together/map', uploadLimiter);
+app.delete('/api/get-together/map', writeLimiter);
 app.use('/api/get-together', getTogetherRouter);
 
 app.use('/api/export', exportRouter);

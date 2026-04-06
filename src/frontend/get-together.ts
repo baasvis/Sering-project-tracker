@@ -102,6 +102,7 @@ function gtRenderPage(): void {
       <button class="btn btn-primary btn-small" data-action="gtShowBlockForm">Add Block</button>
       <button class="btn btn-small" data-action="gtShowLocationManager">Manage Locations</button>
       <button class="btn btn-small" data-action="gtShowMapUpload">Upload Map</button>
+      ${raw(_gtMapUrl ? html`<button class="btn btn-small btn-danger" data-action="gtDeleteMap">Remove Map</button>` : '')}
     </div>`;
   }
 
@@ -571,6 +572,20 @@ function gtToggleMapZoom(img: HTMLElement): void {
   }
 }
 
+// ─── Admin: Delete map ─────────────────────────────────────────────────────
+
+async function gtDeleteMap(): Promise<void> {
+  if (!confirm('Remove the floor map?')) return;
+  try {
+    await apiFetch('DELETE', '/api/get-together/map');
+    _gtMapUrl = null;
+    gtRenderPage();
+    toast('Map removed', 'success');
+  } catch (e: any) {
+    toast(e.message || 'Failed to remove map', 'error');
+  }
+}
+
 // ─── Admin: Block form ──────────────────────────────────────────────────────
 
 async function gtShowBlockForm(editBlockId?: string): Promise<void> {
@@ -885,6 +900,7 @@ onAction('gtDeleteBlock', (el: HTMLElement) => gtDeleteBlock(el.dataset.blockId!
 onAction('gtShowBlockForm', () => gtShowBlockForm());
 onAction('gtShowLocationManager', () => gtShowLocationManager());
 onAction('gtShowMapUpload', () => gtShowMapUpload());
+onAction('gtDeleteMap', () => gtDeleteMap());
 onAction('gtToggleMapZoom', (el: HTMLElement) => gtToggleMapZoom(el));
 onAction('gtAddLocation', () => gtAddLocation());
 onAction('gtRenameLocation', (el: HTMLElement) => gtRenameLocation(el.dataset.locId!));
