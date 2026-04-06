@@ -57,6 +57,11 @@ enum MediaType {
   voice
 }
 
+enum GetTogetherDay {
+  day1 // April 11
+  day2 // April 12
+}
+
 // ─── Models ─────────────────────────────────────────────────────────────────
 
 model Group {
@@ -173,6 +178,51 @@ model ToolItem {
   updatedAt   DateTime @updatedAt
 
   @@index([projectId, approved])
+}
+
+// ─── Get Together (one-off event: April 11–12, 2026) ───────────────────────
+
+model GetTogetherLocation {
+  id        String   @id @default(uuid())
+  name      String
+  order     Int      @default(0)
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  blocks GetTogetherBlock[]
+
+  @@index([order])
+}
+
+model GetTogetherBlock {
+  id          String              @id @default(uuid())
+  locationId  String
+  location    GetTogetherLocation @relation(fields: [locationId], references: [id], onDelete: Restrict)
+  day         GetTogetherDay
+  startTime   String              // HH:MM format, 15-min increments
+  endTime     String              // HH:MM format, 15-min increments
+  projectId   String?             // Logical reference to Project (not a @relation)
+  title       String?             // Required if projectId is null
+  description String?
+  signupCap   Int?                // null = unlimited
+  createdAt   DateTime            @default(now())
+  updatedAt   DateTime            @updatedAt
+
+  signups GetTogetherSignup[]
+
+  @@index([day, locationId])
+  @@index([projectId])
+}
+
+model GetTogetherSignup {
+  id        String           @id @default(uuid())
+  blockId   String
+  block     GetTogetherBlock @relation(fields: [blockId], references: [id], onDelete: Cascade)
+  name      String           // Visitor name from localStorage
+  createdAt DateTime         @default(now())
+
+  @@unique([blockId, name])
+  @@index([blockId])
 }
 
 model Media {

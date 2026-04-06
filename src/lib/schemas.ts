@@ -211,3 +211,64 @@ export const reportUpdate = z.object({
 
 export type ReportCreate = z.infer<typeof reportCreate>;
 export type ReportUpdate = z.input<typeof reportUpdate>;
+
+// ─── Get Together ──────────────────────────────────────────────────────────
+
+export const GetTogetherDay = z.enum(['day1', 'day2']);
+export type GetTogetherDayType = z.infer<typeof GetTogetherDay>;
+
+// HH:MM with 15-minute increments, within 09:00–21:00
+const timeSlot = z.string().regex(/^\d{2}:\d{2}$/, 'Must be HH:MM format').refine(s => {
+  const [h, m] = s.split(':').map(Number);
+  return h !== undefined && m !== undefined &&
+    h >= 9 && h <= 21 && [0, 15, 30, 45].includes(m) &&
+    (h < 21 || m === 0); // 21:00 is valid but 21:15 is not
+}, { message: 'Must be a 15-minute increment between 09:00 and 21:00' });
+
+export const getTogetherLocationCreate = z.object({
+  name: strippedString(MAX_NAME_LENGTH),
+  order: z.number().int().min(0).optional(),
+});
+
+export const getTogetherLocationUpdate = z.object({
+  name: strippedString(MAX_NAME_LENGTH).optional(),
+  order: z.number().int().min(0).optional(),
+}).refine(obj => Object.keys(obj).length > 0, { message: 'At least one field required' });
+
+export type GetTogetherLocationCreate = z.infer<typeof getTogetherLocationCreate>;
+export type GetTogetherLocationUpdate = z.input<typeof getTogetherLocationUpdate>;
+
+export const getTogetherBlockCreate = z.object({
+  locationId: uuid,
+  day: GetTogetherDay,
+  startTime: timeSlot,
+  endTime: timeSlot,
+  projectId: uuid.nullable().optional(),
+  title: strippedString(MAX_NAME_LENGTH).nullable().optional(),
+  description: z.string().optional(),
+  signupCap: z.number().int().min(1).nullable().optional(),
+}).refine(data => {
+  // endTime must be after startTime
+  return data.endTime > data.startTime;
+}, { message: 'endTime must be after startTime' }).refine(data => {
+  // Either projectId or title must be provided
+  return data.projectId || data.title;
+}, { message: 'Either projectId or title must be provided' });
+
+export const getTogetherBlockUpdate = z.object({
+  locationId: uuid.optional(),
+  day: GetTogetherDay.optional(),
+  startTime: timeSlot.optional(),
+  endTime: timeSlot.optional(),
+  projectId: uuid.nullable().optional(),
+  title: strippedString(MAX_NAME_LENGTH).nullable().optional(),
+  description: z.string().nullable().optional(),
+  signupCap: z.number().int().min(1).nullable().optional(),
+}).refine(obj => Object.keys(obj).length > 0, { message: 'At least one field required' });
+
+export type GetTogetherBlockCreate = z.infer<typeof getTogetherBlockCreate>;
+export type GetTogetherBlockUpdate = z.input<typeof getTogetherBlockUpdate>;
+
+export const getTogetherSignupCreate = z.object({
+  name: strippedString(MAX_AUTHOR_LENGTH),
+});

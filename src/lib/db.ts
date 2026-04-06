@@ -32,6 +32,9 @@ const prismaModelMap = {
   toolItem: prisma.toolItem,
   report: prisma.report,
   auditLog: prisma.auditLog,
+  getTogetherLocation: prisma.getTogetherLocation,
+  getTogetherBlock: prisma.getTogetherBlock,
+  getTogetherSignup: prisma.getTogetherSignup,
 } as const;
 
 export type PrismaModelName = keyof typeof prismaModelMap;
