@@ -258,7 +258,7 @@ export const getTogetherBlockCreate = z.object({
   endTime: timeSlot,
   projectId: uuid.nullable().optional(),
   title: strippedString(MAX_NAME_LENGTH).nullable().optional(),
-  description: z.string().optional(),
+  description: z.string().nullable().optional(),
   signupCap: z.number().int().min(1).nullable().optional(),
 }).refine(data => {
   // endTime must be after startTime
