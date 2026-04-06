@@ -722,17 +722,20 @@ async function gtMoveLocation(locId, direction) {
     var targetIdx = idx + direction;
     if (targetIdx < 0 || targetIdx >= _gtLocations.length)
         return;
-    // Swap orders
-    var currentOrder = _gtLocations[idx].order;
-    var targetOrder = _gtLocations[targetIdx].order;
+    // Swap positions in the array
+    var tmp = _gtLocations[idx];
+    _gtLocations[idx] = _gtLocations[targetIdx];
+    _gtLocations[targetIdx] = tmp;
+    // Reassign sequential order values to avoid duplicates
     try {
-        await Promise.all([
-            apiPatch(`/api/get-together/locations/${_gtLocations[idx].id}`, { order: targetOrder }),
-            apiPatch(`/api/get-together/locations/${_gtLocations[targetIdx].id}`, { order: currentOrder }),
-        ]);
-        _gtLocations[idx].order = targetOrder;
-        _gtLocations[targetIdx].order = currentOrder;
-        _gtLocations.sort((a, b) => a.order - b.order);
+        var updates = [];
+        for (var i = 0; i < _gtLocations.length; i++) {
+            if (_gtLocations[i].order !== i) {
+                updates.push(apiPatch(`/api/get-together/locations/${_gtLocations[i].id}`, { order: i }));
+                _gtLocations[i].order = i;
+            }
+        }
+        await Promise.all(updates);
         var backdrop = document.getElementById('gt-location-modal');
         if (backdrop)
             gtRenderLocationModal(backdrop);
