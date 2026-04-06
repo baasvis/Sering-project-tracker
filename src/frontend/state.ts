@@ -4,9 +4,9 @@
 
 var NAV_SCREENS: Array<{ id: string; label: string; icon: string; adminOnly?: boolean }> = [
   { id: 'dashboard', label: 'Dashboard', icon: '~' },
+  { id: 'get-together', label: 'Get Together', icon: '!' },
   { id: 'projects',  label: 'Projects',  icon: '#' },
   { id: 'budget',    label: 'Budget',    icon: '$' },
-  { id: 'get-together', label: 'Get Together', icon: '!' },
   { id: 'admin',     label: 'Admin',     icon: '*', adminOnly: true }
 ];
 

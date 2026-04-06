@@ -82,15 +82,15 @@ function gtRenderPage() {
     var mapHtml = '';
     if (_gtMapUrl) {
         mapHtml = html `<div class="gt-map">
-      <img src="${_gtMapUrl}" alt="Floor map" class="gt-map-img" onclick="gtToggleMapZoom(this)">
+      <img src="${_gtMapUrl}" alt="Floor map" class="gt-map-img" data-action="gtToggleMapZoom">
     </div>`;
     }
     var adminControls = '';
     if (isAdmin) {
         adminControls = html `<div class="gt-admin-controls">
-      <button class="btn btn-primary btn-small" onclick="gtShowBlockForm()">Add Block</button>
-      <button class="btn btn-small" onclick="gtShowLocationManager()">Manage Locations</button>
-      <button class="btn btn-small" onclick="gtShowMapUpload()">Upload Map</button>
+      <button class="btn btn-primary btn-small" data-action="gtShowBlockForm">Add Block</button>
+      <button class="btn btn-small" data-action="gtShowLocationManager">Manage Locations</button>
+      <button class="btn btn-small" data-action="gtShowMapUpload">Upload Map</button>
     </div>`;
     }
     app.innerHTML = html `<div class="gt-page">
@@ -99,8 +99,8 @@ function gtRenderPage() {
       <p class="gt-intro">Two days of building, fixing, planning, and eating together at Sering Centraal.</p>
       ${raw(mapHtml)}
       <div class="gt-day-toggle">
-        <button class="btn gt-day-btn ${_gtSelectedDay === 'day1' ? 'active' : ''}" onclick="gtSwitchDay('day1')">${GT_DAYS.day1.label}</button>
-        <button class="btn gt-day-btn ${_gtSelectedDay === 'day2' ? 'active' : ''}" onclick="gtSwitchDay('day2')">${GT_DAYS.day2.label}</button>
+        <button class="btn gt-day-btn ${_gtSelectedDay === 'day1' ? 'active' : ''}" data-action="gtSwitchDay" data-day="day1">${GT_DAYS.day1.label}</button>
+        <button class="btn gt-day-btn ${_gtSelectedDay === 'day2' ? 'active' : ''}" data-action="gtSwitchDay" data-day="day2">${GT_DAYS.day2.label}</button>
       </div>
       ${raw(adminControls)}
     </div>
@@ -118,7 +118,7 @@ function gtSwitchDay(day) {
     // Update button states
     var buttons = document.querySelectorAll('.gt-day-btn');
     buttons.forEach((btn) => {
-        btn.classList.toggle('active', btn.textContent === GT_DAYS[day].label);
+        btn.classList.toggle('active', btn.dataset.day === day);
     });
     gtRenderSchedule();
 }
@@ -179,20 +179,20 @@ function gtRenderGridBlock(block) {
     var width = ((endMin - startMin) / 30) * columnWidth;
     var title = block.project ? block.project.name : (block.title || 'Untitled');
     var colorClass = block.projectId ? 'gt-block-project' : 'gt-block-custom';
-    var signupText = block.signupCap
-        ? `${block.signupCount}/${block.signupCap}`
+    var signupLabel = block.signupCap
+        ? `${block.signupCount}/${block.signupCap} signed up`
         : `${block.signupCount} signed up`;
     var isExpanded = _gtExpandedBlockId === block.id;
     return html `<div class="gt-block ${colorClass} ${isExpanded ? 'gt-block-expanded' : ''}"
     style="left:${left}%;width:${width}%"
+    data-action="gtToggleBlock"
     data-block-id="${block.id}"
-    onclick="gtToggleBlock('${block.id}')"
     tabindex="0"
     role="button"
     aria-expanded="${isExpanded ? 'true' : 'false'}">
-    <span class="gt-block-time">${block.startTime}–${block.endTime}</span>
     <span class="gt-block-title">${title}</span>
-    <span class="gt-block-signup">${signupText}</span>
+    <span class="gt-block-time">${block.startTime}–${block.endTime}</span>
+    <span class="gt-block-signup">${signupLabel}</span>
   </div>`;
 }
 // ─── Mobile Timeline ────────────────────────────────────────────────────────
@@ -213,13 +213,13 @@ function gtRenderTimeline(container, dayBlocks) {
         var title = b.project ? b.project.name : (b.title || 'Untitled');
         var colorClass = b.projectId ? 'gt-block-project' : 'gt-block-custom';
         var locationName = b.location?.name || '';
-        var signupText = b.signupCap
+        var signupLabel = b.signupCap
             ? `${b.signupCount}/${b.signupCap} signed up`
             : `${b.signupCount} signed up`;
         var isExpanded = _gtExpandedBlockId === b.id;
         return html `<div class="gt-timeline-card ${colorClass} ${isExpanded ? 'gt-card-expanded' : ''}"
+      data-action="gtToggleBlock"
       data-block-id="${b.id}"
-      onclick="gtToggleBlock('${b.id}')"
       tabindex="0"
       role="button"
       aria-expanded="${isExpanded ? 'true' : 'false'}">
@@ -228,7 +228,7 @@ function gtRenderTimeline(container, dayBlocks) {
         <span class="gt-card-location">${locationName}</span>
       </div>
       <div class="gt-card-title">${title}</div>
-      <div class="gt-card-signup">${signupText}</div>
+      <div class="gt-card-signup">${signupLabel}</div>
     </div>`;
     }).join('');
     container.innerHTML = html `<div class="gt-timeline">${raw(cards)}</div>
@@ -303,8 +303,8 @@ function gtRenderBlockDetail() {
     var adminHtml = '';
     if (S.isAdmin) {
         adminHtml = html `<div class="gt-detail-admin">
-      <button class="btn btn-small" onclick="gtShowBlockForm('${b.id}')">Edit</button>
-      <button class="btn btn-small btn-danger" onclick="gtDeleteBlock('${b.id}')">Delete</button>
+      <button class="btn btn-small" data-action="gtEditBlock" data-block-id="${b.id}">Edit</button>
+      <button class="btn btn-small btn-danger" data-action="gtDeleteBlock" data-block-id="${b.id}">Delete</button>
     </div>`;
     }
     container.innerHTML = html `<div class="gt-detail" data-block-id="${b.id}">
@@ -341,13 +341,13 @@ function gtRenderSignupSection(block) {
         buttonHtml = html `<p class="gt-signup-prompt">Enter your name above to sign up for activities.</p>`;
     }
     else if (isSigned) {
-        buttonHtml = html `<button class="btn btn-small gt-signup-leave" onclick="event.stopPropagation(); gtLeaveBlock('${block.id}')">Leave</button>`;
+        buttonHtml = html `<button class="btn btn-small gt-signup-leave" data-action="gtLeaveBlock" data-block-id="${block.id}" data-stop>Leave</button>`;
     }
     else if (isFull) {
         buttonHtml = html `<button class="btn btn-small" disabled>Full</button>`;
     }
     else {
-        buttonHtml = html `<button class="btn btn-primary btn-small" onclick="event.stopPropagation(); gtSignupBlock('${block.id}')">Sign up</button>`;
+        buttonHtml = html `<button class="btn btn-primary btn-small" data-action="gtSignupBlock" data-block-id="${block.id}" data-stop>Sign up</button>`;
     }
     var countText = cap ? `${count}/${cap}` : `${count} signed up`;
     return html `<div class="gt-signup-section">
@@ -392,7 +392,7 @@ function gtRenderPrep() {
     var hasDay1 = day1 && (day1.tasks.length || day1.shoppingItems.length || day1.toolItems.length);
     var hasDay2 = day2 && (day2.tasks.length || day2.shoppingItems.length || day2.toolItems.length);
     if (!hasDay1 && !hasDay2) {
-        container.innerHTML = html `<div class="gt-prep-section"><h2>What still needs to happen</h2><p class="gt-prep-done">Everything is ready! 🎉</p></div>`;
+        container.innerHTML = html `<div class="gt-prep-section"><h2>What still needs to happen</h2><p class="gt-prep-done">Everything is ready!</p></div>`;
         return;
     }
     var sections = '';
@@ -425,8 +425,8 @@ function gtRenderPrepDay(label, data) {
     </li>`;
     }).join('');
     var toolsHtml = (data.toolItems || []).map((item) => html `<li class="gt-prep-item gt-tool-item" data-tool-id="${item.id}">
-      <label class="gt-tool-check" onclick="event.stopPropagation()">
-        <input type="checkbox" ${item.available ? 'checked' : ''} onchange="gtToggleTool('${item.id}', this.checked)">
+      <label class="gt-tool-check">
+        <input type="checkbox" ${item.available ? 'checked' : ''} data-on-change="gtToggleToolChange" data-tool-id="${item.id}">
       </label>
       <a href="#project/${item.projectId}" class="gt-prep-link">${item.name}</a>
       <span class="gt-prep-project">${item.projectName}</span>
@@ -499,7 +499,7 @@ async function gtShowBlockForm(editBlockId) {
     backdrop.className = 'modal-backdrop';
     backdrop.innerHTML = html `<div class="modal gt-block-modal">
     <h3>${editing ? 'Edit Block' : 'Add Block'}</h3>
-    <form id="gt-block-form" onsubmit="return false">
+    <form id="gt-block-form">
       <label>Day
         <select name="day">
           <option value="day1" ${!block || block.day === 'day1' ? 'selected' : ''}>Saturday April 11</option>
@@ -518,7 +518,7 @@ async function gtShowBlockForm(editBlockId) {
         </label>
       </div>
       <label class="gt-form-toggle">
-        <input type="checkbox" id="gt-link-toggle" ${isLinked ? 'checked' : ''} onchange="gtToggleLinkMode(this.checked)">
+        <input type="checkbox" id="gt-link-toggle" ${isLinked ? 'checked' : ''}>
         Link to project
       </label>
       <div id="gt-project-field" style="${isLinked ? '' : 'display:none'}">
@@ -538,13 +538,13 @@ async function gtShowBlockForm(editBlockId) {
         <input type="number" name="signupCap" min="1" value="${block?.signupCap || ''}">
       </label>
       <div class="modal-actions">
-        <button type="button" class="btn" onclick="closeModal(this.closest('.modal-backdrop'))">Cancel</button>
+        <button type="button" class="btn" data-action="closeModal">Cancel</button>
         <button type="submit" class="btn btn-primary">${editing ? 'Save' : 'Create'}</button>
       </div>
     </form>
   </div>`;
     openModal(backdrop, editing ? 'Edit Block' : 'Add Block');
-    // Set time values after DOM is ready
+    // Set time values + attach listeners after DOM is ready
     var form = document.getElementById('gt-block-form');
     if (block) {
         form.querySelector('[name="startTime"]').value = block.startTime;
@@ -554,7 +554,15 @@ async function gtShowBlockForm(editBlockId) {
         form.querySelector('[name="startTime"]').value = '10:00';
         form.querySelector('[name="endTime"]').value = '11:00';
     }
-    form.onsubmit = async (e) => {
+    // Link toggle
+    var linkToggle = document.getElementById('gt-link-toggle');
+    linkToggle.addEventListener('change', () => {
+        var projectField = document.getElementById('gt-project-field');
+        var customFields = document.getElementById('gt-custom-fields');
+        projectField.style.display = linkToggle.checked ? '' : 'none';
+        customFields.style.display = linkToggle.checked ? 'none' : '';
+    });
+    form.addEventListener('submit', async (e) => {
         e.preventDefault();
         var fd = new FormData(form);
         var data = {
@@ -563,7 +571,6 @@ async function gtShowBlockForm(editBlockId) {
             startTime: fd.get('startTime'),
             endTime: fd.get('endTime'),
         };
-        var linkToggle = document.getElementById('gt-link-toggle');
         if (linkToggle.checked) {
             data.projectId = fd.get('projectId') || null;
             data.title = null;
@@ -590,13 +597,7 @@ async function gtShowBlockForm(editBlockId) {
         catch (err) {
             toast(err.message || 'Failed to save block', 'error');
         }
-    };
-}
-function gtToggleLinkMode(linked) {
-    var projectField = document.getElementById('gt-project-field');
-    var customFields = document.getElementById('gt-custom-fields');
-    projectField.style.display = linked ? '' : 'none';
-    customFields.style.display = linked ? 'none' : '';
+    });
 }
 async function gtDeleteBlock(blockId) {
     if (!confirm('Delete this block? This will also remove all sign-ups.'))
@@ -620,20 +621,20 @@ function gtShowLocationManager() {
 function gtRenderLocationModal(backdrop) {
     var listHtml = _gtLocations.map((loc, i) => html `<div class="gt-loc-row" data-loc-id="${loc.id}">
       <input type="text" value="${loc.name}" class="gt-loc-name" data-loc-id="${loc.id}">
-      <button class="btn btn-small" onclick="gtMoveLocation('${loc.id}', -1)" ${i === 0 ? 'disabled' : ''}>↑</button>
-      <button class="btn btn-small" onclick="gtMoveLocation('${loc.id}', 1)" ${i === _gtLocations.length - 1 ? 'disabled' : ''}>↓</button>
-      <button class="btn btn-small" onclick="gtRenameLocation('${loc.id}')">Save</button>
-      <button class="btn btn-small btn-danger" onclick="gtDeleteLocation('${loc.id}')">Delete</button>
+      <button class="btn btn-small" data-action="gtMoveLocation" data-loc-id="${loc.id}" data-dir="-1" ${i === 0 ? 'disabled' : ''}>&#x2191;</button>
+      <button class="btn btn-small" data-action="gtMoveLocation" data-loc-id="${loc.id}" data-dir="1" ${i === _gtLocations.length - 1 ? 'disabled' : ''}>&#x2193;</button>
+      <button class="btn btn-small" data-action="gtRenameLocation" data-loc-id="${loc.id}">Save</button>
+      <button class="btn btn-small btn-danger" data-action="gtDeleteLocation" data-loc-id="${loc.id}">Delete</button>
     </div>`).join('');
     backdrop.innerHTML = html `<div class="modal gt-loc-modal">
     <h3>Manage Locations</h3>
     <div class="gt-loc-list">${raw(listHtml)}</div>
     <div class="gt-loc-add">
       <input type="text" id="gt-new-loc-name" placeholder="New location name" maxlength="200">
-      <button class="btn btn-primary btn-small" onclick="gtAddLocation()">Add</button>
+      <button class="btn btn-primary btn-small" data-action="gtAddLocation">Add</button>
     </div>
     <div class="modal-actions">
-      <button class="btn" onclick="closeModal(this.closest('.modal-backdrop'))">Close</button>
+      <button class="btn" data-action="closeModal">Close</button>
     </div>
   </div>`;
 }
@@ -718,17 +719,17 @@ function gtShowMapUpload() {
     backdrop.className = 'modal-backdrop';
     backdrop.innerHTML = html `<div class="modal">
     <h3>Upload Floor Map</h3>
-    <form id="gt-map-form" onsubmit="return false">
+    <form id="gt-map-form">
       <input type="file" name="file" accept="image/*" required>
       <div class="modal-actions">
-        <button type="button" class="btn" onclick="closeModal(this.closest('.modal-backdrop'))">Cancel</button>
+        <button type="button" class="btn" data-action="closeModal">Cancel</button>
         <button type="submit" class="btn btn-primary">Upload</button>
       </div>
     </form>
   </div>`;
     openModal(backdrop, 'Upload Floor Map');
     var form = document.getElementById('gt-map-form');
-    form.onsubmit = async (e) => {
+    form.addEventListener('submit', async (e) => {
         e.preventDefault();
         var fileInput = form.querySelector('input[type="file"]');
         if (!fileInput.files?.length)
@@ -745,8 +746,24 @@ function gtShowMapUpload() {
         catch (err) {
             toast(err.message || 'Upload failed', 'error');
         }
-    };
+    });
 }
+// ─── Action handlers (event delegation) ─────────────────────────────────────
+onAction('gtSwitchDay', (el) => gtSwitchDay(el.dataset.day));
+onAction('gtToggleBlock', (el) => gtToggleBlock(el.dataset.blockId));
+onAction('gtSignupBlock', (el) => gtSignupBlock(el.dataset.blockId));
+onAction('gtLeaveBlock', (el) => gtLeaveBlock(el.dataset.blockId));
+onAction('gtEditBlock', (el) => gtShowBlockForm(el.dataset.blockId));
+onAction('gtDeleteBlock', (el) => gtDeleteBlock(el.dataset.blockId));
+onAction('gtShowBlockForm', () => gtShowBlockForm());
+onAction('gtShowLocationManager', () => gtShowLocationManager());
+onAction('gtShowMapUpload', () => gtShowMapUpload());
+onAction('gtToggleMapZoom', (el) => gtToggleMapZoom(el));
+onAction('gtAddLocation', () => gtAddLocation());
+onAction('gtRenameLocation', (el) => gtRenameLocation(el.dataset.locId));
+onAction('gtDeleteLocation', (el) => gtDeleteLocation(el.dataset.locId));
+onAction('gtMoveLocation', (el) => gtMoveLocation(el.dataset.locId, parseInt(el.dataset.dir)));
+onAction('gtToggleToolChange', (el) => gtToggleTool(el.dataset.toolId, el.checked));
 // ─── SSE handlers ───────────────────────────────────────────────────────────
 function gtRegisterSSE() {
     // Clean up previous listeners
