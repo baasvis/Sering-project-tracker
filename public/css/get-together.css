@@ -697,6 +697,11 @@
     border-width: 1.5px;
     padding: 3px 8px 5px;
     box-shadow: none;
+    font-size: 0;
+  }
+  #nav-links a[data-screen="get-together"]::after {
+    content: 'Event';
+    font-size: var(--font-size-sm);
   }
 }
 
