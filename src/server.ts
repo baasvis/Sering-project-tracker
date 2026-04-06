@@ -183,10 +183,10 @@ app.use((req: Request, res: Response, next: NextFunction) => {
 
 // Static files
 app.use(express.static(path.join(projectRoot, 'public'), {
-  maxAge: '1h',
+  maxAge: IS_PRODUCTION ? '1h' : 0,
   etag: true,
   setHeaders(res, filePath) {
-    if (filePath.endsWith('.html')) {
+    if (filePath.endsWith('.html') || !IS_PRODUCTION) {
       res.setHeader('Cache-Control', 'no-cache');
     }
   },
