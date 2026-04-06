@@ -6,6 +6,7 @@ var NAV_SCREENS = [
     { id: 'dashboard', label: 'Dashboard', icon: '~' },
     { id: 'projects', label: 'Projects', icon: '#' },
     { id: 'budget', label: 'Budget', icon: '$' },
+    { id: 'get-together', label: 'Get Together', icon: '!' },
     { id: 'admin', label: 'Admin', icon: '*', adminOnly: true }
 ];
 var TASK_STATUSES = {

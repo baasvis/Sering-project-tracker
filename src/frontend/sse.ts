@@ -24,6 +24,12 @@ function _refreshGroups(): void {
 // Silently refresh state for the current screen (on SSE reconnect)
 async function _silentRefresh(): Promise<void> {
   try {
+    if (S.screen === 'get-together') {
+      await gtFetchAll();
+      await gtFetchPrep();
+      gtRenderPage();
+      return;
+    }
     if (S.screen === 'dashboard') {
       var [announcements, groups] = await Promise.all([
         apiGet('/api/announcements'),

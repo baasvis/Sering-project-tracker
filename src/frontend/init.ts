@@ -39,11 +39,13 @@ function buildNav(): void {
 // Render current screen
 function renderCurrentScreen(): void {
   cleanupQuillInstances();
+  gtCleanupSSE();
 
   switch (S.screen) {
     case 'dashboard': return renderDashboard() as any;
     case 'projects': return renderProjects() as any;
     case 'budget': return renderBudget() as any;
+    case 'get-together': return renderGetTogether() as any;
     case 'admin': return renderAdmin() as any;
     default: return renderDashboard() as any;
   }
@@ -60,6 +62,10 @@ function handleRoute(): void {
     S.screen = 'dashboard';
     S.currentAnnouncementId = hash.split('/')[1];
     S.currentProjectId = null;
+  } else if (hash === 'get-together') {
+    S.screen = 'get-together';
+    S.currentProjectId = null;
+    S.currentAnnouncementId = null;
   } else if (hash) {
     S.screen = hash;
     S.currentProjectId = null;
