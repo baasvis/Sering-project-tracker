@@ -138,6 +138,13 @@ export type CommentCreate = z.infer<typeof commentCreate>;
 
 // ─── Shopping Item ──────────────────────────────────────────────────────────
 
+const metadataFields = {
+  notes: z.string().max(500).nullable().optional(),
+  category: z.string().max(100).nullable().optional(),
+  importance: z.string().max(50).nullable().optional(),
+  assignedTo: z.string().max(100).nullable().optional(),
+};
+
 export const shoppingItemCreate = z.object({
   projectId: uuid,
   type: ShoppingItemType,
@@ -147,6 +154,7 @@ export const shoppingItemCreate = z.object({
   quantity: z.number().int().min(1).max(MAX_QUANTITY).optional().default(1),
   amount: z.number().min(0).max(MAX_PRICE).nullable().optional(),
   authorName: strippedString(MAX_AUTHOR_LENGTH).optional(),
+  ...metadataFields,
 });
 
 export const shoppingItemUpdate = z.object({
@@ -157,6 +165,7 @@ export const shoppingItemUpdate = z.object({
   amount: z.number().min(0).max(MAX_PRICE).nullable().optional(),
   purchased: z.boolean().optional(),
   order: z.number().int().min(0).optional(),
+  ...metadataFields,
 }).refine(obj => Object.keys(obj).length > 0, { message: 'At least one field required' });
 
 export type ShoppingItemCreate = z.infer<typeof shoppingItemCreate>;
@@ -168,7 +177,9 @@ export const toolItemCreate = z.object({
   projectId: uuid,
   name: strippedString(MAX_NAME_LENGTH),
   quantity: z.number().int().min(1).max(MAX_QUANTITY).optional().default(1),
+  link: httpUrl.nullable().optional(),
   authorName: strippedString(MAX_AUTHOR_LENGTH).optional(),
+  ...metadataFields,
 });
 
 export const toolItemUpdate = z.object({
@@ -176,6 +187,8 @@ export const toolItemUpdate = z.object({
   quantity: z.number().int().min(1).max(MAX_QUANTITY).optional(),
   available: z.boolean().optional(),
   order: z.number().int().min(0).optional(),
+  link: httpUrl.nullable().optional(),
+  ...metadataFields,
 }).refine(obj => Object.keys(obj).length > 0, { message: 'At least one field required' });
 
 export type ToolItemCreate = z.infer<typeof toolItemCreate>;

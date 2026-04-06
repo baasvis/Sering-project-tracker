@@ -158,6 +158,10 @@ model ShoppingItem {
   suggestedBy  String?
   approved     Boolean  @default(false)
   order        Int      @default(0)
+  notes        String?
+  category     String?
+  importance   String?
+  assignedTo   String?
   createdAt    DateTime @default(now())
   updatedAt    DateTime @updatedAt
 
@@ -174,6 +178,11 @@ model ToolItem {
   suggestedBy String?
   approved    Boolean  @default(false)
   order       Int      @default(0)
+  link        String?
+  notes       String?
+  category    String?
+  importance  String?
+  assignedTo  String?
   createdAt   DateTime @default(now())
   updatedAt   DateTime @updatedAt
 

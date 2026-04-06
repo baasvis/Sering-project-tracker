@@ -82,8 +82,16 @@ function renderShoppingSection(items, projectId, options = {}) {
             var nameHtml = href
                 ? html `<a href="${raw(href)}" target="_blank" rel="noopener noreferrer">${item.name}</a>`
                 : esc(item.name);
+            var meta = [];
+            if (item.importance)
+                meta.push(html `<span class="badge badge-${raw(item.importance === 'Critical' ? 'danger' : item.importance === 'Medium' ? 'warning' : 'muted')}">${item.importance}</span>`);
+            if (item.assignedTo)
+                meta.push(html `<span class="text-muted text-sm">${item.assignedTo}</span>`);
+            if (item.notes)
+                meta.push(html `<span class="text-muted text-sm">${item.notes}</span>`);
+            var metaHtml = meta.length ? html `<div class="item-meta">${raw(meta.join(' '))}</div>` : '';
             out += html `<div class="shopping-row ${item.purchased ? 'purchased' : ''} ${S.isAdmin ? 'has-actions' : ''}">
-        <span class="sh-name">${raw(nameHtml)}</span>
+        <span class="sh-name">${raw(nameHtml)}${raw(metaHtml)}</span>
         <span class="sh-price">${raw(formatEuro(item.pricePerItem))}</span>
         <span class="sh-qty">${item.quantity || 1}</span>
         <span class="sh-total">${raw(formatEuro(itemTotal))}</span>
@@ -207,6 +215,31 @@ function showShoppingItemModal(type, projectId, existing) {
       <label>Amount (\u20AC)</label>
       <input type="number" id="shop-amount" step="0.01" min="0" max="1000000" value="${existing?.amount ?? ''}">
     </div>`)}
+    <div class="form-row">
+      <div class="form-group">
+        <label>Category</label>
+        <input type="text" id="shop-category" maxlength="100" value="${existing?.category || ''}" placeholder="e.g. Materials, Safety gear">
+      </div>
+      <div class="form-group">
+        <label>Importance</label>
+        <select id="shop-importance">
+          <option value=""${raw(!existing?.importance ? ' selected' : '')}>—</option>
+          <option value="Critical"${raw(existing?.importance === 'Critical' ? ' selected' : '')}>Critical</option>
+          <option value="Medium"${raw(existing?.importance === 'Medium' ? ' selected' : '')}>Medium</option>
+          <option value="Low"${raw(existing?.importance === 'Low' ? ' selected' : '')}>Low</option>
+        </select>
+      </div>
+    </div>
+    <div class="form-row">
+      <div class="form-group">
+        <label>Who arranges</label>
+        <input type="text" id="shop-assigned" maxlength="100" value="${existing?.assignedTo || ''}" placeholder="e.g. Noah, Jeroen">
+      </div>
+      <div class="form-group">
+        <label>Notes (optional)</label>
+        <input type="text" id="shop-notes" maxlength="500" value="${existing?.notes || ''}" placeholder="Extra details...">
+      </div>
+    </div>
     <div class="modal-actions">
       <button class="btn btn-secondary" data-action="closeModal">Cancel</button>
       <button class="btn btn-primary" data-action="saveShoppingItem" data-type="${type}" data-project-id="${projectId}" data-id="${isEdit ? existing.id : ''}">${isEdit ? 'Save' : (isAdmin ? 'Add' : 'Suggest')}</button>
@@ -223,7 +256,17 @@ async function saveShoppingItem(type, projectId, id) {
         return toast('Name is required', 'error');
     if (name.length > 200)
         return toast('Name must be under 200 characters', 'error');
-    var data = { projectId, type, name };
+    var category = document.getElementById('shop-category').value.trim();
+    var importance = document.getElementById('shop-importance').value;
+    var assignedTo = document.getElementById('shop-assigned').value.trim();
+    var notes = document.getElementById('shop-notes').value.trim();
+    var data = {
+        projectId, type, name,
+        category: category || null,
+        importance: importance || null,
+        assignedTo: assignedTo || null,
+        notes: notes || null,
+    };
     if (type === 'product') {
         var price = document.getElementById('shop-price').value;
         var qty = document.getElementById('shop-qty').value;

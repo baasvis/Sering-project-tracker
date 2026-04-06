@@ -70,13 +70,22 @@ function renderToolsSection(items: any[], projectId: string): string {
 }
 
 function renderToolRow(item: any, projectId: string): string {
+  var href = item.link ? safeHref(item.link) : '';
+  var nameHtml = href
+    ? html`<a href="${raw(href)}" target="_blank" rel="noopener noreferrer">${item.name}</a>`
+    : esc(item.name);
+  var meta: string[] = [];
+  if (item.importance) meta.push(html`<span class="badge badge-${item.importance === 'Critical' ? 'danger' : item.importance === 'Medium' ? 'warning' : 'muted'}">${item.importance}</span>`);
+  if (item.assignedTo) meta.push(html`<span class="text-muted text-sm">${item.assignedTo}</span>`);
+  if (item.notes) meta.push(html`<span class="text-muted text-sm">${item.notes}</span>`);
+  var metaHtml = meta.length ? html`<div class="item-meta">${raw(meta.join(' '))}</div>` : '';
   return html`<div class="shopping-row ${raw(item.available ? 'purchased' : '')} ${raw(S.isAdmin ? 'has-actions' : '')}">
     <span class="sh-status">
       ${raw(S.isAdmin
         ? html`<button class="shopping-check ${raw(item.available ? 'checked' : '')}" aria-label="${item.available ? 'Mark unavailable' : 'Mark available'}" data-action="toggleToolAvailable" data-stop data-id="${item.id}" data-available="${!item.available}">${raw(item.available ? '&#10003;' : '')}</button>`
         : html`<span class="shopping-check ${raw(item.available ? 'checked' : '')}">${raw(item.available ? '&#10003;' : '')}</span>`)}
     </span>
-    <span class="sh-name">${item.name}</span>
+    <span class="sh-name">${raw(nameHtml)}${raw(metaHtml)}</span>
     <span class="sh-qty">${item.quantity || 1}</span>
     ${raw(S.isAdmin ? html`<span class="sh-actions">
       <button class="btn-icon" aria-label="Edit tool" data-action="editToolItem" data-stop data-id="${item.id}" data-project-id="${projectId}">&#9998;</button>
@@ -110,9 +119,38 @@ function showToolItemModal(projectId: string, existing?: any): void {
       <label>Name</label>
       <input type="text" id="tool-name" maxlength="200" value="${existing?.name || ''}" placeholder="e.g. Sanding machine, Safety goggles">
     </div>
+    <div class="form-row">
+      <div class="form-group">
+        <label>Quantity</label>
+        <input type="number" id="tool-qty" min="1" max="10000" value="${existing?.quantity ?? 1}">
+      </div>
+      <div class="form-group">
+        <label>Category</label>
+        <input type="text" id="tool-category" maxlength="100" value="${existing?.category || ''}" placeholder="e.g. Tools, Safety gear">
+      </div>
+    </div>
     <div class="form-group">
-      <label>Quantity</label>
-      <input type="number" id="tool-qty" min="1" max="10000" value="${existing?.quantity ?? 1}">
+      <label>Link (optional)</label>
+      <input type="url" id="tool-link" value="${existing?.link || ''}" placeholder="https://...">
+    </div>
+    <div class="form-row">
+      <div class="form-group">
+        <label>Importance</label>
+        <select id="tool-importance">
+          <option value=""${raw(!existing?.importance ? ' selected' : '')}>—</option>
+          <option value="Critical"${raw(existing?.importance === 'Critical' ? ' selected' : '')}>Critical</option>
+          <option value="Medium"${raw(existing?.importance === 'Medium' ? ' selected' : '')}>Medium</option>
+          <option value="Low"${raw(existing?.importance === 'Low' ? ' selected' : '')}>Low</option>
+        </select>
+      </div>
+      <div class="form-group">
+        <label>Who arranges</label>
+        <input type="text" id="tool-assigned" maxlength="100" value="${existing?.assignedTo || ''}" placeholder="e.g. Noah, Jeroen">
+      </div>
+    </div>
+    <div class="form-group">
+      <label>Notes (optional)</label>
+      <input type="text" id="tool-notes" maxlength="500" value="${existing?.notes || ''}" placeholder="Extra details...">
     </div>
     <div class="modal-actions">
       <button class="btn btn-secondary" data-action="closeModal">Cancel</button>
@@ -129,7 +167,19 @@ async function saveToolItem(projectId: string, id: string | null): Promise<void>
     if (!name) return toast('Name is required', 'error');
 
     var qty = parseInt((document.getElementById('tool-qty') as HTMLInputElement).value) || 1;
-    var data: any = { name, quantity: qty };
+    var link = (document.getElementById('tool-link') as HTMLInputElement).value.trim();
+    var category = (document.getElementById('tool-category') as HTMLInputElement).value.trim();
+    var importance = (document.getElementById('tool-importance') as HTMLSelectElement).value;
+    var assignedTo = (document.getElementById('tool-assigned') as HTMLInputElement).value.trim();
+    var notes = (document.getElementById('tool-notes') as HTMLInputElement).value.trim();
+    var data: any = {
+      name, quantity: qty,
+      link: link || null,
+      category: category || null,
+      importance: importance || null,
+      assignedTo: assignedTo || null,
+      notes: notes || null,
+    };
 
     if (id) {
       // Update — only send changed fields
