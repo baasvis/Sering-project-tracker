@@ -24,7 +24,7 @@ This codebase is being rewritten phase-by-phase. The API contract and database m
 
 ## Stack
 - **TypeScript** throughout (backend + frontend), compiled with `tsc`
-- Node.js / Express 5 (ESM, `"type": "module"`)
+- Node.js 26.12.1 (pinned in `.node-version`, `.nvmrc` and `engines`; keep the three in step) / Express 5 (ESM, `"type": "module"`)
 - Frontend TypeScript compiled with `module: "None"` — outputs standalone JS files, NO bundler
 - PostgreSQL via Prisma ORM (with generated types)
 - Zod validation with `z.infer<>` type exports
